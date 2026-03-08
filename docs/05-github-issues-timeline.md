@@ -1,9 +1,5 @@
 # GitHub Issues — Task Assignments & Timeline
 
-> Copy these into GitHub Issues for the `MariaDB-Hackathon-MY-2026/securevault` repository.
-> Adjust assignees and dates based on your team's availability.
-> **Each issue maps 1:1 to a single phase in `tasks/`.**
-
 **Timeline:** March 11 – April 9, 2026 (~30 days)
 **Deadline buffer:** Finishing 3 weeks before April 30 hard deadline.
 
