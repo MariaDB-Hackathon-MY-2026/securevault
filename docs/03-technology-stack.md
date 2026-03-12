@@ -1,4 +1,4 @@
-# SecureVault — Technology Stack
+﻿# SecureVault - Technology Stack
 
 ## Core Stack
 
@@ -13,18 +13,19 @@
 
 ## Database & ORM
 
-| Technology      | Purpose                                               | Hosting                      |
-| --------------- | ----------------------------------------------------- | ---------------------------- |
-| **MariaDB**     | Metadata, encryption keys, auth, sharing              | Railway (managed, free tier) |
-| **Drizzle ORM** | Type-safe SQL queries, schema definition, migrations  | —                            |
-| **mysql2**      | MariaDB driver with connection pooling (enforces UTC) | —                            |
+| Technology         | Purpose                                               | Hosting                      |
+| ------------------ | ----------------------------------------------------- | ---------------------------- |
+| **MariaDB**        | Metadata, encryption keys, auth, sharing              | Railway (managed, free tier) |
+| **MariaDB Vectors**| PDF semantic chunk storage + cosine search            | Same MariaDB cluster         |
+| **Drizzle ORM**    | Type-safe SQL queries, schema definition, migrations  | -                            |
+| **mysql2**         | MariaDB driver with connection pooling (enforces UTC) | -                            |
 
 ## Storage
 
 | Technology             | Purpose                             | Hosting                |
 | ---------------------- | ----------------------------------- | ---------------------- |
 | **Cloudflare R2**      | Encrypted file blobs and thumbnails | Cloudflare (10GB free) |
-| **@aws-sdk/client-s3** | S3-compatible SDK for R2 operations | —                      |
+| **@aws-sdk/client-s3** | S3-compatible SDK for R2 operations | -                      |
 
 ## Security
 
@@ -36,12 +37,20 @@
 | **@zxcvbn-ts/core**  | Password strength scoring                                  |
 | **file-type**        | Server-side MIME sniffing (prevents content-type spoofing) |
 
-## AI (Stretch Goal)
+## AI & Semantic Retrieval
 
-| Technology         | Purpose                        |
-| ------------------ | ------------------------------ |
-| **Vercel AI SDK**  | Streaming AI chat interface    |
-| **@ai-sdk/openai** | OpenAI GPT-4o-mini integration |
+| Technology         | Purpose                                              |
+| ------------------ | ---------------------------------------------------- |
+| **Vercel AI SDK**  | Streaming AI chat interface and embedding primitives |
+| **@ai-sdk/openai** | Stretch chat model integration                       |
+| **@ai-sdk/google** | Gemini embeddings and vision-based OCR fallback      |
+
+## Document Processing
+
+| Technology     | Purpose                                         |
+| -------------- | ----------------------------------------------- |
+| **pdfjs-dist** | Native text extraction from decrypted PDFs      |
+| **OCR adapter layer** | Pluggable vision-model or generic OCR providers |
 
 ## Email
 
@@ -90,6 +99,8 @@ drizzle-orm mysql2
 nanoid argon2 sharp
 @zxcvbn-ts/core
 file-type
+ai @ai-sdk/google
+pdfjs-dist
 ```
 
 ### Development
