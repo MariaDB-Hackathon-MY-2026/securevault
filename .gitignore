@@ -5,6 +5,7 @@ secure-vault/.env.local
 
 # dependencies
 /node_modules
+secure-vault/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -18,7 +19,9 @@ secure-vault/.env.local
 
 # next.js
 /.next/
+secure-vault/.next/
 /out/
+secure-vault/out/
 
 # production
 /build
@@ -38,7 +41,12 @@ yarn-error.log*
 
 # vercel
 .vercel
+secure-vault/.vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+# app env template
+secure-vault/.env.example
