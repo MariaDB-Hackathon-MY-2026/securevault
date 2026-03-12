@@ -48,5 +48,3 @@ secure-vault/.vercel
 next-env.d.ts
 
 
-# app env template
-secure-vault/.env.example
