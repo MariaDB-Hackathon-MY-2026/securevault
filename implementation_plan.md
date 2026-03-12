@@ -1,4 +1,4 @@
-# SecureVault — Architecture Blueprint
+# SecureVault - Architecture Blueprint
 
 > Encrypted file storage web app with secure link sharing, AI-powered file management, and fine-grained access control.
 
@@ -42,7 +42,7 @@ graph TB
 | **Backend**      | Next.js Server Actions + Route Handlers                      | Business logic, encryption       |
 | **Database**     | MariaDB + Drizzle ORM                                        | Metadata, keys, auth, sharing    |
 | **File Storage** | Cloudflare R2                                                | Encrypted file blobs             |
-| **AI**           | Vercel AI SDK                                                | File search, summarization agent |
+| **AI**           | Vercel AI SDK + @ai-sdk/google                              | File search, summarization agent, PDF embeddings |
 | **Auth**         | Custom session-based                                         | Multi-device, refresh tokens     |
 | **Crypto**       | Node.js `crypto` (AES-256-GCM)                               | File and key encryption          |
 
@@ -54,10 +54,9 @@ graph TB
 
 ```mermaid
 graph TD
-    MK["🔑 Master Key - MK<br/>Environment variable<br/>AES-256 key"]
-    --> UEK["🔑 User Encryption Key - UEK<br/>Random per user<br/>Encrypted with MK"]
-    --> FEK["🔑 File Encryption Key - FEK<br/>Random per file<br/>Encrypted with UEK"]
-    --> FILE["📄 File Data<br/>Encrypted with FEK<br/>AES-256-GCM"]
+    MK["Master Key - MK<br/>Environment variable<br/>AES-256 key"] --> UEK["User Encryption Key - UEK<br/>Random per user<br/>Encrypted with MK"]
+    UEK --> FEK["File Encryption Key - FEK<br/>Random per file<br/>Encrypted with UEK"]
+    FEK --> FILE["File Data<br/>Encrypted with FEK<br/>AES-256-GCM"]
 ```
 
 | Key                           | Generation                          | Storage                                            | Rotation                             |
@@ -68,10 +67,10 @@ graph TD
 
 ### Why This Design?
 
-- **MK protects UEKs at rest** — if DB is leaked, UEKs are useless without the MK
-- **UEK protects FEKs** — each user has isolated encryption; compromising one user doesn't affect others
-- **FEK per file** — deleting a file's FEK makes its data irrecoverable, even if the blob remains in R2
-- **No password derivation** — simpler UX, no re-encryption on password change
+- **MK protects UEKs at rest** - if DB is leaked, UEKs are useless without the MK
+- **UEK protects FEKs** - each user has isolated encryption; compromising one user does not affect others
+- **FEK per file** - deleting a file's FEK makes its data irrecoverable, even if the blob remains in R2
+- **No password derivation** - simpler UX, no re-encryption on password change
 
 ### Encryption Flow (AES-256-GCM)
 
@@ -94,7 +93,7 @@ const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
 ## 3. File Upload Flow (Chunked + Streamed)
 
 > [!IMPORTANT]
-> Vercel has a **4.5MB body limit** on serverless functions. Files are split into 5MB chunks on the client and uploaded individually through a Route Handler. **Each chunk is streamed through the server** — never fully buffered in memory.
+> Vercel has a **4.5MB body limit** on serverless functions. Files are split into 5MB chunks on the client and uploaded individually through a Route Handler. **Each chunk is streamed through the server** - never fully buffered in memory.
 
 ```mermaid
 sequenceDiagram
@@ -124,20 +123,85 @@ sequenceDiagram
     RH-->>Client: fileId, status ready
 ```
 
+### Post-Upload PDF Semantic Indexing (Additive)
+
+> [!NOTE]
+> Semantic indexing is **not** part of the upload critical path. `/api/upload/complete` must still mark the file ready first. The browser then triggers a separate indexing request for eligible PDFs.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Client as Browser
+    participant IDX as PDF Indexer
+    participant DB as MariaDB
+    participant R2 as Cloudflare R2
+
+    Client->>IDX: POST /api/embeddings/pdf
+    IDX->>DB: Validate owner, ready PDF, <= 10MB
+    alt PDF > 10MB or wrong mime
+        IDX->>DB: Mark job as skipped with reason
+        IDX-->>Client: skipped
+    else Eligible PDF
+        IDX->>R2: Fetch encrypted chunks
+        IDX->>IDX: Decrypt PDF with FEK
+        IDX->>IDX: Native text extraction first
+        alt Low-text or scanned PDF
+            IDX->>IDX: OCR provider fallback
+        end
+        IDX->>IDX: Chunk extracted text
+        IDX->>IDX: embedMany() with Gemini Embedding 2
+        IDX->>DB: Store encrypted text + VECTOR(1536)
+        IDX-->>Client: queued or ready
+    end
+```
+
+#### Semantic Indexing Rules
+
+- **Eligible files only**: Trigger only when `mime_type = application/pdf` and `size <= 10MB`.
+- **Failure isolation**: OCR or embedding failures never roll back upload readiness, download, preview, or sharing.
+- **Idempotent trigger**: `POST /api/embeddings/pdf` returns the existing job when one is already queued, processing, or ready.
+- **Status endpoint**: `GET /api/embeddings/pdf/{fileId}` reports `queued`, `processing`, `ready`, `skipped`, or `failed`.
+- **No replacement behavior**: Filename/full-text search stays intact; semantic search is an additive retrieval mode.
+
+#### Extraction Contracts
+
+```typescript
+interface PdfTextExtractor {
+  extract(pdfBytes: Buffer): Promise<Array<{
+    pageNumber: number;
+    text: string;
+  }>>;
+}
+
+interface PdfOcrProvider {
+  id: string;
+  mode: "vision" | "generic";
+  extract(input: { pdfBytes: Buffer }): Promise<Array<{
+    pageNumber: number;
+    text: string;
+    confidence?: number;
+  }>>;
+}
+```
+
+- **Default pipeline**: Native text extraction via `PdfTextExtractor` first, then `GeminiVisionOcrProvider` only when text coverage is insufficient.
+- **Pluggable fallback**: `GenericOcrProvider` remains a documented adapter contract for non-vision OCR backends.
+- **Embedding defaults**: Use `google.embedding("gemini-embedding-2-preview")`, `outputDimensionality: 1536`, `RETRIEVAL_DOCUMENT` for stored chunks, and `RETRIEVAL_QUERY` for search input.
+
 ### Key Design Decisions
 
 - **Why 5MB chunks?** Fits within Vercel's body limit with headroom. Large enough to minimize round trips.
-- **Streaming through the server** — the request body is piped through a `crypto.createCipheriv` Transform stream directly to R2's `PutObjectCommand`. The server never holds the full chunk in memory (~64KB stream buffer vs ~10MB buffered). This is critical for handling concurrent uploads without memory pressure on Vercel serverless functions.
-- **Each chunk encrypted independently** with its own IV — enables parallel decryption and random-access streaming.
-- **Auth tag stored in DB** — AES-256-GCM's auth tag is only available after `cipher.final()`, so it's stored in `file_chunks` alongside the IV, separate from the R2 blob.
-- **R2 folder structure** — per-user organization:
+- **Streaming through the server** - the request body is piped through a `crypto.createCipheriv` Transform stream directly to R2's `PutObjectCommand`. The server never holds the full chunk in memory (~64KB stream buffer vs ~10MB buffered). This is critical for handling concurrent uploads without memory pressure on Vercel serverless functions.
+- **Each chunk encrypted independently** with its own IV - enables parallel decryption and random-access streaming.
+- **Auth tag stored in DB** - AES-256-GCM's auth tag is only available after `cipher.final()`, so it's stored in `file_chunks` alongside the IV, separate from the R2 blob.
+- **R2 folder structure** - per-user organization:
   ```
   /{userId}/files/{fileId}/chunk_0
   /{userId}/files/{fileId}/chunk_1
   /{userId}/thumbnails/{fileId}.webp
   ```
-- **Upload resumability** — if upload fails mid-way, client can retry from the last successful chunk.
-- **Quota check** — server checks `user.storage_used + file.size <= 1GB` before accepting upload.
+- **Upload resumability** - if upload fails mid-way, client can retry from the last successful chunk.
+- **Quota check** - server checks `user.storage_used + file.size <= 1GB` before accepting upload.
 - **Max file size**: 100MB per file.
 - **Dynamic chunk concurrency**: Client uses a **global chunk queue** (e.g., `p-queue` with `concurrency: 3`) to limit active network requests across _all_ files. Whether uploading 1 large file or 50 small files, only 3 chunk uploads run simultaneously. This maximizes upload speed for single files while preventing self-DDoS from multi-file drops.
 - **Body parser disabled**: Route Handlers for chunk upload must disable Next.js body parsing to enable raw streaming: `export const runtime = 'nodejs';` and access `req.body` as a `ReadableStream` directly.
@@ -163,7 +227,7 @@ export async function POST(req: Request) {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", fek, iv);
 
-  // 4. Stream: Request Body → Cipher Transform → R2 PUT
+  // 4. Stream: Request Body -> Cipher Transform -> R2 PUT
   //    Only ~64KB buffered at any time (vs ~10MB if fully buffered)
   const encryptedStream = new ReadableStream({
     async start(controller) {
@@ -254,9 +318,9 @@ graph LR
     end
 
     subgraph Sessions["Multi-Device Sessions"]
-        Session --> S1["📱 Device 1"]
-        Session --> S2["💻 Device 2"]
-        Session --> S3["🖥️ Device 3"]
+        Session --> S1["Device 1"]
+        Session --> S2["Device 2"]
+        Session --> S3["Device 3"]
     end
 ```
 
@@ -284,11 +348,11 @@ cookies().set("__Secure-session", token, {
 
 ### Auth Flow
 
-1. **Signup**: Hash password with Argon2id → generate UEK → encrypt UEK with MK → store
-2. **Login**: Verify Argon2id hash → create session + refresh token pair → set cookies → record device info
-3. **Request**: Middleware checks session cookie → if expired, auto-refresh using refresh token
-4. **Logout**: Delete session from DB → clear cookies (only that device)
-5. **Revoke device**: Delete specific refresh token → that device is logged out
+1. **Signup**: Hash password with Argon2id -> generate UEK -> encrypt UEK with MK -> store
+2. **Login**: Verify Argon2id hash -> create session + refresh token pair -> set cookies -> record device info
+3. **Request**: Middleware checks session cookie -> if expired, auto-refresh using refresh token
+4. **Logout**: Delete session from DB -> clear cookies (only that device)
+5. **Revoke device**: Delete specific refresh token -> that device is logged out
 
 ---
 
@@ -298,7 +362,7 @@ cookies().set("__Secure-session", token, {
 
 ```
 https://securevault.app/s/{linkToken}
-linkToken: nanoid(32) — cryptographically random, URL-safe
+linkToken: nanoid(32) - cryptographically random, URL-safe
 ```
 
 ### Access Flow
@@ -327,7 +391,7 @@ flowchart TD
 | **Expiry**           | `expires_at` timestamp in DB, checked on each access         |
 | **Email allowlist**  | `share_link_emails` junction table                           |
 | **OTP verification** | 6-digit code, stored hashed in DB, 5 min TTL, max 3 attempts |
-| **Revocation**       | Owner sets `revoked_at` timestamp → instant invalidation     |
+| **Revocation**       | Owner sets `revoked_at` timestamp -> instant invalidation     |
 | **Download limit**   | Optional `max_downloads` counter                             |
 | **Access log**       | Record each access with IP, timestamp, email (if verified)   |
 
@@ -337,18 +401,19 @@ For the hackathon, use **Resend** (free tier: 100 emails/day) or **nodemailer** 
 
 ---
 
-## 7. AI Agent (Vercel AI SDK) — ⏳ OPTIONAL STRETCH GOAL
+## 7. AI Agent (Vercel AI SDK) - OPTIONAL STRETCH GOAL
 
 > [!NOTE]
 > **Not in MVP scope.** Implement only after core file storage, sharing, and auth are stable. This section is kept as a reference for post-MVP enhancement.
 
 ### Capabilities
 
-| Feature                | How It Works                                                                                       |
-| ---------------------- | -------------------------------------------------------------------------------------------------- |
-| **File search**        | User asks "find my tax documents" → agent queries MariaDB full-text search on filenames + metadata |
-| **File summarization** | Agent fetches file content (text/PDF), sends to LLM for summary                                    |
-| **Smart sharing**      | "Share the Q1 report with the marketing team" → agent identifies file + creates share link         |
+| Feature                    | How It Works                                                                                             |
+| -------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **File search**            | User asks "find my tax documents" -> agent queries MariaDB full-text search on filenames + metadata     |
+| **Semantic PDF retrieval** | Agent reuses `pdf_embedding_chunks` vector retrieval for natural-language PDF lookups                    |
+| **File summarization**     | Agent fetches file content (text/PDF), sends to LLM for summary                                          |
+| **Smart sharing**          | "Share the Q1 report with the marketing team" -> agent identifies file + creates share link             |
 
 ### Architecture
 
@@ -362,12 +427,15 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: openai("gpt-4o-mini"),
-    system: `You are SecureVault's file assistant. You help users find, 
+    system: `You are SecureVault's file assistant. You help users find,
              organize, and share their files. Use the provided tools.`,
     messages,
     tools: {
       searchFiles: {
-        /* query MariaDB */
+        /* query MariaDB by filename */
+      },
+      semanticSearchPdf: {
+        /* reuse pdf_embedding_chunks vector retrieval */
       },
       getFileInfo: {
         /* file metadata */
@@ -385,6 +453,12 @@ export async function POST(req: Request) {
 }
 ```
 
+### Semantic Retrieval Reuse
+
+- The future AI assistant must reuse the same semantic retrieval service that powers the storage UI's `Semantic PDF` mode.
+- Chat should never trigger its own PDF indexing path or bypass the existing auth-scoped search service layer.
+- The semantic chunk store is shared infrastructure, not a chat-only data flow.
+
 ---
 
 ## 8. Database Schema (MariaDB + Drizzle)
@@ -400,6 +474,8 @@ erDiagram
     share_links ||--o{ share_link_otps : verifies
     folders ||--o{ files : contains
     files ||--o{ file_chunks : has
+    files ||--o| pdf_embedding_jobs : indexed_by
+    pdf_embedding_jobs ||--o{ pdf_embedding_chunks : has
 
     users {
         varchar id PK
@@ -454,6 +530,38 @@ erDiagram
         varchar r2_key
         blob iv
         blob auth_tag
+    }
+
+    pdf_embedding_jobs {
+        varchar id PK
+        varchar file_id FK
+        enum status
+        varchar mime_type
+        bigint file_size
+        varchar embedding_model
+        int embedding_dimensions
+        varchar ocr_provider
+        varchar error_code
+        text error_message
+        varchar triggered_by FK
+        timestamp started_at
+        timestamp completed_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    pdf_embedding_chunks {
+        varchar id PK
+        varchar job_id FK
+        varchar file_id FK
+        int chunk_index
+        int page_from
+        int page_to
+        int char_count
+        blob encrypted_text
+        blob text_iv
+        blob text_auth_tag
+        vector embedding
     }
 
     share_links {
@@ -512,37 +620,93 @@ erDiagram
     }
 ```
 
+### PDF Semantic Search Tables
+
+```sql
+CREATE TABLE pdf_embedding_jobs (
+  id VARCHAR(32) PRIMARY KEY,
+  file_id VARCHAR(32) NOT NULL,
+  status ENUM('queued', 'processing', 'ready', 'skipped', 'failed') NOT NULL,
+  mime_type VARCHAR(255) NOT NULL,
+  file_size BIGINT NOT NULL,
+  embedding_model VARCHAR(255) NOT NULL,
+  embedding_dimensions INT NOT NULL DEFAULT 1536,
+  ocr_provider VARCHAR(100),
+  error_code VARCHAR(100),
+  error_message TEXT,
+  triggered_by VARCHAR(32) NOT NULL,
+  started_at TIMESTAMP NULL,
+  completed_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE pdf_embedding_chunks (
+  id VARCHAR(32) PRIMARY KEY,
+  job_id VARCHAR(32) NOT NULL,
+  file_id VARCHAR(32) NOT NULL,
+  chunk_index INT NOT NULL,
+  page_from INT NOT NULL,
+  page_to INT NOT NULL,
+  char_count INT NOT NULL,
+  encrypted_text BLOB NOT NULL,
+  text_iv BLOB NOT NULL,
+  text_auth_tag BLOB NOT NULL,
+  embedding VECTOR(1536) NOT NULL
+);
+
+CREATE VECTOR INDEX idx_pdf_embedding_chunks_embedding
+ON pdf_embedding_chunks (embedding)
+M=8 DISTANCE=cosine;
+```
+
+- Extracted text stays encrypted at rest and is only decrypted for authorized result snippets.
+- Embeddings stay plaintext numeric vectors because MariaDB vector search needs searchable values.
+- Add standard relational indexes on `file_id` and `job_id` in addition to the vector index.
+
 ---
 
 ## 9. Project Structure
 
-```
+```text
 securevault/
-├── src/
-│   ├── app/
-│   │   ├── (auth)/login, signup
-│   │   ├── (dashboard)/files, shared, settings, chat
-│   │   ├── s/[token]/page.tsx         — public share link viewer
-│   │   └── api/upload, files, share, chat
-│   ├── lib/
-│   │   ├── crypto/                    — AES-256-GCM, key mgmt, OTP
-│   │   ├── auth/                      — sessions, middleware, Argon2id
-│   │   ├── storage/                   — R2 client, chunked upload
-│   │   ├── db/                        — Drizzle schema, migrations
-│   │   ├── ai/                        — tools, prompts
-│   │   └── email/                     — OTP sender
-│   ├── components/
-│   │   ├── ui/                        — shadcn components
-│   │   ├── file-explorer/             — file grid/list view
-│   │   ├── upload/                    — upload dialog + progress
-│   │   ├── share/                     — share link management
-│   │   └── chat/                      — AI chat interface
-│   ├── hooks/                         — use-upload, use-files
-│   └── middleware.ts                  — auth guard
-├── drizzle.config.ts
-├── next.config.ts
-└── .env.local
+|-- src/
+|   |-- app/
+|   |   |-- (auth)/login, signup
+|   |   |-- (dashboard)/files, shared, settings, chat
+|   |   |-- s/[token]/page.tsx         - public share link viewer
+|   |   `-- api/upload, files, share, chat
+|   |-- lib/
+|   |   |-- crypto/                    - AES-256-GCM, key mgmt, OTP
+|   |   |-- auth/                      - sessions, middleware, Argon2id
+|   |   |-- storage/                   - R2 client, chunked upload
+|   |   |-- db/                        - Drizzle schema, migrations
+|   |   |-- ai/                        - tools, prompts, embeddings
+|   |   |-- ai/ocr/                    - pluggable OCR providers
+|   |   |-- search/                    - filename and semantic retrieval
+|   |   `-- email/                     - OTP sender
+|   |-- components/
+|   |   |-- ui/                        - shadcn components
+|   |   |-- file-explorer/             - file grid/list view
+|   |   |-- upload/                    - upload dialog + progress
+|   |   |-- share/                     - share link management
+|   |   `-- chat/                      - AI chat interface
+|   |-- hooks/                         - use-upload, use-files
+|   `-- middleware.ts                  - auth guard
+|-- drizzle.config.ts
+|-- next.config.ts
+`-- .env.local
 ```
+
+### Phase 19 Additions
+
+Add the following directories when the PDF semantic indexing phase begins:
+
+- `src/app/api/embeddings/` - start and status route handlers for PDF indexing
+- `src/app/api/search/` - semantic search endpoint or route handlers
+- `src/lib/ai/embeddings/` - chunking, embedding, and PDF extraction helpers
+- `src/lib/ai/ocr/` - `GeminiVisionOcrProvider` and `GenericOcrProvider`
+- `src/lib/search/` - shared filename and semantic retrieval services
 
 ---
 
@@ -558,11 +722,27 @@ R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
 R2_BUCKET_NAME=securevault-files
 OPENAI_API_KEY=...
+GOOGLE_GENERATIVE_AI_API_KEY=...
+PDF_EMBEDDING_MAX_BYTES=10485760
+PDF_EMBEDDING_MODEL=gemini-embedding-2-preview
+PDF_EMBEDDING_DIMENSIONS=1536
+PDF_OCR_PROVIDER=gemini-vision
 RESEND_API_KEY=...
 NEXT_PUBLIC_APP_URL=https://securevault.app
 UPSTASH_REDIS_REST_URL=...
 UPSTASH_REDIS_REST_TOKEN=...
 ```
+
+### PDF Semantic Indexing Defaults
+
+- `application/pdf` only
+- Separate indexing cap: **10MB** (upload cap remains 100MB)
+- Embedding model: `google.embedding("gemini-embedding-2-preview")`
+- Dimensions: `1536`
+- Stored chunk task type: `RETRIEVAL_DOCUMENT`
+- Query task type: `RETRIEVAL_QUERY`
+- Distance metric: cosine
+- UI mode: `Filename` remains default; `Semantic PDF` is opt-in
 
 ### R2 Bucket Lockdown
 
@@ -589,7 +769,7 @@ The share link viewer page (`/s/[token]`) serves content from the same origin, s
 | --------------------------------- | --------------------------------------------------------------------------- |
 | **R2 bucket leak**                | Files encrypted at rest with per-file FEKs                                  |
 | **DB leak**                       | UEKs encrypted with MK (env var), FEKs encrypted with UEKs                  |
-| **MK compromise**                 | Rotate MK → re-encrypt all UEKs (batch job)                                 |
+| **MK compromise**                 | Rotate MK -> re-encrypt all UEKs (batch job)                                 |
 | **Session hijacking**             | httpOnly + Secure + SameSite=Strict cookies (`__Secure-` prefixed)          |
 | **Brute-force login**             | Rate limiting + Argon2id cost                                               |
 | **OTP brute-force**               | Max 3 attempts, 5 min expiry, hashed storage                                |
@@ -608,10 +788,17 @@ The share link viewer page (`/s/[token]`) serves content from the same origin, s
 | **Account enumeration (login)**   | Same error "Invalid email or password" for both missing email and wrong pw  |
 | **Account enumeration (reset)**   | Always say "If an account exists, we sent a reset link" regardless          |
 
+### PDF Semantic Indexing Security Notes
+
+- Extracted chunk text is encrypted at rest with a key derived from the file FEK.
+- Embeddings remain plaintext vectors in MariaDB because vector indexing requires searchable numeric values.
+- All semantic search routes must stay fully user-scoped through the same service layer used elsewhere in the app.
+- OCR and embedding providers receive only the decrypted PDF content required for indexing; they never receive MK, UEK, or FEK material.
+
 ### Additional Security Hardening
 
 ```typescript
-// 1. Constant-time comparison — MUST USE for all security comparisons
+// 1. Constant-time comparison - MUST USE for all security comparisons
 import { timingSafeEqual } from "crypto";
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -677,12 +864,17 @@ CREATE INDEX idx_share_links_token ON share_links(token);
 CREATE INDEX idx_share_links_file_id ON share_links(file_id);
 CREATE INDEX idx_file_chunks_file_id ON file_chunks(file_id, chunk_index);
 CREATE INDEX idx_access_logs_link_id ON share_link_access_logs(share_link_id);
+CREATE INDEX idx_pdf_embedding_jobs_file_id ON pdf_embedding_jobs(file_id, status);
+CREATE INDEX idx_pdf_embedding_chunks_job_id ON pdf_embedding_chunks(job_id, chunk_index);
+CREATE INDEX idx_pdf_embedding_chunks_file_id ON pdf_embedding_chunks(file_id, chunk_index);
+CREATE VECTOR INDEX idx_pdf_embedding_chunks_embedding ON pdf_embedding_chunks(embedding)
+M=8 DISTANCE=cosine;
 ```
 
 ### RCE Protection Checklist
 
 ```typescript
-// 1. Filename sanitization — applied on every upload
+// 1. Filename sanitization - applied on every upload
 function sanitizeFilename(name: string): string {
   return name
     .replace(/[/\\:*?"<>|]/g, "_") // Strip dangerous chars
@@ -691,12 +883,12 @@ function sanitizeFilename(name: string): string {
     .slice(0, 255); // Length limit
 }
 
-// 2. MIME type validation — never trust the client
+// 2. MIME type validation - never trust the client
 import { fileTypeFromBuffer } from "file-type";
 const detected = await fileTypeFromBuffer(chunk);
 const safeMime = detected?.mime ?? "application/octet-stream";
 
-// 3. Security headers — in next.config.ts
+// 3. Security headers - in next.config.ts
 headers: [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
@@ -708,7 +900,7 @@ headers: [
   },
 ];
 
-// 4. Preview sandboxing — serve user files from Route Handler only
+// 4. Preview sandboxing - serve user files from Route Handler only
 // Never serve via static file serving. Always through decryption pipeline.
 // Use iframe with sandbox attribute for in-browser preview:
 // <iframe sandbox="allow-same-origin" src="/api/files/{id}/preview" />
@@ -748,7 +940,7 @@ sequenceDiagram
 ```
 
 > [!NOTE]
-> UEK does NOT need re-encryption on password change — it's encrypted with MK, not derived from password.
+> UEK does NOT need re-encryption on password change - it's encrypted with MK, not derived from password.
 
 ### Email Verification Flow
 
@@ -776,7 +968,7 @@ sequenceDiagram
 
 ## 13. Rate Limiting
 
-Using `@upstash/ratelimit` with **Upstash Redis** (free tier: 10k requests/day). In-memory rate limiting does **not work on Vercel** because each serverless invocation may be a new instance — the in-memory Map resets between invocations.
+Using `@upstash/ratelimit` with **Upstash Redis** (free tier: 10k requests/day). In-memory rate limiting does **not work on Vercel** because each serverless invocation may be a new instance - the in-memory Map resets between invocations.
 
 | Endpoint                         | Limit        | Window | Key             |
 | -------------------------------- | ------------ | ------ | --------------- |
@@ -788,7 +980,7 @@ Using `@upstash/ratelimit` with **Upstash Redis** (free tier: 10k requests/day).
 | `GET /api/files/*/download`      | 30 requests  | 1 min  | user ID or IP   |
 
 ```typescript
-// lib/rate-limit.ts (Upstash Redis — works on Vercel serverless)
+// lib/rate-limit.ts (Upstash Redis - works on Vercel serverless)
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
@@ -814,7 +1006,7 @@ export const uploadLimiter = new Ratelimit({
 
 ---
 
-## 14. Two-Factor Authentication (2FA / TOTP) — ⏳ OPTIONAL STRETCH GOAL
+## 14. Two-Factor Authentication (2FA / TOTP) - OPTIONAL STRETCH GOAL
 
 > [!NOTE]
 > **Not in MVP scope.** Implement only if time permits after core features are stable. This section is kept as a reference for post-MVP enhancement.
@@ -868,12 +1060,12 @@ Extends the existing share link system to support folders.
 | Share a folder              | Create share link with `folder_id` instead of `file_id`         |
 | Access shared folder        | Viewer sees folder contents, can browse subfolders              |
 | Download from shared folder | Individual file downloads only (no bulk ZIP for MVP)            |
-| Permissions                 | Same as file sharing — expiry, email allowlist, OTP, revocation |
+| Permissions                 | Same as file sharing - expiry, email allowlist, OTP, revocation |
 
 ### Schema Change
 
 ```typescript
-// share_links table — make file_id nullable, add folder_id
+// share_links table - make file_id nullable, add folder_id
 file_id: varchar('file_id', { length: 21 }),      // nullable
 folder_id: varchar('folder_id', { length: 21 }),   // nullable
 // Constraint: exactly one of file_id or folder_id must be set
@@ -887,7 +1079,7 @@ The `/s/[token]` page must handle folder shares differently from file shares:
 - **Subfolder navigation**: clicking a subfolder loads its contents (same share token, subfolder path in query param)
 - **Individual file download**: each file has a download button
 - **No bulk ZIP for MVP**: download one file at a time
-- **Breadcrumb**: show folder → subfolder path within the shared context
+- **Breadcrumb**: show folder -> subfolder path within the shared context
 
 ---
 
@@ -925,11 +1117,11 @@ sequenceDiagram
     Client->>RH: POST /api/upload/complete
     RH->>RH: Detect mime type
     alt Image (jpg, png, webp, gif)
-        RH->>RH: sharp → resize to 256x256 thumbnail
+        RH->>RH: sharp -> resize to 256x256 thumbnail
     else PDF
-        RH->>RH: pdf-image (first page) → thumbnail
+        RH->>RH: pdf-image (first page) -> thumbnail
     else Video (mp4, webm)
-        RH->>RH: ffmpeg frame extract → thumbnail
+        RH->>RH: ffmpeg frame extract -> thumbnail
     else Other
         RH->>RH: Use generic icon based on mime type
     end
@@ -948,13 +1140,13 @@ sequenceDiagram
 | **Documents** | Generic file-type icon (no generation)   | Static SVG icons                  |
 | **Audio**     | Generic audio icon with waveform color   | Static SVG                        |
 
-- Thumbnails encrypted with the **same FEK** as the file — one key to rule them all
+- Thumbnails encrypted with the **same FEK** as the file - one key to rule them all
 - Stored at `/{userId}/thumbnails/{fileId}.webp` in R2 (per-user folder)
 - Served via `GET /api/files/{id}/thumbnail` with same auth + decryption flow
 - **Size cap**: Thumbnails max 50KB after compression (WebP format)
 
 > [!TIP]
-> For the hackathon, start with **images only** (sharp). Add PDF/video thumbnail support as stretch goals — they require heavier dependencies.
+> For the hackathon, start with **images only** (sharp). Add PDF/video thumbnail support as stretch goals - they require heavier dependencies.
 
 ### Schema Addition
 
@@ -1049,7 +1241,7 @@ CREATE TABLE upload_sessions (
 
 ### Cleanup Job
 
-- **Stale uploads** (status = `initialized` or `uploading` for > 24h) → mark as `expired`, delete R2 chunks, reclaim quota
+- **Stale uploads** (status = `initialized` or `uploading` for > 24h) -> mark as `expired`, delete R2 chunks, reclaim quota
 - Run via **Vercel Cron** (`vercel.json` cron) or a scheduled server action
 
 ---
@@ -1073,9 +1265,9 @@ flowchart LR
 
 | Approach             | Pros                     | Cons                               | Recommendation     |
 | -------------------- | ------------------------ | ---------------------------------- | ------------------ |
-| **Replace in-place** | Simple, no version bloat | Destructive, no undo               | ❌ Not recommended |
-| **Version history**  | Undo, audit trail, diff  | Storage cost (counts toward quota) | ✅ **Use this**    |
-| **Copy-on-write**    | Non-destructive          | Confusing UX (two files?)          | ❌                 |
+| **Replace in-place** | Simple, no version bloat | Destructive, no undo               | [No] Not recommended |
+| **Version history**  | Undo, audit trail, diff  | Storage cost (counts toward quota) | [Use this]           |
+| **Copy-on-write**    | Non-destructive          | Confusing UX (two files?)          | [No]                 |
 
 ### Version History Design (Non-MVP Stretch Goal)
 
@@ -1093,7 +1285,7 @@ CREATE TABLE file_versions (
 );
 ```
 
-- **Re-upload flow**: "Upload new version" button → creates new `file_version` + new chunks in R2
+- **Re-upload flow**: "Upload new version" button -> creates new `file_version` + new chunks in R2
 - **Latest version** is always served by default
 - **Restore old version**: Promotes an old version to latest
 - **Version limit**: Keep last 5 versions per file (configurable). Older versions auto-deleted.
@@ -1122,7 +1314,7 @@ deleted_at: timestamp('deleted_at'),
 
 - Use `react-dropzone` for drag-and-drop file selection
 - Visual drop zone with upload progress overlay
-- Support multi-file drop → queued chunked uploads
+- Support multi-file drop -> queued chunked uploads
 
 #### Bulk Operations
 
@@ -1130,7 +1322,7 @@ deleted_at: timestamp('deleted_at'),
 | ------------------- | ---------------------------------------------------------------- |
 | **Select multiple** | Checkbox selection in file explorer                              |
 | **Bulk delete**     | Move all selected to trash                                       |
-| **Bulk download**   | _(Not in MVP)_ — Stream as ZIP (server-side zip with `archiver`) |
+| **Bulk download**   | _(Not in MVP)_ - Stream as ZIP (server-side zip with `archiver`) |
 | **Bulk move**       | Update `folder_id` for all selected                              |
 | **Bulk share**      | Create one share link for multiple files (via folder or batch)   |
 
@@ -1142,11 +1334,26 @@ deleted_at: timestamp('deleted_at'),
 
 #### Search & Filter
 
-| Method           | Use Case                                           |
-| ---------------- | -------------------------------------------------- |
-| **Quick filter** | Client-side filter by name/type on current folder  |
-| **Full search**  | MariaDB `LIKE` or `FULLTEXT` index on `files.name` |
-| **AI search**    | Natural language via the AI agent (Section 7)      |
+| Method                | Use Case                                               |
+| --------------------- | ------------------------------------------------------ |
+| **Quick filter**      | Client-side filter by name/type on current folder      |
+| **Full search**       | MariaDB `LIKE` or `FULLTEXT` index on `files.name`     |
+| **Semantic PDF**      | MariaDB cosine vector search on `pdf_embedding_chunks` |
+| **AI search**         | Natural language via the AI agent (Section 7)          |
+
+#### Semantic PDF Search Interfaces
+
+| Endpoint                         | Purpose                                                      |
+| -------------------------------- | ------------------------------------------------------------ |
+| `POST /api/embeddings/pdf`       | Start or resume the additive PDF indexing job                |
+| `GET /api/embeddings/pdf/{id}`   | Read indexing eligibility, status, and progress              |
+| `POST /api/search/semantic`      | Run query embedding + cosine search for authorized PDFs      |
+
+Search defaults:
+
+- `Filename` is the default tab in the storage UI.
+- `Semantic PDF` is a second, opt-in mode.
+- Results return `fileId`, `name`, `score`, `snippet`, `pageFrom`, and `pageTo`.
 
 #### Storage Usage Dashboard
 
@@ -1168,10 +1375,10 @@ Custom error pages for a polished UX:
 
 All UI components must be responsive for mobile/tablet:
 
-- File explorer grid → single column on mobile, 2-col on tablet
-- Sidebar → collapsible hamburger menu on mobile
-- Upload dialog → full-screen modal on mobile
-- Share link viewer → mobile-optimized layout
+- File explorer grid -> single column on mobile, 2-col on tablet
+- Sidebar -> collapsible hamburger menu on mobile
+- Upload dialog -> full-screen modal on mobile
+- Share link viewer -> mobile-optimized layout
 - Touch-friendly: adequate tap targets (min 44px), swipe gestures for actions
 
 #### UX Feedback Patterns
@@ -1184,7 +1391,7 @@ Application-wide UX patterns that must be integrated everywhere:
 | **Loading skeletons**    | shadcn `skeleton` component         | File grid while loading, settings page, activity log     |
 | **Confirmation dialogs** | shadcn `alert-dialog`               | Delete file, empty trash, revoke link, permanent delete  |
 | **Error boundaries**     | Next.js `error.tsx` per route group | Graceful error recovery with "try again"                 |
-| **Suspense boundaries**  | React `<Suspense>` + `loading.tsx`  | Every page that fetches data — prevents blank-page flash |
+| **Suspense boundaries**  | React `<Suspense>` + `loading.tsx`  | Every page that fetches data - prevents blank-page flash |
 
 ```typescript
 // Example: src/app/(dashboard)/files/loading.tsx
@@ -1198,12 +1405,12 @@ export default function Loading() {
 
 #### Settings Page
 
-Route: `/dashboard/settings` — user account management:
+Route: `/dashboard/settings` - user account management:
 
 | Section      | Features                                                                                                              |
 | ------------ | --------------------------------------------------------------------------------------------------------------------- |
 | **Profile**  | Change display name, view email                                                                                       |
-| **Security** | Change password (verify current → set new), enable/disable 2FA (stretch)                                              |
+| **Security** | Change password (verify current -> set new), enable/disable 2FA (stretch)                                              |
 | **Devices**  | List active sessions with device name, IP, last active. "Revoke" button per device, "Revoke all other devices" button |
 | **Storage**  | Usage bar, breakdown by type, largest files (from Phase 14)                                                           |
 | **Logout**   | Logout button (current device) at bottom                                                                              |
@@ -1217,7 +1424,7 @@ All transactional emails (OTP, password reset, email verification) should use a 
 - Clear call-to-action button (verify link, reset link)
 - OTP displayed prominently with monospace font
 - Footer with "If you didn't request this, ignore this email"
-- Template file: `src/lib/email/templates.ts` — functions that return HTML strings
+- Template file: `src/lib/email/templates.ts` - functions that return HTML strings
 
 ---
 
@@ -1262,11 +1469,11 @@ export function createFileService(userId: string) {
 ### Request Flow
 
 ```
-Request → Middleware (validate __Secure-session cookie)
-       → Server Action / Route Handler
-       → getCurrentUser(cookies)            ← extract userId from __Secure-session
-       → createFileService(userId)          ← scope ALL queries to this user
-       → db.query (WHERE user_id = ?)       ← enforced at every query
+Request -> Middleware (validate __Secure-session cookie)
+       -> Server Action / Route Handler
+       -> getCurrentUser(cookies)            <- extract userId from __Secure-session
+       -> createFileService(userId)          <- scope ALL queries to this user
+       -> db.query (WHERE user_id = ?)       <- enforced at every query
 ```
 
 ### IDOR Protection
@@ -1289,16 +1496,16 @@ Request → Middleware (validate __Secure-session cookie)
 | -------------------- | ------------ | --------------------------------------------------------- |
 | **MariaDB**          | UTC always   | `TIMESTAMP` columns store UTC. Set `time_zone = '+00:00'` |
 | **Server (Vercel)**  | UTC always   | All expiry checks compare UTC vs UTC                      |
-| **Client (browser)** | User's local | `Intl.DateTimeFormat` auto-converts UTC → local           |
+| **Client (browser)** | User's local | `Intl.DateTimeFormat` auto-converts UTC -> local           |
 
 ```typescript
-// SERVER — expiry checks (UTC vs UTC, no ambiguity)
-const isExpired = shareLink.expiresAt < new Date(); // Both UTC ✅
+// SERVER - expiry checks (UTC vs UTC, no ambiguity)
+const isExpired = shareLink.expiresAt < new Date(); // Both UTC [OK]
 
-// SERVER — creating expiry
-const expiresAt = new Date(Date.now() + durationMs); // UTC ✅
+// SERVER - creating expiry
+const expiresAt = new Date(Date.now() + durationMs); // UTC [OK]
 
-// CLIENT — display in user's local timezone
+// CLIENT - display in user's local timezone
 function formatDate(utcDate: string) {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
@@ -1344,14 +1551,17 @@ We will use **Vitest** for unit/integration testing (faster than Jest, native ES
 
 ### 1. Automated Security Tests (Vitest)
 
-| Test Suite                | What It Catches                                                                    |
-| ------------------------- | ---------------------------------------------------------------------------------- |
-| **Encryption round-trip** | Encrypt `→` decrypt returns exact original bytes.                                  |
-| **Key isolation**         | User A's FEK throws error when trying to decrypt User B's file.                    |
-| **Auth middleware**       | Unauthenticated requests to protected routes return `401 Unauthorized`.            |
-| **IDOR protection**       | Requesting `fileId` belonging to User A returns `404` when User B calls `getById`. |
-| **Rate limit**            | 6th login attempt within 15min returns `429 Too Many Requests`.                    |
-| **OTP expiry**            | Expired OTP returns `401 Unauthorized`.                                            |
+| Test Suite                     | What It Catches                                                                    |
+| ------------------------------ | ---------------------------------------------------------------------------------- |
+| **Encryption round-trip**      | Encrypt `->` decrypt returns exact original bytes.                                  |
+| **Key isolation**              | User A's FEK throws error when trying to decrypt User B''s file.                  |
+| **Auth middleware**            | Unauthenticated requests to protected routes return `401 Unauthorized`.            |
+| **IDOR protection**            | Requesting `fileId` belonging to User A returns `404` when User B calls `getById`. |
+| **Rate limit**                 | 6th login attempt within 15min returns `429 Too Many Requests`.                    |
+| **OTP expiry**                 | Expired OTP returns `401 Unauthorized`.                                            |
+| **Indexing idempotency**       | Re-triggering the same ready PDF does not duplicate semantic chunk rows.           |
+| **Indexing skip rules**        | Non-PDF and >10MB PDFs are skipped without affecting upload success.               |
+| **Semantic search auth scope** | Vector retrieval never returns another user's PDF chunks.                          |
 
 ```typescript
 // Example: tests/security/encryption.test.ts (Vitest)
@@ -1375,28 +1585,35 @@ describe("Encryption Layer Security", () => {
 
 | Scenario              | Validation                                                           |
 | --------------------- | -------------------------------------------------------------------- |
-| **Link Revocation**   | Create link `→` hit URL (success) `→` revoke link `→` hit URL (404). |
-| **OTP Brute Force**   | Share with OTP `→` enter wrong OTP 3 times `→` verify lockout.       |
-| **Reset Token Reuse** | Request password reset `→` use link `→` use link again (fails).      |
+| **Link Revocation**   | Create link `->` hit URL (success) `->` revoke link `->` hit URL (404). |
+| **OTP Brute Force**   | Share with OTP `->` enter wrong OTP 3 times `->` verify lockout.       |
+| **Reset Token Reuse** | Request password reset `->` use link `->` use link again (fails).      |
 
 ### 3. Manual Pre-Deployment Checklist
 
 Before deploying to Vercel production:
 
-- [ ] **Cookie Flags:** Check DevTools → Application → Cookies to verify `HttpOnly`, `Secure` (production), `SameSite=Strict`.
+- [ ] **Cookie Flags:** Check DevTools -> Application -> Cookies to verify `HttpOnly`, `Secure` (production), `SameSite=Strict`.
 - [ ] **Security Headers:** Scan the deployed URL with `securityheaders.com` (expect A rating).
 - [ ] **Quota Enforcement:** Attempt to upload a file that pushes usage > 1GB, verify the server rejects it before starting the chunk upload.
-- [ ] **Token Enumeration:** Try hitting `/s/[random-string]` and verify a generic 404 page is shown with no info leakage.
+- [ ] **Token Enumeration:** Try hitting /s/[random-string] and verify a generic 404 page is shown with no info leakage.
+- [ ] **PDF Indexing Isolation:** Upload a PDF under 10MB and verify the file is usable before semantic indexing finishes.
+- [ ] **PDF Skip Behavior:** Upload a PDF over 10MB and verify upload succeeds while indexing is marked as skipped.
 
 ---
 
 ## Confirmed Decisions
 
-| Decision            | Choice                                   |
-| ------------------- | ---------------------------------------- |
-| **MariaDB hosting** | Railway (managed, free tier)             |
-| **Email provider**  | Resend (100 free emails/day)             |
-| **File size cap**   | 100MB per file                           |
-| **Storage quota**   | 1GB per user                             |
-| **Backend**         | Next.js only (no Express)                |
-| **Deployment**      | Vercel (Pro recommended for 60s timeout) |
+| Decision                 | Choice                                   |
+| ------------------------ | ---------------------------------------- |
+| **MariaDB hosting**      | Railway (managed, free tier)             |
+| **Email provider**       | Resend (100 free emails/day)             |
+| **File size cap**        | 100MB per file                           |
+| **PDF indexing cap**     | 10MB per PDF                             |
+| **Storage quota**        | 1GB per user                             |
+| **Embedding model**      | `gemini-embedding-2-preview`             |
+| **Embedding dimensions** | 1536                                     |
+| **Default OCR fallback** | `GeminiVisionOcrProvider`                |
+| **Vector distance**      | Cosine                                   |
+| **Backend**              | Next.js only (no Express)                |
+| **Deployment**           | Vercel (Pro recommended for 60s timeout) |

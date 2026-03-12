@@ -1,4 +1,4 @@
-# SecureVault — Architecture
+# SecureVault - Architecture
 
 ## System Diagram
 
@@ -8,6 +8,7 @@ graph TB
         UI["Next.js App (shadcn UI)"]
         TQ["TanStack Query"]
         Chunker["File Chunker (5MB chunks)"]
+        Trigger["Post-Upload PDF Index Trigger"]
     end
 
     subgraph Vercel["Vercel (Next.js App Router)"]
@@ -15,18 +16,22 @@ graph TB
         RH["Route Handlers"]
         MW["Middleware (Auth)"]
         AI["AI Agent (Vercel AI SDK)"]
+        IDX["PDF Semantic Indexing Pipeline"]
     end
 
     subgraph Storage["Storage Layer"]
-        MDB["MariaDB (Metadata, Keys, Auth)"]
+        MDB["MariaDB (Metadata, Keys, Auth, Vectors)"]
         R2["Cloudflare R2 (Encrypted Files)"]
     end
 
     UI --> TQ --> SA
     UI --> Chunker --> RH
+    UI --> Trigger --> IDX
     SA --> MDB
     RH --> R2
     AI --> MDB
+    IDX --> MDB
+    IDX --> R2
     MW --> MDB
 ```
 
@@ -35,7 +40,7 @@ graph TB
 ### Why Server-Side Encryption (Not Client-Side)?
 
 - **Simplicity**: No WebCrypto API complexity; no key management in the browser
-- **Key hierarchy**: Master Key → User Encryption Key → File Encryption Key managed on server
+- **Key hierarchy**: Master Key -> User Encryption Key -> File Encryption Key managed on server
 - **Control**: Server can enforce policies (quota, rate limits) before accepting data
 
 ### Why Chunked Upload?
@@ -44,26 +49,33 @@ graph TB
 - **Resumability**: Failed uploads resume from last successful chunk
 - **Memory**: Chunks processed one at a time; no full-file buffering
 
+### Why a Separate PDF Indexing Pipeline?
+
+- **No regression risk**: Upload completion still marks the file ready before indexing begins
+- **Client-triggered**: The browser starts indexing only after the encrypted upload succeeds
+- **Failure isolation**: OCR or embedding failures never roll back upload, download, or preview behavior
+- **Eligibility gate**: Only PDFs up to 10MB enter the semantic indexing flow
+
 ### Why MariaDB (Not PostgreSQL)?
 
 - Hackathon requirement (MariaDB Hackathon MY 2026)
 - Railway provides managed MariaDB with free tier
 - Application-level RLS compensates for lack of native row-level security
+- MariaDB vector support keeps metadata and semantic chunks in the same scoped datastore
 
 ### Why Cloudflare R2 (Not S3)?
 
-- **Zero egress fees** — file downloads don't incur costs
-- S3-compatible API — same `@aws-sdk/client-s3` SDK
+- **Zero egress fees** - file downloads do not incur costs
+- S3-compatible API - same `@aws-sdk/client-s3` SDK
 - Generous free tier (10GB storage, 10M reads/month)
 
 ## Encryption Key Hierarchy (3-Tier)
 
 ```mermaid
 graph TD
-    MK["🔑 Master Key - MK<br/>Environment variable<br/>AES-256 key"]
-    --> UEK["🔑 User Encryption Key - UEK<br/>Random per user<br/>Encrypted with MK"]
-    --> FEK["🔑 File Encryption Key - FEK<br/>Random per file<br/>Encrypted with UEK"]
-    --> FILE["📄 File Data<br/>Encrypted with FEK<br/>AES-256-GCM"]
+    MK["Master Key - MK<br/>Environment variable<br/>AES-256 key"] --> UEK["User Encryption Key - UEK<br/>Random per user<br/>Encrypted with MK"]
+    UEK --> FEK["File Encryption Key - FEK<br/>Random per file<br/>Encrypted with UEK"]
+    FEK --> FILE["File Data<br/>Encrypted with FEK<br/>AES-256-GCM"]
 ```
 
 ## Data Flow
@@ -97,6 +109,41 @@ sequenceDiagram
     RH->>DB: Update file status to ready
     RH-->>Client: fileId, status ready
 ```
+
+### PDF Semantic Indexing (Additive)
+
+This sequence is intentionally separate from upload completion so the original encrypted upload flow stays unchanged.
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Indexer
+    participant MariaDB
+    participant R2
+
+    Browser->>Indexer: Start PDF indexing
+    Indexer->>MariaDB: Validate ready PDF and 10 MB limit
+    alt Not eligible
+        Indexer->>MariaDB: Save skipped status
+        Indexer-->>Browser: skipped
+    else Eligible
+        Indexer->>R2: Read encrypted PDF
+        Indexer->>Indexer: Decrypt and extract text
+        alt OCR needed
+            Indexer->>Indexer: Run OCR provider
+        end
+        Indexer->>Indexer: Chunk content and create embeddings
+        Indexer->>MariaDB: Save vectors and job status
+        Indexer-->>Browser: queued or ready
+    end
+```
+
+Key rules:
+
+- The client trigger runs only after `/api/upload/complete` succeeds.
+- Non-PDF files and PDFs over 10MB upload normally but are skipped by semantic indexing.
+- `POST /api/embeddings/pdf` is idempotent and may return the current job instead of duplicating work.
+- Future AI tools reuse the same semantic chunk store rather than re-indexing PDFs inside chat.
 
 ### Download (Streaming)
 
@@ -148,9 +195,9 @@ graph LR
     end
 
     subgraph Sessions["Multi-Device Sessions"]
-        Session --> S1["📱 Device 1"]
-        Session --> S2["💻 Device 2"]
-        Session --> S3["🖥️ Device 3"]
+        Session --> S1["Device 1"]
+        Session --> S2["Device 2"]
+        Session --> S3["Device 3"]
     end
 ```
 
@@ -200,35 +247,37 @@ sequenceDiagram
 
 ## Folder Structure
 
-```
+```text
 securevault/
-├── src/
-│   ├── app/
-│   │   ├── (auth)/login, signup
-│   │   ├── (dashboard)/files, shared, settings, chat, activity, trash
-│   │   ├── s/[token]/page.tsx         — public share link viewer
-│   │   └── api/upload, files, share, chat, auth, cron
-│   ├── lib/
-│   │   ├── crypto/                    — AES-256-GCM, key mgmt
-│   │   ├── auth/                      — sessions, middleware, Argon2id
-│   │   ├── storage/                   — R2 client, chunked upload
-│   │   ├── db/                        — Drizzle schema, migrations
-│   │   ├── services/                  — scoped file/folder/share services
-│   │   ├── ai/                        — tools, prompts (stretch)
-│   │   └── email/                     — OTP & verification sender
-│   ├── components/
-│   │   ├── ui/                        — shadcn components
-│   │   ├── file-explorer/             — grid/list view, toolbar
-│   │   ├── upload/                    — upload dialog + progress
-│   │   ├── share/                     — share link management
-│   │   └── chat/                      — AI chat (stretch)
-│   ├── hooks/                         — useUpload, useFiles
-│   └── middleware.ts                  — auth guard
-├── docs/                              — project documentation
-├── resources/                         — security standards & references
-├── tasks/                             — phase-based task breakdown
-├── drizzle.config.ts
-└── next.config.ts
+|-- src/
+|   |-- app/
+|   |   |-- (auth)/login, signup
+|   |   |-- (dashboard)/files, shared, settings, chat, activity, trash
+|   |   |-- s/[token]/page.tsx         - public share link viewer
+|   |   `-- api/upload, files, share, chat, embeddings, search, auth, cron
+|   |-- lib/
+|   |   |-- crypto/                    - AES-256-GCM, key mgmt
+|   |   |-- auth/                      - sessions, middleware, Argon2id
+|   |   |-- storage/                   - R2 client, chunked upload
+|   |   |-- db/                        - Drizzle schema, migrations
+|   |   |-- services/                  - scoped file/folder/share services
+|   |   |-- ai/                        - tools, prompts, embeddings
+|   |   |-- ai/ocr/                    - pluggable OCR providers
+|   |   |-- search/                    - filename + semantic retrieval
+|   |   `-- email/                     - OTP & verification sender
+|   |-- components/
+|   |   |-- ui/                        - shadcn components
+|   |   |-- file-explorer/             - grid/list view, toolbar
+|   |   |-- upload/                    - upload dialog + progress
+|   |   |-- share/                     - share link management
+|   |   `-- chat/                      - AI chat (stretch)
+|   |-- hooks/                         - useUpload, useFiles
+|   `-- middleware.ts                  - auth guard
+|-- docs/                              - project documentation
+|-- resources/                         - security standards & references
+|-- tasks/                             - phase-based task breakdown
+|-- drizzle.config.ts
+`-- next.config.ts
 ```
 
 ## Database Schema (ER Diagram)
@@ -236,15 +285,15 @@ securevault/
 ```mermaid
 erDiagram
     users ||--o{ sessions : has
-    users ||--o{ files : owns
     users ||--o{ folders : owns
+    users ||--o{ files : owns
+    folders ||--o{ files : contains
+    files ||--o{ file_chunks : has
     files ||--o{ share_links : has
     share_links ||--o{ share_link_emails : allows
     share_links ||--o{ share_link_access_logs : logs
     share_links ||--o{ share_link_otps : verifies
-    folders ||--o{ files : contains
-    files ||--o{ file_chunks : has
     files ||--o{ file_versions : has
+    files ||--o| pdf_embedding_jobs : indexed_by
+    pdf_embedding_jobs ||--o{ pdf_embedding_chunks : has
 ```
-
-See full schema details in the [implementation plan](../tasks/README.md).
