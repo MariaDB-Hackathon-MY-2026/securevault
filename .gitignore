@@ -48,3 +48,6 @@ secure-vault/.vercel
 next-env.d.ts
 
 
+
+# allow env example
+!secure-vault/.env.example
