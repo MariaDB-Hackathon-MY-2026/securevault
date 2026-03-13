@@ -21,15 +21,15 @@ export default function NotFound() {
               <Badge variant="outline">404</Badge>
               <span className="text-xs text-muted-foreground">Not found</span>
             </div>
-            <CardTitle className="text-2xl">We couldn't find that page.</CardTitle>
+            <CardTitle className="text-2xl">We couldn&apos;t find that page.</CardTitle>
             <CardDescription>
-              The link might be outdated or the page was moved. Let's get you
+              The link might be outdated or the page was moved. Let&apos;s get you
               back on track.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-muted-foreground">
-              Try the homepage or use the navigation once you're back in.
+              Try the homepage or use the navigation once you&apos;re back in.
             </div>
             <Button asChild>
               <Link href="/">Go to home</Link>

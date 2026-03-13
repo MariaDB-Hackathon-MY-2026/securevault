@@ -1,0 +1,47 @@
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+
+const ALGORITHM = "aes-256-gcm";
+const IV_LENGTH = 12;
+const AUTH_TAG_LENGTH = 16;
+const KEY_LENGTH = 32;
+
+function assertKeyLength(key: Buffer) {
+  if (key.length !== KEY_LENGTH) {
+    throw new Error(`Invalid key length: expected ${KEY_LENGTH} bytes, got ${key.length}`);
+  }
+}
+
+export function encrypt(data: Buffer, key: Buffer): Buffer {
+  assertKeyLength(key);
+
+  // AES-GCM works best with a fresh 12-byte IV for every encryption operation.
+  const iv = randomBytes(IV_LENGTH);
+  const cipher = createCipheriv(ALGORITHM, key, iv);
+  const ciphertext = Buffer.concat([cipher.update(data), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+
+  // Packed payload format: [12-byte IV][16-byte auth tag][ciphertext].
+  return Buffer.concat([iv, authTag, ciphertext]);
+}
+
+export function decrypt(payload: Buffer, key: Buffer): Buffer {
+  assertKeyLength(key);
+
+  if (payload.length < IV_LENGTH + AUTH_TAG_LENGTH) {
+    throw new Error("Encrypted payload is too short");
+  }
+
+  // Split the packed payload back into its fixed-size metadata and variable ciphertext.
+  const iv = payload.subarray(0, IV_LENGTH);
+  const authTag = payload.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
+  const ciphertext = payload.subarray(IV_LENGTH + AUTH_TAG_LENGTH);
+
+  const decipher = createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+
+  try {
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  } catch {
+    throw new Error("Failed to decrypt payload");
+  }
+}
