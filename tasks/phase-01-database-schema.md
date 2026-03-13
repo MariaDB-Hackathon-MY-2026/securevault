@@ -1,4 +1,4 @@
-﻿# Phase 1 - Database Schema & ORM
+# Phase 1 - Database Schema & ORM
 
 > **Objective:** Define the full MariaDB schema using Drizzle ORM, run migrations, and set up the DB connection singleton.
 
@@ -14,6 +14,9 @@
   - Use `mysql2/promise` pool with `connectionLimit: 10` and `timezone: 'Z'` (enforce UTC)
   - Use `globalThis` caching pattern for dev hot-reload (Section 11)
   - Export `db` instance
+  - Note: current implementation uses an explicit singleton connection wrapper instead of `globalThis` caching
+  - Note: current implementation uses MariadbConnection.getConnection() as the access pattern instead of exporting a top-level db constant
+  - Note: Railway connectivity currently also relies on DATABASE_PORT and SSL in addition to host/user/password/database
 
 - [ ] **1.2 - Define `users` table schema**
   - File: `src/lib/db/schema/users.ts`
@@ -49,6 +52,7 @@
   - Columns per Section 19: `id`, `file_id`, `version_number`, `size`, `total_chunks`, `encrypted_fek`, `created_at`
   - Unique constraint on `(file_id, version_number)`
   - **Skip for MVP** - implement only if Phase 11 (File Versioning) is pursued
+  - Note: current repo already includes `file_versions` in schema and migration output
 
 - [ ] **1.10 - Define `password_reset_tokens` table schema**
   - File: `src/lib/db/schema/auth-tokens.ts`
@@ -123,3 +127,5 @@ npx tsc --noEmit
 4. Run `SHOW INDEX FROM files;` - verify indexes exist
 5. Run `SHOW INDEX FROM pdf_embedding_chunks;` - verify the cosine vector index exists
 6. Insert a test row into `users`, then query it back - verify read/write works
+
+
