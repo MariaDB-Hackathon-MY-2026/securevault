@@ -1,0 +1,67 @@
+import { boolean, index, int, mysqlTable, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { files } from "@/lib/db/schema/files";
+import { folders } from "@/lib/db/schema/folders";
+import { users } from "@/lib/db/schema/users";
+
+export const shareLinks = mysqlTable(
+  "share_links",
+  {
+    id: varchar("id", { length: 21 }).primaryKey().notNull(),
+    file_id: varchar("file_id", { length: 21 }).references(() => files.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    folder_id: varchar("folder_id", { length: 21 }).references(() => folders.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    created_by: varchar("created_by", { length: 21 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    token: varchar("token", { length: 255 }).notNull(),
+    expires_at: timestamp().notNull(),
+    max_downloads: int(),
+    download_count: int().default(0).notNull(),
+    is_public: boolean().default(false).notNull(),
+    revoked_at: timestamp(),
+    created_at: timestamp().defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_share_links_token").on(table.token),
+    index("idx_share_links_file_id").on(table.file_id),
+  ],
+);
+
+export const shareLinkEmails = mysqlTable("share_link_emails", {
+  id: varchar("id", { length: 21 }).primaryKey().notNull(),
+  link_id: varchar("link_id", { length: 21 })
+    .notNull()
+    .references(() => shareLinks.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  email: varchar("email", { length: 255 }).notNull(),
+  created_at: timestamp().defaultNow().notNull(),
+});
+
+export const shareLinkOtps = mysqlTable("share_link_otps", {
+  id: varchar("id", { length: 21 }).primaryKey().notNull(),
+  link_id: varchar("link_id", { length: 21 })
+    .notNull()
+    .references(() => shareLinks.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  otp_hash: varchar("otp_hash", { length: 255 }).notNull(),
+  expires_at: timestamp().notNull(),
+  used_at: timestamp(),
+  created_at: timestamp().defaultNow().notNull(),
+});
+
+export const shareLinkAccessLogs = mysqlTable(
+  "share_link_access_logs",
+  {
+    id: varchar("id", { length: 21 }).primaryKey().notNull(),
+    link_id: varchar("link_id", { length: 21 })
+      .notNull()
+      .references(() => shareLinks.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    ip_address: varchar("ip_address", { length: 50 }).notNull(),
+    user_agent: varchar("user_agent", { length: 255 }),
+    accessed_at: timestamp().defaultNow().notNull(),
+  },
+  (table) => [index("idx_access_logs_link_id").on(table.link_id)],
+);
