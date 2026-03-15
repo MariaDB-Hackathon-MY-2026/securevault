@@ -1,20 +1,27 @@
 {
-  "version": "7",
-  "dialect": "mysql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "5",
-      "when": 1773364380750,
-      "tag": "0000_nifty_pyro",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "5",
-      "when": 1773365425076,
-      "tag": "0001_quick_moondragon",
-      "breakpoints": true
-    }
-  ]
+    "version":  "7",
+    "dialect":  "mysql",
+    "entries":  [
+                    {
+                        "idx":  0,
+                        "version":  "5",
+                        "when":  1773364380750,
+                        "tag":  "0000_nifty_pyro",
+                        "breakpoints":  true
+                    },
+                    {
+                        "idx":  1,
+                        "version":  "5",
+                        "when":  1773365425076,
+                        "tag":  "0001_quick_moondragon",
+                        "breakpoints":  true
+                    },
+                    {
+                        "idx":  2,
+                        "version":  "5",
+                        "when":  1773543617267,
+                        "tag":  "0002_breezy_session_split",
+                        "breakpoints":  true
+                    }
+                ]
 }
