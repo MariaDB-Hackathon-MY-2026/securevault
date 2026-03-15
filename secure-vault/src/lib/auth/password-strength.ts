@@ -1,6 +1,8 @@
+
 import { zxcvbn } from "@zxcvbn-ts/core";
 
 export type PasswordStrengthValidation = {
+  strength: number;
   valid: boolean;
   feedback: string;
 };
@@ -19,6 +21,7 @@ export function validatePasswordStrength(password: string): PasswordStrengthVali
       "Use a longer and more unique password.";
 
     return {
+      strength: validationResult.score,
       valid: false,
       feedback,
     };
@@ -26,6 +29,7 @@ export function validatePasswordStrength(password: string): PasswordStrengthVali
 
   return {
     valid: true,
+    strength: validationResult.score,
     feedback: "",
   };
 }
