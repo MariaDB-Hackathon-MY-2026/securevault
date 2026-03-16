@@ -684,7 +684,7 @@ securevault/
 |   |   `-- api/upload, files, share, chat
 |   |-- lib/
 |   |   |-- crypto/                    - AES-256-GCM, key mgmt, OTP
-|   |   |-- auth/                      - sessions, middleware, Argon2id
+|   |   |-- auth/                      - sessions, proxy auth flow, Argon2id
 |   |   |-- storage/                   - R2 client, chunked upload
 |   |   |-- db/                        - Drizzle schema, migrations
 |   |   |-- ai/                        - tools, prompts, embeddings
@@ -698,11 +698,13 @@ securevault/
 |   |   |-- share/                     - share link management
 |   |   `-- chat/                      - AI chat interface
 |   |-- hooks/                         - use-upload, use-files
-|   `-- middleware.ts                  - auth guard
+|   `-- proxy.ts                       - auth guard
 |-- drizzle.config.ts
 |-- next.config.ts
 `-- .env.local
 ```
+
+> Note: In the latest Next.js version, `middleware.ts` has been renamed to `proxy.ts`. This plan follows the newer `proxy` convention.
 
 ### Phase 19 Additions
 
@@ -1561,7 +1563,7 @@ We will use **Vitest** for unit/integration testing (faster than Jest, native ES
 | ------------------------------ | ---------------------------------------------------------------------------------- |
 | **Encryption round-trip**      | Encrypt `->` decrypt returns exact original bytes.                                  |
 | **Key isolation**              | User A's FEK throws error when trying to decrypt User B''s file.                  |
-| **Auth middleware**            | Unauthenticated requests to protected routes return `401 Unauthorized`.            |
+| **Auth proxy**                 | Unauthenticated requests to protected routes return `401 Unauthorized`.            |
 | **IDOR protection**            | Requesting `fileId` belonging to User A returns `404` when User B calls `getById`. |
 | **Rate limit**                 | 6th login attempt within 15min returns `429 Too Many Requests`.                    |
 | **OTP expiry**                 | Expired OTP returns `401 Unauthorized`.                                            |

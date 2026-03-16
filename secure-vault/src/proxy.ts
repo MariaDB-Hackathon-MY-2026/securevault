@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import {
   REFRESH_TOKEN_MAX_AGE_SECONDS,
   SESSION_TOKEN_MAX_AGE_SECONDS,
+  getAuthCookieOptions,
 } from "@/lib/auth/cookies";
 import { refreshSession, validateSession } from "@/lib/auth/session";
 
@@ -12,21 +13,16 @@ function redirectToLogin(request: NextRequest) {
 }
 
 function setProxyAuthCookies(response: NextResponse, sessionToken: string, refreshToken: string) {
-  response.cookies.set("__Secure-session", sessionToken, {
-    httpOnly: true,
-    sameSite: "strict",
-    secure: true,
-    path: "/",
-    maxAge: SESSION_TOKEN_MAX_AGE_SECONDS,
-  });
-
-  response.cookies.set("__Secure-refresh", refreshToken, {
-    httpOnly: true,
-    sameSite: "strict",
-    secure: true,
-    path: "/",
-    maxAge: REFRESH_TOKEN_MAX_AGE_SECONDS,
-  });
+  response.cookies.set(
+    "__Secure-session",
+    sessionToken,
+    getAuthCookieOptions(SESSION_TOKEN_MAX_AGE_SECONDS),
+  );
+  response.cookies.set(
+    "__Secure-refresh",
+    refreshToken,
+    getAuthCookieOptions(REFRESH_TOKEN_MAX_AGE_SECONDS),
+  );
 }
 
 export async function proxy(request: NextRequest) {
@@ -56,7 +52,12 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/dashboard/:path*",
+    "/activity/:path*",
+    "/files/:path*",
+    "/settings/:path*",
+    "/trash/:path*",
+    "/chat/:path*",
+    "/shared/:path*",
     "/api/upload/:path*",
     "/api/files/:path*",
     "/api/share/:path*",

@@ -26,6 +26,13 @@ vi.mock("@/lib/auth/session", () => ({
 vi.mock("@/lib/auth/cookies", () => ({
   SESSION_TOKEN_MAX_AGE_SECONDS: 15 * 60,
   REFRESH_TOKEN_MAX_AGE_SECONDS: 30 * 24 * 60 * 60,
+  getAuthCookieOptions: (maxAge: number) => ({
+    httpOnly: true,
+    sameSite: "strict",
+    secure: false,
+    path: "/",
+    maxAge,
+  }),
 }));
 
 vi.mock("next/server", () => ({
@@ -40,7 +47,7 @@ import { config, proxy } from "@/proxy";
 function buildRequest({
   sessionToken,
   refreshToken,
-  url = "https://example.com/dashboard/files",
+  url = "https://example.com/files",
 }: {
   sessionToken?: string;
   refreshToken?: string;
@@ -108,14 +115,14 @@ describe("proxy", () => {
     expect(mocks.nextCookieSet).toHaveBeenNthCalledWith(1, "__Secure-session", "new-session-token", {
       httpOnly: true,
       sameSite: "strict",
-      secure: true,
+      secure: false,
       path: "/",
       maxAge: 15 * 60,
     });
     expect(mocks.nextCookieSet).toHaveBeenNthCalledWith(2, "__Secure-refresh", "new-refresh-token", {
       httpOnly: true,
       sameSite: "strict",
-      secure: true,
+      secure: false,
       path: "/",
       maxAge: 30 * 24 * 60 * 60,
     });
@@ -140,7 +147,12 @@ describe("proxy", () => {
 
   it("protects only the intended route groups", () => {
     expect(config.matcher).toEqual([
-      "/dashboard/:path*",
+      "/activity/:path*",
+      "/files/:path*",
+      "/settings/:path*",
+      "/trash/:path*",
+      "/chat/:path*",
+      "/shared/:path*",
       "/api/upload/:path*",
       "/api/files/:path*",
       "/api/share/:path*",

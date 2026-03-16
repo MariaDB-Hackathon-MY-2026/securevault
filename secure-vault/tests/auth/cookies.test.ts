@@ -11,7 +11,7 @@ vi.mock("next/headers", () => ({
   cookies: mocks.cookies,
 }));
 
-import { clearAuthCookies, setAuthCookies } from "@/lib/auth/cookies";
+import { AUTH_COOKIE_SECURE, clearAuthCookies, setAuthCookies } from "@/lib/auth/cookies";
 
 describe("auth cookies", () => {
   beforeEach(() => {
@@ -25,14 +25,14 @@ describe("auth cookies", () => {
     expect(mocks.set).toHaveBeenNthCalledWith(1, "__Secure-session", "session-token", {
       httpOnly: true,
       sameSite: "strict",
-      secure: true,
+      secure: AUTH_COOKIE_SECURE,
       path: "/",
       maxAge: 15 * 60,
     });
     expect(mocks.set).toHaveBeenNthCalledWith(2, "__Secure-refresh", "refresh-token", {
       httpOnly: true,
       sameSite: "strict",
-      secure: true,
+      secure: AUTH_COOKIE_SECURE,
       path: "/",
       maxAge: 30 * 24 * 60 * 60,
     });
@@ -45,14 +45,14 @@ describe("auth cookies", () => {
     expect(mocks.set).toHaveBeenNthCalledWith(1, "__Secure-session", "", {
       httpOnly: true,
       sameSite: "strict",
-      secure: true,
+      secure: AUTH_COOKIE_SECURE,
       path: "/",
       maxAge: 0,
     });
     expect(mocks.set).toHaveBeenNthCalledWith(2, "__Secure-refresh", "", {
       httpOnly: true,
       sameSite: "strict",
-      secure: true,
+      secure: AUTH_COOKIE_SECURE,
       path: "/",
       maxAge: 0,
     });

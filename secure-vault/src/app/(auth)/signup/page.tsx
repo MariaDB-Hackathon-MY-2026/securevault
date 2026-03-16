@@ -62,7 +62,7 @@ export default function SignupPage() {
 
   useActionToast(isPending, state, {
     loadingMessage: "Signing up...",
-    successMessage: "Account created successfully. Redirecting...",
+    successMessage: "Account created successfully.",
     id: "signup-toast",
   });
 
@@ -74,9 +74,10 @@ export default function SignupPage() {
     setPassword(e.target.value);
   };
 
+
   return (
     <div className="flex w-full flex-col items-center justify-center p-4 md:p-8">
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm border-border/70 bg-background/88 shadow-xl shadow-slate-950/5 backdrop-blur">
         <CardHeader>
           <CardTitle className="text-2xl">Sign Up</CardTitle>
           <CardDescription>

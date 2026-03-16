@@ -257,7 +257,7 @@ securevault/
 |   |   `-- api/upload, files, share, chat, embeddings, search, auth, cron
 |   |-- lib/
 |   |   |-- crypto/                    - AES-256-GCM, key mgmt
-|   |   |-- auth/                      - sessions, middleware, Argon2id
+|   |   |-- auth/                      - sessions, proxy auth flow, Argon2id
 |   |   |-- storage/                   - R2 client, chunked upload
 |   |   |-- db/                        - Drizzle schema, migrations
 |   |   |-- services/                  - scoped file/folder/share services
@@ -272,13 +272,15 @@ securevault/
 |   |   |-- share/                     - share link management
 |   |   `-- chat/                      - AI chat (stretch)
 |   |-- hooks/                         - useUpload, useFiles
-|   `-- middleware.ts                  - auth guard
+|   `-- proxy.ts                       - auth guard
 |-- docs/                              - project documentation
 |-- resources/                         - security standards & references
 |-- tasks/                             - phase-based task breakdown
 |-- drizzle.config.ts
 `-- next.config.ts
 ```
+
+> Note: In the latest Next.js version, `middleware.ts` has been renamed to `proxy.ts`. This project follows the newer `proxy` convention.
 
 ## Database Schema (ER Diagram)
 

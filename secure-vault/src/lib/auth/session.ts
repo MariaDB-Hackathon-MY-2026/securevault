@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 
-import { and, eq, gte, InferSelectModel } from "drizzle-orm";
+import { and, desc, eq, gte, InferSelectModel, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { MariadbConnection } from "@/lib/db";
@@ -22,6 +22,10 @@ export type CreateSessionResult = {
   refreshToken: string;
 };
 export type SanitizedUser = Omit<UserRecord, "password_hash" | "encrypted_uek" | "updated_at">;
+export type SessionSummary = Pick<
+  SessionRecord,
+  "id" | "device_name" | "ip_address" | "session_expires_at" | "refresh_expires_at" | "created_at"
+>;
 
 export async function generateSha256Hash(value: string): Promise<string> {
   return createHash("sha256").update(value).digest("hex");
@@ -142,7 +146,58 @@ export async function deleteSession(sessionId: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.id, sessionId));
 }
 
+export async function getSessionByToken(
+  sessionToken: string,
+): Promise<Pick<SessionRecord, "id" | "user_id"> | null> {
+  const db = MariadbConnection.getConnection();
+  const currentDate = new Date();
+  const hashedSessionToken = await generateSha256Hash(sessionToken);
+
+  const sessionResult = await db
+    .select({ id: sessions.id, user_id: sessions.user_id })
+    .from(sessions)
+    .where(
+      and(
+        eq(sessions.session_token_hash, hashedSessionToken),
+        gte(sessions.session_expires_at, currentDate),
+      ),
+    )
+    .limit(1);
+
+  return sessionResult[0] ?? null;
+}
+
+export async function deleteSessionByToken(sessionToken: string): Promise<void> {
+  const db = MariadbConnection.getConnection();
+  const hashedSessionToken = await generateSha256Hash(sessionToken);
+  await db.delete(sessions).where(eq(sessions.session_token_hash, hashedSessionToken));
+}
+
 export async function deleteAllSessions(userId: string): Promise<void> {
   const db = MariadbConnection.getConnection();
   await db.delete(sessions).where(eq(sessions.user_id, userId));
+}
+
+export async function deleteOtherSessions(userId: string, currentSessionId: string): Promise<void> {
+  const db = MariadbConnection.getConnection();
+  await db
+    .delete(sessions)
+    .where(and(eq(sessions.user_id, userId), ne(sessions.id, currentSessionId)));
+}
+
+export async function listUserSessions(userId: string): Promise<SessionSummary[]> {
+  const db = MariadbConnection.getConnection();
+
+  return db
+    .select({
+      id: sessions.id,
+      device_name: sessions.device_name,
+      ip_address: sessions.ip_address,
+      session_expires_at: sessions.session_expires_at,
+      refresh_expires_at: sessions.refresh_expires_at,
+      created_at: sessions.created_at,
+    })
+    .from(sessions)
+    .where(eq(sessions.user_id, userId))
+    .orderBy(desc(sessions.created_at));
 }

@@ -16,9 +16,15 @@ export function useActionToast(
   state: ActionState | undefined,
   options: UseActionToastOptions
 ) {
-  useEffect(() => {
-    const toastId = options.id || "action-toast";
+  const toastId = options.id || "action-toast";
 
+  useEffect(() => {
+    return () => {
+      toast.dismiss(toastId);
+    };
+  }, [toastId]);
+
+  useEffect(() => {
     if (isPending) {
       toast.loading(options.loadingMessage, { id: toastId });
     } else if (state?.error) {
@@ -28,5 +34,5 @@ export function useActionToast(
     } else {
       toast.dismiss(toastId);
     }
-  }, [isPending, state, options.loadingMessage, options.successMessage, options.id]);
+  }, [isPending, state, options.loadingMessage, options.successMessage, toastId]);
 }
