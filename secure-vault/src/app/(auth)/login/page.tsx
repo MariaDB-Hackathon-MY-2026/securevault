@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { loginAction } from "./actions";
+import { useActionToast } from "@/hooks/use-action-toast";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +19,12 @@ import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
   const [state, formAction, isPending] = useActionState(loginAction, undefined);
+
+  useActionToast(isPending, state, {
+    loadingMessage: "Logging in...",
+    successMessage: "Logged in successfully. Redirecting...",
+    id: "login-toast",
+  });
 
   return (
     <div className="flex w-full flex-col items-center justify-center p-4 md:p-8">

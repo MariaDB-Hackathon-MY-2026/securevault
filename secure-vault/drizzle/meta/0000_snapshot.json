@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "6b7cc1bd-0f01-4fd1-95a3-ce1cee1f44f3",
+  "id": "05c2d7d9-6e59-4ccc-b45f-27d80f9cbc56",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "email_verification_tokens": {
@@ -160,6 +160,322 @@
       "compositePrimaryKeys": {
         "password_reset_tokens_id": {
           "name": "password_reset_tokens_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "embedding_chunks": {
+      "name": "embedding_chunks",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(21)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "job_id": {
+          "name": "job_id",
+          "type": "varchar(21)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_id": {
+          "name": "file_id",
+          "type": "varchar(21)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "chunk_index": {
+          "name": "chunk_index",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "modality": {
+          "name": "modality",
+          "type": "enum('pdf','image')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pdf'"
+        },
+        "page_from": {
+          "name": "page_from",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "page_to": {
+          "name": "page_to",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "char_count": {
+          "name": "char_count",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "encrypted_text": {
+          "name": "encrypted_text",
+          "type": "longblob",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "text_iv": {
+          "name": "text_iv",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "text_auth_tag": {
+          "name": "text_auth_tag",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "embedding": {
+          "name": "embedding",
+          "type": "vector(1536)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "uq_embedding_chunks_job_chunk": {
+          "name": "uq_embedding_chunks_job_chunk",
+          "columns": [
+            "job_id",
+            "chunk_index"
+          ],
+          "isUnique": true
+        },
+        "idx_embedding_chunks_file_id": {
+          "name": "idx_embedding_chunks_file_id",
+          "columns": [
+            "file_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "embedding_chunks_job_id_embedding_jobs_id_fk": {
+          "name": "embedding_chunks_job_id_embedding_jobs_id_fk",
+          "tableFrom": "embedding_chunks",
+          "tableTo": "embedding_jobs",
+          "columnsFrom": [
+            "job_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "embedding_chunks_file_id_files_id_fk": {
+          "name": "embedding_chunks_file_id_files_id_fk",
+          "tableFrom": "embedding_chunks",
+          "tableTo": "files",
+          "columnsFrom": [
+            "file_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "embedding_chunks_id": {
+          "name": "embedding_chunks_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "embedding_jobs": {
+      "name": "embedding_jobs",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(21)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_id": {
+          "name": "file_id",
+          "type": "varchar(21)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "enum('queued','processing','ready','skipped','failed')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'queued'"
+        },
+        "modality": {
+          "name": "modality",
+          "type": "enum('pdf','image')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pdf'"
+        },
+        "mime_type": {
+          "name": "mime_type",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_size": {
+          "name": "file_size",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "embedding_model": {
+          "name": "embedding_model",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "embedding_dimensions": {
+          "name": "embedding_dimensions",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1536
+        },
+        "ocr_provider": {
+          "name": "ocr_provider",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "varchar(1024)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "triggered_by": {
+          "name": "triggered_by",
+          "type": "varchar(21)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "uq_embedding_jobs_file_modality": {
+          "name": "uq_embedding_jobs_file_modality",
+          "columns": [
+            "file_id",
+            "modality"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "embedding_jobs_file_id_files_id_fk": {
+          "name": "embedding_jobs_file_id_files_id_fk",
+          "tableFrom": "embedding_jobs",
+          "tableTo": "files",
+          "columnsFrom": [
+            "file_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "embedding_jobs_triggered_by_users_id_fk": {
+          "name": "embedding_jobs_triggered_by_users_id_fk",
+          "tableFrom": "embedding_jobs",
+          "tableTo": "users",
+          "columnsFrom": [
+            "triggered_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "embedding_jobs_id": {
+          "name": "embedding_jobs_id",
           "columns": [
             "id"
           ]
@@ -596,304 +912,6 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "pdf_embedding_chunks": {
-      "name": "pdf_embedding_chunks",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "varchar(21)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "job_id": {
-          "name": "job_id",
-          "type": "varchar(21)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "file_id": {
-          "name": "file_id",
-          "type": "varchar(21)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "chunk_index": {
-          "name": "chunk_index",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "page_from": {
-          "name": "page_from",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "page_to": {
-          "name": "page_to",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "char_count": {
-          "name": "char_count",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "encrypted_text": {
-          "name": "encrypted_text",
-          "type": "longblob",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "text_iv": {
-          "name": "text_iv",
-          "type": "blob",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "text_auth_tag": {
-          "name": "text_auth_tag",
-          "type": "blob",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "embedding": {
-          "name": "embedding",
-          "type": "vector(1536)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "idx_pdf_embedding_chunks_job_id": {
-          "name": "idx_pdf_embedding_chunks_job_id",
-          "columns": [
-            "job_id"
-          ],
-          "isUnique": false
-        },
-        "idx_pdf_embedding_chunks_file_id": {
-          "name": "idx_pdf_embedding_chunks_file_id",
-          "columns": [
-            "file_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "pdf_embedding_chunks_job_id_pdf_embedding_jobs_id_fk": {
-          "name": "pdf_embedding_chunks_job_id_pdf_embedding_jobs_id_fk",
-          "tableFrom": "pdf_embedding_chunks",
-          "tableTo": "pdf_embedding_jobs",
-          "columnsFrom": [
-            "job_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "cascade"
-        },
-        "pdf_embedding_chunks_file_id_files_id_fk": {
-          "name": "pdf_embedding_chunks_file_id_files_id_fk",
-          "tableFrom": "pdf_embedding_chunks",
-          "tableTo": "files",
-          "columnsFrom": [
-            "file_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "cascade"
-        }
-      },
-      "compositePrimaryKeys": {
-        "pdf_embedding_chunks_id": {
-          "name": "pdf_embedding_chunks_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraint": {}
-    },
-    "pdf_embedding_jobs": {
-      "name": "pdf_embedding_jobs",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "varchar(21)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "file_id": {
-          "name": "file_id",
-          "type": "varchar(21)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "enum('queued','processing','ready','skipped','failed')",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'queued'"
-        },
-        "mime_type": {
-          "name": "mime_type",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "file_size": {
-          "name": "file_size",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "embedding_model": {
-          "name": "embedding_model",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "embedding_dimensions": {
-          "name": "embedding_dimensions",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 1536
-        },
-        "ocr_provider": {
-          "name": "ocr_provider",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "error_code": {
-          "name": "error_code",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "error_message": {
-          "name": "error_message",
-          "type": "varchar(1024)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "triggered_by": {
-          "name": "triggered_by",
-          "type": "varchar(21)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(now())"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "onUpdate": true,
-          "default": "(now())"
-        }
-      },
-      "indexes": {
-        "idx_pdf_embedding_jobs_file_id": {
-          "name": "idx_pdf_embedding_jobs_file_id",
-          "columns": [
-            "file_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "pdf_embedding_jobs_file_id_files_id_fk": {
-          "name": "pdf_embedding_jobs_file_id_files_id_fk",
-          "tableFrom": "pdf_embedding_jobs",
-          "tableTo": "files",
-          "columnsFrom": [
-            "file_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "cascade"
-        },
-        "pdf_embedding_jobs_triggered_by_users_id_fk": {
-          "name": "pdf_embedding_jobs_triggered_by_users_id_fk",
-          "tableFrom": "pdf_embedding_jobs",
-          "tableTo": "users",
-          "columnsFrom": [
-            "triggered_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "cascade"
-        }
-      },
-      "compositePrimaryKeys": {
-        "pdf_embedding_jobs_id": {
-          "name": "pdf_embedding_jobs_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraint": {}
-    },
     "share_link_access_logs": {
       "name": "share_link_access_logs",
       "columns": {
@@ -1300,8 +1318,15 @@
           "notNull": true,
           "autoincrement": false
         },
-        "expires_at": {
-          "name": "expires_at",
+        "session_expires_at": {
+          "name": "session_expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "refresh_expires_at": {
+          "name": "refresh_expires_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
@@ -1316,7 +1341,15 @@
           "default": "(now())"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_sessions_user_id": {
+          "name": "idx_sessions_user_id",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "sessions_user_id_users_id_fk": {
           "name": "sessions_user_id_users_id_fk",

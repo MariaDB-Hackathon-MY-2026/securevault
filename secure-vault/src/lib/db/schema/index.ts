@@ -1,12 +1,12 @@
 import { relations } from "drizzle-orm";
 
+import { embeddingChunks } from "@/lib/db/schema/embedding-chunks";
+import { embeddingJobs } from "@/lib/db/schema/embedding-jobs";
 import { emailVerificationTokens, passwordResetTokens } from "@/lib/db/schema/auth-tokens";
 import { fileChunks } from "@/lib/db/schema/file-chunks";
 import { fileVersions } from "@/lib/db/schema/file-versions";
 import { files } from "@/lib/db/schema/files";
 import { folders } from "@/lib/db/schema/folders";
-import { pdfEmbeddingChunks } from "@/lib/db/schema/pdf-embedding-chunks";
-import { pdfEmbeddingJobs } from "@/lib/db/schema/pdf-embedding-jobs";
 import {
   shareLinkAccessLogs,
   shareLinkEmails,
@@ -18,12 +18,12 @@ import { uploadSessions } from "@/lib/db/schema/upload-sessions";
 import { users } from "@/lib/db/schema/users";
 
 export * from "@/lib/db/schema/auth-tokens";
+export * from "@/lib/db/schema/embedding-chunks";
+export * from "@/lib/db/schema/embedding-jobs";
 export * from "@/lib/db/schema/file-chunks";
 export * from "@/lib/db/schema/file-versions";
 export * from "@/lib/db/schema/files";
 export * from "@/lib/db/schema/folders";
-export * from "@/lib/db/schema/pdf-embedding-chunks";
-export * from "@/lib/db/schema/pdf-embedding-jobs";
 export * from "@/lib/db/schema/sharing";
 export * from "@/lib/db/schema/sessions";
 export * from "@/lib/db/schema/upload-sessions";
@@ -37,7 +37,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   uploadSessions: many(uploadSessions),
   passwordResetTokens: many(passwordResetTokens),
   emailVerificationTokens: many(emailVerificationTokens),
-  pdfEmbeddingJobs: many(pdfEmbeddingJobs),
+  embeddingJobs: many(embeddingJobs),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
@@ -59,8 +59,8 @@ export const filesRelations = relations(files, ({ one, many }) => ({
   shareLinks: many(shareLinks),
   uploadSessions: many(uploadSessions),
   versions: many(fileVersions),
-  pdfEmbeddingJobs: many(pdfEmbeddingJobs),
-  pdfEmbeddingChunks: many(pdfEmbeddingChunks),
+  embeddingJobs: many(embeddingJobs),
+  embeddingChunks: many(embeddingChunks),
 }));
 
 export const fileChunksRelations = relations(fileChunks, ({ one }) => ({
@@ -111,16 +111,16 @@ export const emailVerificationTokensRelations = relations(emailVerificationToken
   }),
 }));
 
-export const pdfEmbeddingJobsRelations = relations(pdfEmbeddingJobs, ({ one, many }) => ({
-  file: one(files, { fields: [pdfEmbeddingJobs.file_id], references: [files.id] }),
-  triggeredBy: one(users, { fields: [pdfEmbeddingJobs.triggered_by], references: [users.id] }),
-  chunks: many(pdfEmbeddingChunks),
+export const embeddingJobsRelations = relations(embeddingJobs, ({ one, many }) => ({
+  file: one(files, { fields: [embeddingJobs.file_id], references: [files.id] }),
+  triggeredBy: one(users, { fields: [embeddingJobs.triggered_by], references: [users.id] }),
+  chunks: many(embeddingChunks),
 }));
 
-export const pdfEmbeddingChunksRelations = relations(pdfEmbeddingChunks, ({ one }) => ({
-  job: one(pdfEmbeddingJobs, {
-    fields: [pdfEmbeddingChunks.job_id],
-    references: [pdfEmbeddingJobs.id],
+export const embeddingChunksRelations = relations(embeddingChunks, ({ one }) => ({
+  job: one(embeddingJobs, {
+    fields: [embeddingChunks.job_id],
+    references: [embeddingJobs.id],
   }),
-  file: one(files, { fields: [pdfEmbeddingChunks.file_id], references: [files.id] }),
+  file: one(files, { fields: [embeddingChunks.file_id], references: [files.id] }),
 }));

@@ -89,9 +89,10 @@
   - Ignore client-provided Content-Type
   - Store detected MIME in `files.mime_type`
 
-- [ ] **4.9 - Trigger PDF indexing from the client after upload completes**
-  - In `src/hooks/use-upload.ts`, after `/api/upload/complete` resolves, check `mime_type === 'application/pdf'` and `size <= 10MB`
-  - If eligible, call `POST /api/embeddings/pdf` with `{ fileId }`
+- [ ] **4.9 - Trigger semantic indexing from the client after upload completes**
+  - In `src/hooks/use-upload.ts`, after `/api/upload/complete` resolves, branch by uploaded file modality
+  - If `mime_type === 'application/pdf'` and `size <= 10MB`, call `POST /api/embeddings` with `{ fileId, modality: 'pdf' }`
+  - If the file is an eligible image, call `POST /api/embeddings` with `{ fileId, modality: 'image' }`
   - Treat indexing as best-effort and failure-isolated: show status, but never roll back the ready upload
   - Skip the trigger entirely for non-PDF files and PDFs larger than 10MB
 
@@ -108,7 +109,7 @@
 | Client chunker      | `src/lib/storage/chunker.ts`              |
 | Upload hook         | `src/hooks/use-upload.ts`                 |
 | Upload dialog       | `src/components/upload/upload-dialog.tsx` |
-| PDF indexing trigger| `src/hooks/use-upload.ts`                 |
+| Embedding trigger  | `src/hooks/use-upload.ts`                 |
 
 ---
 
@@ -129,8 +130,9 @@ npx vitest run tests/upload
 | Upload init creates DB records         | Records exist with status `uploading`           |
 | Chunk route stores IV + authTag in DB  | `file_chunks` row has non-null `iv`, `auth_tag` |
 | Chunk route does not buffer full chunk | Validate streaming (mock R2 `Body` is a stream) |
-| Eligible PDF triggers indexing request | `POST /api/embeddings/pdf` called after ready   |
-| Ineligible file skips indexing trigger | Upload still succeeds with no embedding request  |
+| Eligible PDF triggers indexing request   | `POST /api/embeddings` called after ready       |
+| Eligible image triggers indexing request | `POST /api/embeddings` called after ready       |
+| Ineligible file skips indexing trigger   | Upload still succeeds with no embedding request |
 
 ### Manual Verification (Browser)
 
@@ -139,5 +141,5 @@ npx vitest run tests/upload
 3. Attempt to upload a file > 100MB -> verify rejection error shown
 4. Check R2 bucket -> verify encrypted chunks exist at `/{userId}/files/{fileId}/chunk_*`
 5. Check MariaDB -> verify `files` record has status `ready`, `file_chunks` records have `iv` + `auth_tag`
-6. Upload a PDF under 10MB -> verify the client starts the embedding job only after upload completes
+6. Upload a PDF under 10MB or an eligible image -> verify the client starts the embedding job only after upload completes
 7. Upload while monitoring server memory -> verify no spike to ~10MB per chunk (streaming confirmation)

@@ -79,15 +79,16 @@
     - `idx_file_chunks_file_id`, `idx_access_logs_link_id`
     - `idx_upload_sessions_user_file` on `(user_id, file_name, file_size, status)` for dedup
 
-- [ ] **1.15 - Define PDF embedding tables**
-  - Files: `src/lib/db/schema/pdf-embedding-jobs.ts`, `src/lib/db/schema/pdf-embedding-chunks.ts`
-  - `pdf_embedding_jobs`: `id`, `file_id` FK, `status` (enum: queued/processing/ready/skipped/failed), `mime_type`, `file_size`, `embedding_model`, `embedding_dimensions`, `ocr_provider`, `error_code`, `error_message`, `triggered_by` FK, `started_at`, `completed_at`, `created_at`, `updated_at`
-  - `pdf_embedding_chunks`: `id`, `job_id` FK, `file_id` FK, `chunk_index`, `page_from`, `page_to`, `char_count`, `encrypted_text` (blob), `text_iv` (blob), `text_auth_tag` (blob), `embedding` (`VECTOR(1536)`)
-  - Keep extracted text encrypted at rest; only the vector column remains searchable plaintext
+- [ ] **1.15 - Define generalized embedding tables**
+  - Files: `src/lib/db/schema/embedding-jobs.ts`, `src/lib/db/schema/embedding-chunks.ts`
+  - `embedding_jobs`: `id`, `file_id` FK, `status` (enum: queued/processing/ready/skipped/failed), `modality` (enum: pdf/image), `mime_type`, `file_size`, `embedding_model`, `embedding_dimensions`, `ocr_provider`, `error_code`, `error_message`, `triggered_by` FK, `started_at`, `completed_at`, `created_at`, `updated_at`
+  - `embedding_chunks`: `id`, `job_id` FK, `file_id` FK, `chunk_index`, `modality` (enum: pdf/image), optional `page_from`, `page_to`, `char_count`, optional `encrypted_text` (blob), optional `text_iv` (blob), optional `text_auth_tag` (blob), `embedding` (`VECTOR(1536)`)
+  - Keep extracted reference text encrypted at rest when present; image-only rows may omit text/page metadata entirely
+  - Add uniqueness guards for idempotency: `(file_id, modality)` on jobs and `(job_id, chunk_index)` on chunks
 
-- [ ] **1.16 - Create PDF semantic search indexes**
-  - Add relational indexes: `idx_pdf_embedding_jobs_file_id`, `idx_pdf_embedding_chunks_job_id`, `idx_pdf_embedding_chunks_file_id`
-  - Add MariaDB vector index on `pdf_embedding_chunks.embedding` with cosine distance
+- [ ] **1.16 - Create semantic search indexes**
+  - Add relational indexes: `uq_embedding_jobs_file_modality`, `uq_embedding_chunks_job_chunk`, `idx_embedding_chunks_file_id`
+  - Add MariaDB vector index on `embedding_chunks.embedding` with cosine distance
   - Document the index as part of the schema migration review checklist
 
 ---
@@ -100,7 +101,7 @@
 | DB connection singleton  | `src/lib/db/index.ts`                     |
 | Migration applied        | All tables exist in Railway MariaDB       |
 | Indexes created          | Verified via `SHOW INDEX FROM table_name` |
-| PDF embedding tables     | `pdf_embedding_jobs`, `pdf_embedding_chunks` exist |
+| Embedding tables         | `embedding_jobs`, `embedding_chunks` exist |
 
 ---
 
@@ -125,7 +126,7 @@ npx tsc --noEmit
 2. Run `SHOW TABLES;` - verify all 10+ tables exist
 3. Run `DESCRIBE users;` - verify columns match schema
 4. Run `SHOW INDEX FROM files;` - verify indexes exist
-5. Run `SHOW INDEX FROM pdf_embedding_chunks;` - verify the cosine vector index exists
+5. Run `SHOW INDEX FROM embedding_chunks;` - verify the cosine vector index exists
 6. Insert a test row into `users`, then query it back - verify read/write works
 
 

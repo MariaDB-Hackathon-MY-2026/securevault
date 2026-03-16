@@ -502,9 +502,9 @@ Configure Vercel project, run full Vitest suite, run Playwright E2E security tes
 
 ---
 
-## Issue #20: Phase 19 - PDF Semantic Indexing & Search _(Post-MVP Enhancement)_
+## Issue #20: Phase 19 - Semantic Indexing & Search _(Post-MVP Enhancement)_
 
-**Title:** `[AI/Search] Add PDF-only semantic indexing and search`
+**Title:** `[AI/Search] Add semantic indexing and search`
 **Labels:** `enhancement`, `search`, `stretch`, `priority: low`
 **Assignee:** _Full-Stack Developer_
 **Start:** _After deployment - if time permits_
@@ -512,17 +512,17 @@ Configure Vercel project, run full Vitest suite, run Playwright E2E security tes
 
 ### Description
 
-Add a separate, client-triggered PDF semantic indexing pipeline for uploaded PDFs that are `application/pdf` and `<= 10MB`. Keep the original upload, download, preview, and filename search flows unchanged while adding semantic retrieval backed by MariaDB vectors, Gemini embeddings, and a pluggable OCR layer.
+Add a separate, client-triggered semantic indexing pipeline for supported files. Keep the original upload, download, preview, and filename search flows unchanged while adding semantic retrieval backed by MariaDB vectors, Gemini embeddings, and a pluggable OCR layer.
 
 ### Acceptance Criteria
 
 - [ ] Upload a PDF under 10MB -> upload completes first, indexing starts separately
-- [ ] Upload a PDF over 10MB -> upload succeeds and indexing is skipped with a reason
-- [ ] Non-PDF uploads never create semantic indexing jobs
-- [ ] Semantic search returns relevant PDF results with snippet/page metadata
+- [ ] Upload an eligible image -> upload completes first, indexing starts separately
+- [ ] Unsupported files never create semantic indexing jobs
+- [ ] Semantic search returns relevant results with modality-aware references
 - [ ] Re-triggering indexing does not duplicate vector rows
 - [ ] OCR or embedding failure does not regress file download/preview behavior
-- [ ] Future AI agent can reuse semantic chunks instead of re-indexing PDFs
+- [ ] Future AI agent can reuse semantic chunks instead of re-indexing files
 
 **References:** [`tasks/phase-19-pdf-semantic-indexing.md`](../tasks/phase-19-pdf-semantic-indexing.md), [`implementation_plan.md`](../implementation_plan.md)
 
@@ -551,7 +551,7 @@ Add a separate, client-triggered PDF semantic indexing pipeline for uploaded PDF
 | 17  | AI Agent                   | _Stretch_    | - |
 | 18  | 2FA / TOTP                 | _Stretch_    | - |
 | 19  | Deployment & QA            | Apr 8-12     | 5 |
-| 20  | PDF Semantic Search | _Stretch_    | -    |
+| 20  | Semantic Search     | _Stretch_    | -    |
 
 **Core completion:** April 12, 2026 - **18 days before** the April 30 deadline.
 **Stretch goals window:** April 13-30 (18 days for bonus features).

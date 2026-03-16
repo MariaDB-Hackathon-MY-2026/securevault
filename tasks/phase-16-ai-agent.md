@@ -19,7 +19,7 @@
 
 - [ ] **16.2 - Implement AI tools**
   - `searchFiles` - query MariaDB by filename
-  - `semanticSearchPdf` - reuse `pdf_embedding_chunks` retrieval for natural-language PDF lookups
+  - `semanticSearchFiles` - reuse `embedding_chunks` retrieval for natural-language file lookups across supported modalities
   - `getFileInfo` - return file metadata
   - `summarizeFile` - decrypt + send text/PDF content to LLM
   - `createShareLink` - generate share link
@@ -36,4 +36,4 @@
 | ----------------------------------------------- | ----------------- |
 | Ask "find my tax docs" -> returns matching files | Search tool works |
 | Ask "share report.pdf" -> creates link           | Share tool works  |
-| Ask "what does my scanned PDF say about penalties?" -> relevant chunk retrieved | Semantic retrieval reused |
+| Ask "what does my scanned PDF say about penalties?" -> relevant reference retrieved | Semantic retrieval reused |

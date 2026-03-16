@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import type { ChangeEvent } from "react";
 import Link from "next/link";
 import { signupAction } from "./actions";
+import { useActionToast } from "@/hooks/use-action-toast";
 import {
   validatePasswordStrength,
   type PasswordStrengthValidation,
@@ -58,6 +59,12 @@ function getStrengthAppearance(strength: PasswordStrengthValidation | null) {
 export default function SignupPage() {
   const [state, formAction, isPending] = useActionState(signupAction, undefined);
   const [password, setPassword] = useState("");
+
+  useActionToast(isPending, state, {
+    loadingMessage: "Signing up...",
+    successMessage: "Account created successfully. Redirecting...",
+    id: "signup-toast",
+  });
 
   const strength = password ? validatePasswordStrength(password) : null;
   const strengthAppearance = getStrengthAppearance(strength);

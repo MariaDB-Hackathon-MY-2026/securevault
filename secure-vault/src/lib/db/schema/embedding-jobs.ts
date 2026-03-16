@@ -1,9 +1,9 @@
-import { bigint, index, int, mysqlEnum, mysqlTable, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { bigint, int, mysqlEnum, mysqlTable, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 import { files } from "@/lib/db/schema/files";
 import { users } from "@/lib/db/schema/users";
 
-export const pdfEmbeddingJobs = mysqlTable(
-  "pdf_embedding_jobs",
+export const embeddingJobs = mysqlTable(
+  "embedding_jobs",
   {
     id: varchar("id", { length: 21 }).primaryKey().notNull(),
     file_id: varchar("file_id", { length: 21 })
@@ -12,6 +12,7 @@ export const pdfEmbeddingJobs = mysqlTable(
     status: mysqlEnum("status", ["queued", "processing", "ready", "skipped", "failed"])
       .default("queued")
       .notNull(),
+    modality: mysqlEnum("modality", ["pdf", "image"]).default("pdf").notNull(),
     mime_type: varchar("mime_type", { length: 255 }).notNull(),
     file_size: bigint({ mode: "number" }).notNull(),
     embedding_model: varchar("embedding_model", { length: 100 }).notNull(),
@@ -28,5 +29,5 @@ export const pdfEmbeddingJobs = mysqlTable(
     created_at: timestamp().defaultNow().notNull(),
     updated_at: timestamp().defaultNow().onUpdateNow().notNull(),
   },
-  (table) => [index("idx_pdf_embedding_jobs_file_id").on(table.file_id)],
+  (table) => [uniqueIndex("uq_embedding_jobs_file_modality").on(table.file_id, table.modality)],
 );

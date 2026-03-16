@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import {Provider} from "@/app/providers";
+import { Toaster } from "@/components/ui/sonner";
 
 const jetbrainsMono = JetBrains_Mono({subsets:['latin'],variable:'--font-mono'});
 
@@ -33,6 +34,7 @@ export default function RootLayout({
       >
       <Provider>
             {children}
+            <Toaster />
       </Provider>
       </body>
     </html>

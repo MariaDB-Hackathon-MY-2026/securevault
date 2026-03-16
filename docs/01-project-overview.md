@@ -7,7 +7,7 @@ SecureVault is an **encrypted file storage web application** that provides:
 - **End-to-end encrypted file storage** using AES-256-GCM with a 3-tier key hierarchy
 - **Secure link sharing** with expiry, email allowlists, OTP verification, and revocation
 - **AI-powered file management** using Vercel AI SDK _(stretch goal)_
-- **Additive PDF semantic search** triggered after upload for eligible PDFs
+- **Additive semantic indexing** triggered after upload for eligible PDFs and images
 - **Fine-grained access control** with application-level row-level security
 
 ## Problem Statement
@@ -29,14 +29,14 @@ Cloud storage services like Google Drive or Dropbox store files in plaintext on 
 | **Thumbnails**          | Encrypted thumbnails for image preview                         |
 | **Rate limiting**       | In-memory rate limiter on sensitive endpoints                  |
 | **Storage quota**       | 1GB per user, enforced server-side                             |
-| **PDF semantic search** | Optional post-upload indexing for PDFs <= 10MB (additive path) |
+| **Semantic search**     | Optional post-upload indexing for supported files (additive path) |
 
 ## Stretch Goals
 
 | Feature          | Description                                                |
 | ---------------- | ---------------------------------------------------------- |
 | **AI Agent**     | Natural language file search, summarization, smart sharing |
-| **PDF Indexing** | Semantic PDF retrieval backed by MariaDB vector search     |
+| **Semantic Indexing** | Multi-modal retrieval backed by MariaDB vector search |
 | **2FA / TOTP**   | Optional two-factor authentication via authenticator app   |
 
 ## Target Users
