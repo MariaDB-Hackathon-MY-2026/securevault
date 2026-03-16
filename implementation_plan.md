@@ -126,41 +126,41 @@ sequenceDiagram
 ### Post-Upload PDF Semantic Indexing (Additive)
 
 > [!NOTE]
-> Semantic indexing is **not** part of the upload critical path. `/api/upload/complete` must still mark the file ready first. The browser then triggers a separate indexing request for eligible PDFs.
+> Semantic indexing is **not** part of the upload critical path. `/api/upload/complete` must still mark the file ready first. The browser then triggers a separate indexing request for eligible supported files.
 
 ```mermaid
 sequenceDiagram
     actor User
     participant Client as Browser
-    participant IDX as PDF Indexer
+    participant IDX as Semantic Indexer
     participant DB as MariaDB
     participant R2 as Cloudflare R2
 
-    Client->>IDX: POST /api/embeddings/pdf
-    IDX->>DB: Validate owner, ready PDF, <= 10MB
-    alt PDF > 10MB or wrong mime
+    Client->>IDX: POST /api/embeddings
+    IDX->>DB: Validate owner, ready file, and modality-specific eligibility
+    alt Ineligible file
         IDX->>DB: Mark job as skipped with reason
         IDX-->>Client: skipped
-    else Eligible PDF
+    else Eligible file
         IDX->>R2: Fetch encrypted chunks
-        IDX->>IDX: Decrypt PDF with FEK
-        IDX->>IDX: Native text extraction first
+        IDX->>IDX: Decrypt file with FEK
+        IDX->>IDX: Process by modality
         alt Low-text or scanned PDF
             IDX->>IDX: OCR provider fallback
         end
-        IDX->>IDX: Chunk extracted text
+        IDX->>IDX: Create embeddings and optional references
         IDX->>IDX: embedMany() with Gemini Embedding 2
-        IDX->>DB: Store encrypted text + VECTOR(1536)
+        IDX->>DB: Store optional encrypted references + VECTOR(1536)
         IDX-->>Client: queued or ready
     end
 ```
 
 #### Semantic Indexing Rules
 
-- **Eligible files only**: Trigger only when `mime_type = application/pdf` and `size <= 10MB`.
+- **Eligible files only**: Trigger only when the file passes modality-specific validation. PDFs remain capped at `10MB`.
 - **Failure isolation**: OCR or embedding failures never roll back upload readiness, download, preview, or sharing.
-- **Idempotent trigger**: `POST /api/embeddings/pdf` returns the existing job when one is already queued, processing, or ready.
-- **Status endpoint**: `GET /api/embeddings/pdf/{fileId}` reports `queued`, `processing`, `ready`, `skipped`, or `failed`.
+- **Idempotent trigger**: `POST /api/embeddings` returns the existing job when one is already queued, processing, or ready for the same file + modality.
+- **Status endpoint**: `GET /api/embeddings/{fileId}` reports `queued`, `processing`, `ready`, `skipped`, or `failed`.
 - **No replacement behavior**: Filename/full-text search stays intact; semantic search is an additive retrieval mode.
 
 #### Extraction Contracts
@@ -411,7 +411,7 @@ For the hackathon, use **Resend** (free tier: 100 emails/day) or **nodemailer** 
 | Feature                    | How It Works                                                                                             |
 | -------------------------- | -------------------------------------------------------------------------------------------------------- |
 | **File search**            | User asks "find my tax documents" -> agent queries MariaDB full-text search on filenames + metadata     |
-| **Semantic PDF retrieval** | Agent reuses `pdf_embedding_chunks` vector retrieval for natural-language PDF lookups                    |
+| **Semantic retrieval**     | Agent reuses `embedding_chunks` vector retrieval for natural-language lookups across supported modalities |
 | **File summarization**     | Agent fetches file content (text/PDF), sends to LLM for summary                                          |
 | **Smart sharing**          | "Share the Q1 report with the marketing team" -> agent identifies file + creates share link             |
 
@@ -434,8 +434,8 @@ export async function POST(req: Request) {
       searchFiles: {
         /* query MariaDB by filename */
       },
-      semanticSearchPdf: {
-        /* reuse pdf_embedding_chunks vector retrieval */
+      semanticSearchFiles: {
+        /* reuse embedding_chunks vector retrieval */
       },
       getFileInfo: {
         /* file metadata */
@@ -455,8 +455,8 @@ export async function POST(req: Request) {
 
 ### Semantic Retrieval Reuse
 
-- The future AI assistant must reuse the same semantic retrieval service that powers the storage UI's `Semantic PDF` mode.
-- Chat should never trigger its own PDF indexing path or bypass the existing auth-scoped search service layer.
+- The future AI assistant must reuse the same semantic retrieval service that powers the storage UI's `Semantic` mode.
+- Chat should never trigger its own indexing path or bypass the existing auth-scoped search service layer.
 - The semantic chunk store is shared infrastructure, not a chat-only data flow.
 
 ---
@@ -474,8 +474,8 @@ erDiagram
     share_links ||--o{ share_link_otps : verifies
     folders ||--o{ files : contains
     files ||--o{ file_chunks : has
-    files ||--o| pdf_embedding_jobs : indexed_by
-    pdf_embedding_jobs ||--o{ pdf_embedding_chunks : has
+    files ||--o{ embedding_jobs : indexed_by
+    embedding_jobs ||--o{ embedding_chunks : has
 
     users {
         varchar id PK
@@ -532,10 +532,11 @@ erDiagram
         blob auth_tag
     }
 
-    pdf_embedding_jobs {
+    embedding_jobs {
         varchar id PK
         varchar file_id FK
         enum status
+        enum modality
         varchar mime_type
         bigint file_size
         varchar embedding_model
@@ -550,11 +551,12 @@ erDiagram
         timestamp updated_at
     }
 
-    pdf_embedding_chunks {
+    embedding_chunks {
         varchar id PK
         varchar job_id FK
         varchar file_id FK
         int chunk_index
+        enum modality
         int page_from
         int page_to
         int char_count
@@ -620,13 +622,14 @@ erDiagram
     }
 ```
 
-### PDF Semantic Search Tables
+### Semantic Search Tables
 
 ```sql
-CREATE TABLE pdf_embedding_jobs (
+CREATE TABLE embedding_jobs (
   id VARCHAR(32) PRIMARY KEY,
   file_id VARCHAR(32) NOT NULL,
   status ENUM('queued', 'processing', 'ready', 'skipped', 'failed') NOT NULL,
+  modality ENUM('pdf', 'image') NOT NULL,
   mime_type VARCHAR(255) NOT NULL,
   file_size BIGINT NOT NULL,
   embedding_model VARCHAR(255) NOT NULL,
@@ -638,31 +641,34 @@ CREATE TABLE pdf_embedding_jobs (
   started_at TIMESTAMP NULL,
   completed_at TIMESTAMP NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_embedding_jobs_file_modality (file_id, modality)
 );
 
-CREATE TABLE pdf_embedding_chunks (
+CREATE TABLE embedding_chunks (
   id VARCHAR(32) PRIMARY KEY,
   job_id VARCHAR(32) NOT NULL,
   file_id VARCHAR(32) NOT NULL,
   chunk_index INT NOT NULL,
-  page_from INT NOT NULL,
-  page_to INT NOT NULL,
-  char_count INT NOT NULL,
-  encrypted_text BLOB NOT NULL,
-  text_iv BLOB NOT NULL,
-  text_auth_tag BLOB NOT NULL,
-  embedding VECTOR(1536) NOT NULL
+  modality ENUM('pdf', 'image') NOT NULL,
+  page_from INT NULL,
+  page_to INT NULL,
+  char_count INT NULL,
+  encrypted_text BLOB NULL,
+  text_iv BLOB NULL,
+  text_auth_tag BLOB NULL,
+  embedding VECTOR(1536) NOT NULL,
+  UNIQUE KEY uq_embedding_chunks_job_chunk (job_id, chunk_index)
 );
 
-CREATE VECTOR INDEX idx_pdf_embedding_chunks_embedding
-ON pdf_embedding_chunks (embedding)
+CREATE VECTOR INDEX idx_embedding_chunks_embedding
+ON embedding_chunks (embedding)
 M=8 DISTANCE=cosine;
 ```
 
 - Extracted text stays encrypted at rest and is only decrypted for authorized result snippets.
 - Embeddings stay plaintext numeric vectors because MariaDB vector search needs searchable values.
-- Add standard relational indexes on `file_id` and `job_id` in addition to the vector index.
+- Add a relational index on `file_id` plus uniqueness guards on `(file_id, modality)` and `(job_id, chunk_index)` in addition to the vector index.
 
 ---
 
@@ -678,7 +684,7 @@ securevault/
 |   |   `-- api/upload, files, share, chat
 |   |-- lib/
 |   |   |-- crypto/                    - AES-256-GCM, key mgmt, OTP
-|   |   |-- auth/                      - sessions, middleware, Argon2id
+|   |   |-- auth/                      - sessions, proxy auth flow, Argon2id
 |   |   |-- storage/                   - R2 client, chunked upload
 |   |   |-- db/                        - Drizzle schema, migrations
 |   |   |-- ai/                        - tools, prompts, embeddings
@@ -692,19 +698,21 @@ securevault/
 |   |   |-- share/                     - share link management
 |   |   `-- chat/                      - AI chat interface
 |   |-- hooks/                         - use-upload, use-files
-|   `-- middleware.ts                  - auth guard
+|   `-- proxy.ts                       - auth guard
 |-- drizzle.config.ts
 |-- next.config.ts
 `-- .env.local
 ```
 
+> Note: In the latest Next.js version, `middleware.ts` has been renamed to `proxy.ts`. This plan follows the newer `proxy` convention.
+
 ### Phase 19 Additions
 
-Add the following directories when the PDF semantic indexing phase begins:
+Add the following directories when the semantic indexing phase begins:
 
-- `src/app/api/embeddings/` - start and status route handlers for PDF indexing
+- `src/app/api/embeddings/` - start and status route handlers for semantic indexing
 - `src/app/api/search/` - semantic search endpoint or route handlers
-- `src/lib/ai/embeddings/` - chunking, embedding, and PDF extraction helpers
+- `src/lib/ai/embeddings/` - chunking, embedding, and modality-specific extraction helpers
 - `src/lib/ai/ocr/` - `GeminiVisionOcrProvider` and `GenericOcrProvider`
 - `src/lib/search/` - shared filename and semantic retrieval services
 
@@ -733,16 +741,16 @@ UPSTASH_REDIS_REST_URL=...
 UPSTASH_REDIS_REST_TOKEN=...
 ```
 
-### PDF Semantic Indexing Defaults
+### Semantic Indexing Defaults
 
-- `application/pdf` only
-- Separate indexing cap: **10MB** (upload cap remains 100MB)
+- Modalities: `pdf`, `image`
+- PDF indexing cap: **10MB** (upload cap remains 100MB)
 - Embedding model: `google.embedding("gemini-embedding-2-preview")`
 - Dimensions: `1536`
 - Stored chunk task type: `RETRIEVAL_DOCUMENT`
 - Query task type: `RETRIEVAL_QUERY`
 - Distance metric: cosine
-- UI mode: `Filename` remains default; `Semantic PDF` is opt-in
+- UI mode: `Filename` remains default; `Semantic` is opt-in
 
 ### R2 Bucket Lockdown
 
@@ -864,10 +872,10 @@ CREATE INDEX idx_share_links_token ON share_links(token);
 CREATE INDEX idx_share_links_file_id ON share_links(file_id);
 CREATE INDEX idx_file_chunks_file_id ON file_chunks(file_id, chunk_index);
 CREATE INDEX idx_access_logs_link_id ON share_link_access_logs(share_link_id);
-CREATE INDEX idx_pdf_embedding_jobs_file_id ON pdf_embedding_jobs(file_id, status);
-CREATE INDEX idx_pdf_embedding_chunks_job_id ON pdf_embedding_chunks(job_id, chunk_index);
-CREATE INDEX idx_pdf_embedding_chunks_file_id ON pdf_embedding_chunks(file_id, chunk_index);
-CREATE VECTOR INDEX idx_pdf_embedding_chunks_embedding ON pdf_embedding_chunks(embedding)
+CREATE UNIQUE INDEX uq_embedding_jobs_file_modality ON embedding_jobs(file_id, modality);
+CREATE UNIQUE INDEX uq_embedding_chunks_job_chunk ON embedding_chunks(job_id, chunk_index);
+CREATE INDEX idx_embedding_chunks_file_id ON embedding_chunks(file_id, chunk_index);
+CREATE VECTOR INDEX idx_embedding_chunks_embedding ON embedding_chunks(embedding)
 M=8 DISTANCE=cosine;
 ```
 
@@ -1338,21 +1346,21 @@ deleted_at: timestamp('deleted_at'),
 | --------------------- | ------------------------------------------------------ |
 | **Quick filter**      | Client-side filter by name/type on current folder      |
 | **Full search**       | MariaDB `LIKE` or `FULLTEXT` index on `files.name`     |
-| **Semantic PDF**      | MariaDB cosine vector search on `pdf_embedding_chunks` |
+| **Semantic**         | MariaDB cosine vector search on `embedding_chunks`     |
 | **AI search**         | Natural language via the AI agent (Section 7)          |
 
-#### Semantic PDF Search Interfaces
+#### Semantic Search Interfaces
 
 | Endpoint                         | Purpose                                                      |
 | -------------------------------- | ------------------------------------------------------------ |
-| `POST /api/embeddings/pdf`       | Start or resume the additive PDF indexing job                |
-| `GET /api/embeddings/pdf/{id}`   | Read indexing eligibility, status, and progress              |
-| `POST /api/search/semantic`      | Run query embedding + cosine search for authorized PDFs      |
+| `POST /api/embeddings`          | Start or resume the additive indexing job                    |
+| `GET /api/embeddings/{id}`      | Read indexing eligibility, status, and progress              |
+| `POST /api/search/semantic`     | Run query embedding + cosine search for authorized files     |
 
 Search defaults:
 
 - `Filename` is the default tab in the storage UI.
-- `Semantic PDF` is a second, opt-in mode.
+- `Semantic` is a second, opt-in mode.
 - Results return `fileId`, `name`, `score`, `snippet`, `pageFrom`, and `pageTo`.
 
 #### Storage Usage Dashboard
@@ -1555,7 +1563,7 @@ We will use **Vitest** for unit/integration testing (faster than Jest, native ES
 | ------------------------------ | ---------------------------------------------------------------------------------- |
 | **Encryption round-trip**      | Encrypt `->` decrypt returns exact original bytes.                                  |
 | **Key isolation**              | User A's FEK throws error when trying to decrypt User B''s file.                  |
-| **Auth middleware**            | Unauthenticated requests to protected routes return `401 Unauthorized`.            |
+| **Auth proxy**                 | Unauthenticated requests to protected routes return `401 Unauthorized`.            |
 | **IDOR protection**            | Requesting `fileId` belonging to User A returns `404` when User B calls `getById`. |
 | **Rate limit**                 | 6th login attempt within 15min returns `429 Too Many Requests`.                    |
 | **OTP expiry**                 | Expired OTP returns `401 Unauthorized`.                                            |

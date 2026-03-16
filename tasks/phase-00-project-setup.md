@@ -18,7 +18,7 @@ ascsacsacas
   - `npm install -D drizzle-kit vitest @types/node`
   - `npm install @tanstack/react-query zxcvbn @zxcvbn-ts/core`
   - `npm install @upstash/ratelimit @upstash/redis`
-  - Add PDF semantic indexing deps when Phase 19 starts: `ai @ai-sdk/google pdfjs-dist`
+  - Add semantic indexing deps when Phase 19 starts: `ai @ai-sdk/google pdfjs-dist`
 
 - [x] **0.3 - Install UI dependencies**
   - `npx shadcn@latest init` -> configure with `src/` and `app/` directory
@@ -27,7 +27,7 @@ ascsacsacas
 - [x] **0.4 - Create `.env.local` template**
   - Create `.env.example` with all required env vars from Section 10:
     - `DATABASE_URL`, `MASTER_ENCRYPTION_KEY`, `R2_*` vars, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `RESEND_API_KEY`, `NEXT_PUBLIC_APP_URL`, `CRON_SECRET`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
-    - Add PDF semantic indexing config vars: `PDF_EMBEDDING_MAX_BYTES`, `PDF_EMBEDDING_MODEL`, `PDF_EMBEDDING_DIMENSIONS`, `PDF_OCR_PROVIDER`
+    - Add semantic indexing config vars: `PDF_EMBEDDING_MAX_BYTES`, `PDF_EMBEDDING_MODEL`, `PDF_EMBEDDING_DIMENSIONS`, `PDF_OCR_PROVIDER`, `IMAGE_EMBEDDING_MODEL`, `IMAGE_EMBEDDING_DIMENSIONS`
   - Populate `.env.local` with dev values (Railway DB, R2 test bucket)
 
 - [x] **0.5 - Create project folder structure**

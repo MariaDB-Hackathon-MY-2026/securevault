@@ -12,8 +12,10 @@ export const sessions = mysqlTable(
     refresh_token_hash: varchar("refresh_token_hash", { length: 255 }).notNull(),
     device_name: varchar("device_name", { length: 50 }).notNull(),
     ip_address: varchar("ip_address", { length: 50 }).notNull(),
-    expires_at: timestamp().notNull(),
+    session_expires_at: timestamp().notNull(),
+    refresh_expires_at: timestamp().notNull(),
     created_at: timestamp().defaultNow().notNull(),
   },
   (table) => [index("idx_sessions_user_id").on(table.user_id)],
 );
+

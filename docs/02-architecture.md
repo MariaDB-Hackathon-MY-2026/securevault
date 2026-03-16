@@ -8,7 +8,7 @@ graph TB
         UI["Next.js App (shadcn UI)"]
         TQ["TanStack Query"]
         Chunker["File Chunker (5MB chunks)"]
-        Trigger["Post-Upload PDF Index Trigger"]
+        Trigger["Post-Upload Embedding Trigger"]
     end
 
     subgraph Vercel["Vercel (Next.js App Router)"]
@@ -16,7 +16,7 @@ graph TB
         RH["Route Handlers"]
         MW["Middleware (Auth)"]
         AI["AI Agent (Vercel AI SDK)"]
-        IDX["PDF Semantic Indexing Pipeline"]
+        IDX["Semantic Indexing Pipeline"]
     end
 
     subgraph Storage["Storage Layer"]
@@ -49,12 +49,12 @@ graph TB
 - **Resumability**: Failed uploads resume from last successful chunk
 - **Memory**: Chunks processed one at a time; no full-file buffering
 
-### Why a Separate PDF Indexing Pipeline?
+### Why a Separate Semantic Indexing Pipeline?
 
 - **No regression risk**: Upload completion still marks the file ready before indexing begins
 - **Client-triggered**: The browser starts indexing only after the encrypted upload succeeds
 - **Failure isolation**: OCR or embedding failures never roll back upload, download, or preview behavior
-- **Eligibility gate**: Only PDFs up to 10MB enter the semantic indexing flow
+- **Eligibility gate**: Each modality applies its own validation rules before entering the semantic indexing flow
 
 ### Why MariaDB (Not PostgreSQL)?
 
@@ -110,7 +110,7 @@ sequenceDiagram
     RH-->>Client: fileId, status ready
 ```
 
-### PDF Semantic Indexing (Additive)
+### Semantic Indexing (Additive)
 
 This sequence is intentionally separate from upload completion so the original encrypted upload flow stays unchanged.
 
@@ -121,18 +121,18 @@ sequenceDiagram
     participant MariaDB
     participant R2
 
-    Browser->>Indexer: Start PDF indexing
-    Indexer->>MariaDB: Validate ready PDF and 10 MB limit
+    Browser->>Indexer: Start indexing for file + modality
+    Indexer->>MariaDB: Validate ready file and modality-specific rules
     alt Not eligible
         Indexer->>MariaDB: Save skipped status
         Indexer-->>Browser: skipped
     else Eligible
-        Indexer->>R2: Read encrypted PDF
-        Indexer->>Indexer: Decrypt and extract text
-        alt OCR needed
+        Indexer->>R2: Read encrypted file
+        Indexer->>Indexer: Decrypt and process by modality
+        alt PDF OCR needed
             Indexer->>Indexer: Run OCR provider
         end
-        Indexer->>Indexer: Chunk content and create embeddings
+        Indexer->>Indexer: Create embeddings and optional references
         Indexer->>MariaDB: Save vectors and job status
         Indexer-->>Browser: queued or ready
     end
@@ -141,9 +141,9 @@ sequenceDiagram
 Key rules:
 
 - The client trigger runs only after `/api/upload/complete` succeeds.
-- Non-PDF files and PDFs over 10MB upload normally but are skipped by semantic indexing.
-- `POST /api/embeddings/pdf` is idempotent and may return the current job instead of duplicating work.
-- Future AI tools reuse the same semantic chunk store rather than re-indexing PDFs inside chat.
+- Unsupported files and ineligible PDFs upload normally but are skipped by semantic indexing.
+- `POST /api/embeddings` is idempotent per file + modality and may return the current job instead of duplicating work.
+- Future AI tools reuse the same semantic chunk store rather than re-indexing files inside chat.
 
 ### Download (Streaming)
 
@@ -257,7 +257,7 @@ securevault/
 |   |   `-- api/upload, files, share, chat, embeddings, search, auth, cron
 |   |-- lib/
 |   |   |-- crypto/                    - AES-256-GCM, key mgmt
-|   |   |-- auth/                      - sessions, middleware, Argon2id
+|   |   |-- auth/                      - sessions, proxy auth flow, Argon2id
 |   |   |-- storage/                   - R2 client, chunked upload
 |   |   |-- db/                        - Drizzle schema, migrations
 |   |   |-- services/                  - scoped file/folder/share services
@@ -272,13 +272,15 @@ securevault/
 |   |   |-- share/                     - share link management
 |   |   `-- chat/                      - AI chat (stretch)
 |   |-- hooks/                         - useUpload, useFiles
-|   `-- middleware.ts                  - auth guard
+|   `-- proxy.ts                       - auth guard
 |-- docs/                              - project documentation
 |-- resources/                         - security standards & references
 |-- tasks/                             - phase-based task breakdown
 |-- drizzle.config.ts
 `-- next.config.ts
 ```
+
+> Note: In the latest Next.js version, `middleware.ts` has been renamed to `proxy.ts`. This project follows the newer `proxy` convention.
 
 ## Database Schema (ER Diagram)
 
@@ -294,6 +296,6 @@ erDiagram
     share_links ||--o{ share_link_access_logs : logs
     share_links ||--o{ share_link_otps : verifies
     files ||--o{ file_versions : has
-    files ||--o| pdf_embedding_jobs : indexed_by
-    pdf_embedding_jobs ||--o{ pdf_embedding_chunks : has
+    files ||--o{ embedding_jobs : indexed_by
+    embedding_jobs ||--o{ embedding_chunks : has
 ```

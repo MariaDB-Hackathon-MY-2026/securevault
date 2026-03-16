@@ -9,7 +9,8 @@
 | Next.js 15 App Router Docs | [nextjs.org/docs/app](https://nextjs.org/docs/app) |
 | Next.js Server Actions     | [nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations](https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations) |
 | Next.js Route Handlers     | [nextjs.org/docs/app/building-your-application/routing/route-handlers](https://nextjs.org/docs/app/building-your-application/routing/route-handlers) |
-| Next.js Middleware         | [nextjs.org/docs/app/building-your-application/routing/middleware](https://nextjs.org/docs/app/building-your-application/routing/middleware) |
+| Next.js Proxy              | [nextjs.org/docs/app/getting-started/proxy](https://nextjs.org/docs/app/getting-started/proxy) |
+| Next.js Proxy API Reference | [nextjs.org/docs/app/api-reference/file-conventions/proxy](https://nextjs.org/docs/app/api-reference/file-conventions/proxy) |
 | TypeScript Handbook        | [typescriptlang.org/docs/handbook](https://www.typescriptlang.org/docs/handbook/) |
 
 ## UI

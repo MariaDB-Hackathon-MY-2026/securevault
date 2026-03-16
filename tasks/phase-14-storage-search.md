@@ -23,16 +23,17 @@
   - Server action: `searchFiles(query)` - uses MariaDB `LIKE` or `FULLTEXT` on `files.name`
   - Search results page or dropdown
 
-- [ ] **14.4 - Implement semantic PDF search**
+- [ ] **14.4 - Implement semantic file search**
   - Route or server action: `semanticSearch(query, options)` - embeds the user query with `RETRIEVAL_QUERY`
-  - Query `pdf_embedding_chunks` using MariaDB cosine vector search
-  - Return grouped results by file with score, snippet, and page range metadata
+  - Query `embedding_chunks` using MariaDB cosine vector search
+  - Return grouped results by file with score and modality-aware reference metadata
+  - PDFs should include snippet and page range when available; image results may omit reference text entirely
   - Keep this path additive; do not replace the existing full-text filename search
 
 - [ ] **14.5 - Add semantic search mode to the dashboard UI**
-  - Add a search mode toggle/tab: `Filename` (default) and `Semantic PDF`
-  - Show indexing status for eligible PDFs so users know whether a document is searchable semantically
-  - Surface skipped states for non-PDF files and PDFs over the 10MB indexing limit
+  - Add a search mode toggle/tab: `Filename` (default) and `Semantic`
+  - Show indexing status for eligible PDFs and images so users know whether a file is searchable semantically
+  - Surface skipped states for unsupported files and PDFs over the 10MB indexing limit
 
 ---
 
@@ -44,5 +45,5 @@
 | Quota bar reflects actual usage                     | Matches `storage_used`          |
 | Quick filter "report" -> shows only matching files | Client filter works             |
 | Full search "tax" -> returns matching files        | Server search works             |
-| Semantic search "tax penalties" -> returns relevant PDF chunks | Vector search works |
+| Semantic search "tax penalties" -> returns relevant files with modality-aware references | Vector search works |
 | Filename search remains default                     | Existing search UX unchanged    |

@@ -16,7 +16,7 @@
 | Technology         | Purpose                                               | Hosting                      |
 | ------------------ | ----------------------------------------------------- | ---------------------------- |
 | **MariaDB**        | Metadata, encryption keys, auth, sharing              | Railway (managed, free tier) |
-| **MariaDB Vectors**| PDF semantic chunk storage + cosine search            | Same MariaDB cluster         |
+| **MariaDB Vectors**| Multi-modal embedding storage + cosine search         | Same MariaDB cluster         |
 | **Drizzle ORM**    | Type-safe SQL queries, schema definition, migrations  | -                            |
 | **mysql2**         | MariaDB driver with connection pooling (enforces UTC) | -                            |
 

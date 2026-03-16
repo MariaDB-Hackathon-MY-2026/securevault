@@ -21,13 +21,13 @@
 | POST   | `/api/upload/chunk`    | Raw binary body + headers `x-upload-id`, `x-chunk-index` | `{ chunkIndex, status }`            | Yes  |
 | POST   | `/api/upload/complete` | `{ uploadId }`                                    | `{ fileId, status }`                | Yes  |
 
-## PDF Embedding APIs
+## Embedding APIs
 
 | Method | Endpoint                       | Body                             | Response                                                              | Auth |
 | ------ | ------------------------------ | -------------------------------- | --------------------------------------------------------------------- | ---- |
-| POST   | `/api/embeddings/pdf`          | `{ fileId }`                     | `{ jobId, status, reason? }`                                          | Yes  |
-| GET    | `/api/embeddings/pdf/{fileId}` | -                                | `{ fileId, status, eligible, progress?, indexedChunks?, lastError? }` | Yes  |
-| POST   | `/api/search/semantic`         | `{ query, limit?, folderId? }`   | `{ results: [{ fileId, name, score, snippet, pageFrom, pageTo }] }`  | Yes  |
+| POST   | `/api/embeddings`              | `{ fileId, modality }`           | `{ jobId, status, reason? }`                                          | Yes  |
+| GET    | `/api/embeddings/{fileId}`     | -                                | `{ fileId, status, eligible, progress?, indexedChunks?, lastError? }` | Yes  |
+| POST   | `/api/search/semantic`         | `{ query, limit?, folderId? }`   | `{ results: [{ fileId, name, score, snippet?, pageFrom?, pageTo? }] }` | Yes  |
 
 ## File APIs
 

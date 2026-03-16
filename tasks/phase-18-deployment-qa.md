@@ -63,5 +63,5 @@
 7. IDOR: user B cannot access user A's files
 8. Upload > 100MB blocked
 9. Storage quota enforced
-10. Semantic PDF search returns results only for the current user's indexed files
+10. Semantic search returns results only for the current user's indexed files
 11. Failed OCR/embedding job does not regress the original file operations
