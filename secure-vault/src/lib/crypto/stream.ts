@@ -1,4 +1,10 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import {
+  AES_256_GCM_ALGORITHM,
+  AES_GCM_AUTH_TAG_LENGTH_BYTES,
+  AES_GCM_IV_LENGTH_BYTES,
+  ENCRYPTION_KEY_LENGTH_BYTES,
+} from "@/lib/constants";
 
 export type EncryptStream = {
   stream: TransformStream<Uint8Array, Uint8Array>;
@@ -6,34 +12,29 @@ export type EncryptStream = {
   getAuthTag: () => Buffer;
 };
 
-const ALGORITHM = "aes-256-gcm";
-const KEY_LENGTH = 32;
-const IV_LENGTH = 12;
-const AUTH_TAG_LENGTH = 16;
-
 function assertKeyLength(key: Buffer) {
-  if (key.length !== KEY_LENGTH) {
-    throw new Error(`Key must be ${KEY_LENGTH} bytes`);
+  if (key.length !== ENCRYPTION_KEY_LENGTH_BYTES) {
+    throw new Error(`Key must be ${ENCRYPTION_KEY_LENGTH_BYTES} bytes`);
   }
 }
 
 function assertIvLength(iv: Buffer) {
-  if (iv.length !== IV_LENGTH) {
-    throw new Error(`IV must be ${IV_LENGTH} bytes`);
+  if (iv.length !== AES_GCM_IV_LENGTH_BYTES) {
+    throw new Error(`IV must be ${AES_GCM_IV_LENGTH_BYTES} bytes`);
   }
 }
 
 function assertAuthTagLength(authTag: Buffer) {
-  if (authTag.length !== AUTH_TAG_LENGTH) {
-    throw new Error(`Auth tag must be ${AUTH_TAG_LENGTH} bytes`);
+  if (authTag.length !== AES_GCM_AUTH_TAG_LENGTH_BYTES) {
+    throw new Error(`Auth tag must be ${AES_GCM_AUTH_TAG_LENGTH_BYTES} bytes`);
   }
 }
 
 export function createEncryptStream(key: Buffer): EncryptStream {
   assertKeyLength(key);
 
-  const iv = randomBytes(IV_LENGTH);
-  const cipher = createCipheriv(ALGORITHM, key, iv);
+  const iv = randomBytes(AES_GCM_IV_LENGTH_BYTES);
+  const cipher = createCipheriv(AES_256_GCM_ALGORITHM, key, iv);
   let authTag: Buffer | null = null;
   let finished = false;
 
@@ -80,7 +81,7 @@ export function createDecryptStream(
   assertIvLength(iv);
   assertAuthTagLength(authTag);
 
-  const decipher = createDecipheriv(ALGORITHM, key, iv);
+  const decipher = createDecipheriv(AES_256_GCM_ALGORITHM, key, iv);
   decipher.setAuthTag(authTag);
 
   return new TransformStream<Uint8Array, Uint8Array>({

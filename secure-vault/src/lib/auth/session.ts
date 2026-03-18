@@ -5,13 +5,14 @@ import { createHash } from "node:crypto";
 import { and, desc, eq, gte, InferSelectModel, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import {
+  REFRESH_DURATION_DAYS,
+  SESSION_DURATION_MS,
+  SESSION_ID_LENGTH,
+  SESSION_TOKEN_LENGTH,
+} from "@/lib/constants";
 import { MariadbConnection } from "@/lib/db";
 import { sessions, users } from "@/lib/db/schema";
-
-const SESSION_TOKEN_LENGTH = 32;
-const SESSION_ID_LENGTH = 21;
-const SESSION_DURATION_MS = 15 * 60 * 1000;
-const REFRESH_DURATION_DAYS = 30;
 
 type SessionRecord = InferSelectModel<typeof sessions>;
 type UserRecord = InferSelectModel<typeof users>;

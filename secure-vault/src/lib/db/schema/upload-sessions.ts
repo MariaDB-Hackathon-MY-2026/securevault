@@ -9,10 +9,12 @@ export const uploadSessions = mysqlTable(
     user_id: varchar("user_id", { length: 21 })
       .notNull()
       .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
-    file_id: varchar("file_id", { length: 21 }).references(() => files.id, {
-      onDelete: "set null",
-      onUpdate: "cascade",
-    }),
+    file_id: varchar("file_id", { length: 21 })
+      .notNull()
+      .references(() => files.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     file_name: varchar("file_name", { length: 255 }).notNull(),
     file_size: bigint({ mode: "number" }).notNull(),
     total_chunks: int().notNull(),

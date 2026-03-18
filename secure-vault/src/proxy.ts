@@ -4,6 +4,8 @@ import type { NextRequest } from "next/server";
 import {
   REFRESH_TOKEN_MAX_AGE_SECONDS,
   SESSION_TOKEN_MAX_AGE_SECONDS,
+} from "@/lib/constants";
+import {
   getAuthCookieOptions,
 } from "@/lib/auth/cookies";
 import { refreshSession, validateSession } from "@/lib/auth/session";

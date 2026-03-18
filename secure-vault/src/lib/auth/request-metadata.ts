@@ -3,9 +3,7 @@
 import { headers } from "next/headers";
 
 import type { DeviceInfo } from "@/lib/auth/session";
-
-const DEVICE_NAME_MAX_LENGTH = 50;
-const IP_ADDRESS_MAX_LENGTH = 50;
+import { DEVICE_NAME_MAX_LENGTH, IP_ADDRESS_MAX_LENGTH } from "@/lib/constants";
 
 export async function getRequestMetaData(): Promise<DeviceInfo> {
   const requestHeaders = await headers();

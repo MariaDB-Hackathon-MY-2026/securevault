@@ -1,12 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { decrypt, encrypt } from "@/lib/crypto/aes";
-
-const KEY_LENGTH = 32;
-const HEX_KEY_LENGTH = KEY_LENGTH * 2;
+import { ENCRYPTION_KEY_LENGTH_BYTES, MASTER_KEY_HEX_LENGTH } from "@/lib/constants";
 
 function assert32ByteKey(key: Buffer, label: string) {
-  if (key.length !== KEY_LENGTH) {
-    throw new Error(`${label} must be ${KEY_LENGTH} bytes`);
+  if (key.length !== ENCRYPTION_KEY_LENGTH_BYTES) {
+    throw new Error(`${label} must be ${ENCRYPTION_KEY_LENGTH_BYTES} bytes`);
   }
 }
 
@@ -21,7 +19,7 @@ export function getMasterKey(): Buffer {
     throw new Error("MASTER_ENCRYPTION_KEY must be a valid hex string");
   }
 
-  if (masterEncryptionKey.length !== HEX_KEY_LENGTH) {
+  if (masterEncryptionKey.length !== MASTER_KEY_HEX_LENGTH) {
     throw new Error("MASTER_ENCRYPTION_KEY must be a 64-character hex string");
   }
 
@@ -33,7 +31,7 @@ export function getMasterKey(): Buffer {
 
 export function generateUEK(): Buffer {
   // One random 32-byte key per user.
-  return randomBytes(KEY_LENGTH);
+  return randomBytes(ENCRYPTION_KEY_LENGTH_BYTES);
 }
 
 export function encryptUEK(uek: Buffer): Buffer {
@@ -50,7 +48,7 @@ export function decryptUEK(encryptedUek: Buffer): Buffer {
 
 export function generateFEK(): Buffer {
   // One random 32-byte key per file.
-  return randomBytes(KEY_LENGTH);
+  return randomBytes(ENCRYPTION_KEY_LENGTH_BYTES);
 }
 
 export function encryptFEK(fek: Buffer, uek: Buffer): Buffer {

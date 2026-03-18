@@ -1,10 +1,9 @@
 import type { InferInsertModel } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import { USER_ID_LENGTH } from "@/lib/constants";
 import { MariadbConnection } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-
-const USER_ID_LENGTH = 21;
 
 export type CreateUserInput = Pick<
   InferInsertModel<typeof users>,

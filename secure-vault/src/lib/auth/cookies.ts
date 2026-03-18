@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
-
-export const REFRESH_TOKEN_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
-export const SESSION_TOKEN_MAX_AGE_SECONDS = 15 * 60;
+import {
+  REFRESH_TOKEN_MAX_AGE_SECONDS,
+  SESSION_TOKEN_MAX_AGE_SECONDS,
+} from "@/lib/constants";
 export const AUTH_COOKIE_SECURE =
   process.env.NODE_ENV === "production" || process.env.NODE_ENV === "development";
 
