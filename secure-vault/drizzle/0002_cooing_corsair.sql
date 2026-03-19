@@ -1,0 +1,1 @@
+ALTER TABLE `file_chunks` ADD CONSTRAINT `uq_file_chunks_file_chunk` UNIQUE(`file_id`,`chunk_index`);

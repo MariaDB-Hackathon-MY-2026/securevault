@@ -21,6 +21,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.45.1",
+    "file-type": "^21.3.3",
     "lucide-react": "^0.577.0",
     "mysql2": "^3.19.1",
     "nanoid": "^5.1.6",
