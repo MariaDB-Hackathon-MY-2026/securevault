@@ -1,3 +1,4 @@
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { index, mysqlTable, timestamp, varchar } from "drizzle-orm/mysql-core";
 import { users } from "@/lib/db/schema/users";
 
@@ -30,3 +31,10 @@ export const emailVerificationTokens = mysqlTable(
   },
   (table) => [index("idx_email_verification_tokens_user_id").on(table.user_id)],
 );
+
+export type passwordResetTokens = InferSelectModel<typeof passwordResetTokens>;
+export type passwordResetTokensInsert = InferInsertModel<typeof passwordResetTokens>;
+export type emailVerificationTokens = InferSelectModel<typeof emailVerificationTokens>;
+export type emailVerificationTokensInsert = InferInsertModel<typeof emailVerificationTokens>;
+
+

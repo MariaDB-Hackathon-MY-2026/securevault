@@ -63,17 +63,51 @@
   - `sliceFile(file: File, chunkSize: number): Blob[]` - splits into 5MB chunks
   - Chunk size constant: `CHUNK_SIZE = 5 * 1024 * 1024`
 
-- [ ] **4.6 - Implement `useUpload` hook**
-  - File: `src/hooks/use-upload.ts`
-  - Manages upload lifecycle: init -> chunk loop -> complete
+- [ ] **4.6 - Implement OOP upload queue: `UploadJob` + `UploadManager` + context hook**
+  - Files:
+    - `src/lib/upload/upload-job.ts`
+    - `src/lib/upload/upload-manager.ts`
+    - `src/components/upload/upload-provider.tsx`
+    - `src/hooks/use-upload-queue.ts`
+  - Replace the per-file `useUpload` mental model with an **object-oriented upload system**
+  - Each file upload should be represented by an `UploadJob` object responsible for its own lifecycle, state, and upload logic
+  - Global concurrency and orchestration should be owned by an `UploadManager`
+  - React components should consume manager state through context instead of each upload card running its own upload loop
+  - Implement an `UploadJob` class that at minimum owns:
+    - `id`
+    - `file`
+    - `status`
+    - `progress`
+    - `uploadId`
+    - `fileId`
+    - `completedChunkIndexes`
+    - `error`
+  - Implement `UploadJob` methods such as:
+    - `start()`
+    - `pause()`
+    - `resume()`
+    - `cancel()`
+    - `getSnapshot()`
+  - The `UploadJob` worker flow should still be: init -> status lookup -> chunk loop -> complete
   - **Send chunks as raw binary** via `fetch()` with `body: blob` (not FormData) - this allows the Vercel Route Handler to access `req.body` as a stream
   - Pass chunk metadata in request headers (`x-upload-id`, `x-chunk-index`)
-  - Progress tracking (0-100%)
+  - Progress tracking (0-100%) can remain chunk-based
   - Retry logic: up to 3 retries per chunk
-  - Resume support: check for existing incomplete upload
-  - Pause/cancel support
-  - **Dynamic Chunk Concurrency**: Use a global limit queue (e.g., `p-queue` with `concurrency: 3`) to manage the uploading of _every_ chunk across _all_ files. This creates a global pool of active network requests, maximizing speed for large files while preventing self-DDoS when dropping dozens of small files.
-  - **Adaptive backoff**: If server returns 429 (rate limit), back off before retrying
+  - Resume support: after init returns an existing `uploadId`, call the status route and skip already uploaded chunk indexes
+  - Pause/cancel support:
+    - `pause` should stop after the current chunk and remain resumable
+    - `cancel` should stop after the current chunk and move the client job into a cancelled/failed terminal state
+  - Treat `409 Chunk already uploaded` as success for resumable uploads
+  - **Adaptive backoff**: If server returns `429` (rate limit), back off before retrying
+  - Implement an `UploadManager` class that:
+    - stores all `UploadJob` instances
+    - exposes actions such as `addFiles(files)`, `pauseUpload(id)`, `resumeUpload(id)`, `cancelUpload(id)`
+    - provides `subscribe()` / `getSnapshot()` for React integration
+    - runs a scheduler/pump function to start jobs when capacity is available
+  - **File-level concurrency only**: at most `3` `UploadJob` instances uploading at the same time globally
+  - **Per-file chunk concurrency**: `1` chunk at a time per file
+  - `UploadJob` should own single-file behavior; `UploadManager` should own multi-file scheduling
+  - Expose the manager to UI through `UploadQueueProvider` + `useUploadQueue()`
 
 - [ ] **4.7 - Build upload dialog UI**
   - File: `src/components/upload/upload-dialog.tsx`
@@ -90,7 +124,7 @@
   - Store detected MIME in `files.mime_type`
 
 - [ ] **4.9 - Trigger semantic indexing from the client after upload completes**
-  - In `src/hooks/use-upload.ts`, after `/api/upload/complete` resolves, branch by uploaded file modality
+  - In the upload worker inside `src/lib/upload/upload-job.ts`, after `/api/upload/complete` resolves, branch by uploaded file modality
   - If `mime_type === 'application/pdf'` and `size <= 10MB`, call `POST /api/embeddings` with `{ fileId, modality: 'pdf' }`
   - If the file is an eligible image, call `POST /api/embeddings` with `{ fileId, modality: 'image' }`
   - Treat indexing as best-effort and failure-isolated: show status, but never roll back the ready upload
@@ -107,9 +141,12 @@
 | Chunk upload API    | `src/app/api/upload/chunk/route.ts`       |
 | Upload complete API | `src/app/api/upload/complete/route.ts`    |
 | Client chunker      | `src/lib/storage/chunker.ts`              |
-| Upload hook         | `src/hooks/use-upload.ts`                 |
+| Upload job          | `src/lib/upload/upload-job.ts`            |
+| Upload manager      | `src/lib/upload/upload-manager.ts`        |
+| Upload provider     | `src/components/upload/upload-provider.tsx` |
+| Upload queue hook   | `src/hooks/use-upload-queue.ts`           |
 | Upload dialog       | `src/components/upload/upload-dialog.tsx` |
-| Embedding trigger  | `src/hooks/use-upload.ts`                 |
+| Embedding trigger   | `src/lib/upload/upload-job.ts`            |
 
 ---
 
@@ -130,6 +167,11 @@ npx vitest run tests/upload
 | Upload init creates DB records         | Records exist with status `uploading`           |
 | Chunk route stores IV + authTag in DB  | `file_chunks` row has non-null `iv`, `auth_tag` |
 | Chunk route does not buffer full chunk | Validate streaming (mock R2 `Body` is a stream) |
+| Queue starts at most 3 files globally  | 4th queued file waits until a slot frees up      |
+| Pause stops after current chunk        | Job transitions to `paused` without corruption   |
+| Resume skips uploaded chunks           | Status route drives resumption correctly         |
+| Cancel stops after current chunk       | Job transitions to `cancelled`/`failed` safely   |
+| Two upload cards share same queue      | Actions/state stay consistent across components  |
 | Eligible PDF triggers indexing request   | `POST /api/embeddings` called after ready       |
 | Eligible image triggers indexing request | `POST /api/embeddings` called after ready       |
 | Ineligible file skips indexing trigger   | Upload still succeeds with no embedding request |

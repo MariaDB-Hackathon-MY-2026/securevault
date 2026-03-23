@@ -1,12 +1,12 @@
-import type { InferInsertModel } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { USER_ID_LENGTH } from "@/lib/constants";
 import { MariadbConnection } from "@/lib/db";
 import { users } from "@/lib/db/schema";
+import type { usersInsert } from "@/lib/db/schema";
 
 export type CreateUserInput = Pick<
-  InferInsertModel<typeof users>,
+  usersInsert,
   "email" | "name" | "password_hash" | "encrypted_uek"
 >;
 

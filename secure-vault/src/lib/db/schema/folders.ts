@@ -1,3 +1,4 @@
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { type AnyMySqlColumn, mysqlTable, timestamp, varchar } from "drizzle-orm/mysql-core";
 import { users } from "@/lib/db/schema/users";
 
@@ -14,3 +15,8 @@ export const folders = mysqlTable("folders", {
   deleted_at: timestamp(),
   created_at: timestamp().defaultNow().notNull(),
 });
+
+export type folders = InferSelectModel<typeof folders>;
+export type foldersInsert = InferInsertModel<typeof folders>;
+
+

@@ -1,4 +1,6 @@
-﻿import { and, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
+
+import type { UploadChunkResponse } from "./types";
 import { fileTypeFromBuffer } from "file-type";
 import { nanoid } from "nanoid";
 
@@ -47,10 +49,6 @@ export type ParsedChunkHeaders = {
   uploadId: string;
 };
 
-export type UploadChunkResponse = {
-  chunkIndex: number;
-  status: "uploaded";
-};
 
 export class UploadChunkServiceError extends Error {
   status: number;
@@ -364,3 +362,6 @@ async function cleanupUploadedChunk(r2Key: string) {
     console.error("Failed to clean up uploaded chunk after a persistence error", cleanupError);
   }
 }
+
+
+

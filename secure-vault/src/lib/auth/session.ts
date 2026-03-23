@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 
-import { and, desc, eq, gte, InferSelectModel, ne } from "drizzle-orm";
+import { and, desc, eq, gte, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import {
@@ -13,9 +13,10 @@ import {
 } from "@/lib/constants";
 import { MariadbConnection } from "@/lib/db";
 import { sessions, users } from "@/lib/db/schema";
+import type { sessions as sessionsRecord, users as usersRecord } from "@/lib/db/schema";
 
-type SessionRecord = InferSelectModel<typeof sessions>;
-type UserRecord = InferSelectModel<typeof users>;
+type SessionRecord = sessionsRecord;
+type UserRecord = usersRecord;
 
 export type DeviceInfo = Pick<SessionRecord, "device_name" | "ip_address">;
 export type CreateSessionResult = {

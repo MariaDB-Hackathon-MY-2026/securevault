@@ -1,3 +1,4 @@
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { boolean, index, int, mysqlTable, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 import { files } from "@/lib/db/schema/files";
 import { folders } from "@/lib/db/schema/folders";
@@ -65,3 +66,14 @@ export const shareLinkAccessLogs = mysqlTable(
   },
   (table) => [index("idx_access_logs_link_id").on(table.link_id)],
 );
+
+export type shareLinks = InferSelectModel<typeof shareLinks>;
+export type shareLinksInsert = InferInsertModel<typeof shareLinks>;
+export type shareLinkEmails = InferSelectModel<typeof shareLinkEmails>;
+export type shareLinkEmailsInsert = InferInsertModel<typeof shareLinkEmails>;
+export type shareLinkOtps = InferSelectModel<typeof shareLinkOtps>;
+export type shareLinkOtpsInsert = InferInsertModel<typeof shareLinkOtps>;
+export type shareLinkAccessLogs = InferSelectModel<typeof shareLinkAccessLogs>;
+export type shareLinkAccessLogsInsert = InferInsertModel<typeof shareLinkAccessLogs>;
+
+

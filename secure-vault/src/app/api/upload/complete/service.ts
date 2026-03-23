@@ -6,6 +6,8 @@ import { MariadbConnection } from "@/lib/db";
 import { CurrentUser } from "@/lib/auth/get-current-user";
 import { z } from "zod";
 
+import type { CompleteUploadResponse } from "@/app/api/upload/complete/types";
+
 // P3: enforce exact nanoid length to reject garbage values early
 const uploadBodySchema = z.object({
     uploadId: z.string().length(21),
@@ -20,7 +22,7 @@ export function validateBody(jsonBody: unknown) {
 export async function completeUploadTransaction(
     user: CurrentUser,
     validatedBody: z.infer<typeof uploadBodySchema>,
-) {
+): Promise<CompleteUploadResponse> {
     const db_conn = MariadbConnection.getConnection();
     return db_conn.transaction(async (tx) => {
 
@@ -76,3 +78,5 @@ export async function completeUploadTransaction(
         return { fileId: session.file_id, status: "ready" };
     });
 }
+
+

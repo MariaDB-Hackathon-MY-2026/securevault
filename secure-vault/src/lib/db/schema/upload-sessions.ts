@@ -1,3 +1,4 @@
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { bigint, index, int, mysqlEnum, mysqlTable, timestamp, varchar } from "drizzle-orm/mysql-core";
 import { files } from "@/lib/db/schema/files";
 import { users } from "@/lib/db/schema/users";
@@ -34,3 +35,8 @@ export const uploadSessions = mysqlTable(
     ),
   ],
 );
+
+export type uploadSessions = InferSelectModel<typeof uploadSessions>;
+export type uploadSessionsInsert = InferInsertModel<typeof uploadSessions>;
+
+
