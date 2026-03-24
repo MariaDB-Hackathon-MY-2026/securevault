@@ -27,6 +27,8 @@ export type UploadJobSnapshot = {
   error: string | null;
 };
 
+export type UploadJobListener = (snapshot: UploadJobSnapshot) => void;
+
 export class UploadJob {
   private id: string;
   private file: File;
@@ -37,6 +39,7 @@ export class UploadJob {
   private completedChunkIndexes: Set<number>;
   private totalChunks: number | null;
   private error: string | null;
+  private listeners: Set<UploadJobListener>;
 
   constructor(file: File) {
     this.id = crypto.randomUUID();
@@ -48,6 +51,23 @@ export class UploadJob {
     this.completedChunkIndexes = new Set<number>();
     this.totalChunks = null;
     this.error = null;
+    this.listeners = new Set<UploadJobListener>();
+  }
+
+  public subscribe(listener: UploadJobListener) {
+    this.listeners.add(listener);
+
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notify() {
+    const currentSnapshot = this.getSnapshot();
+
+    for (const listener of this.listeners) {
+      listener(currentSnapshot);
+    }
   }
 
   getSnapshot(): UploadJobSnapshot {
@@ -66,12 +86,14 @@ export class UploadJob {
   pause() {
     if (this.status === "uploading") {
       this.status = "pausing";
+      this.notify();
     }
   }
 
   cancel() {
     if (this.status === "uploading" || this.status === "pausing") {
       this.status = "cancelling";
+      this.notify();
     }
   }
 
@@ -79,6 +101,7 @@ export class UploadJob {
     if (this.status === "paused" || this.status === "failed") {
       this.status = "queued";
       this.error = null;
+      this.notify();
     }
   }
 
@@ -89,6 +112,7 @@ export class UploadJob {
 
     this.error = null;
     this.status = "uploading";
+    this.notify();
 
     try {
       const chunksWithMetaData = sliceFilesWithMetaData(this.file);
@@ -126,6 +150,7 @@ export class UploadJob {
         this.status = "failed";
       }
 
+      this.notify();
       throw error;
     }
   }
@@ -155,6 +180,7 @@ export class UploadJob {
     this.uploadId = parsedJson.uploadId;
     this.fileId = parsedJson.fileId;
     this.totalChunks = parsedJson.totalChunks;
+    this.notify();
   }
 
   private async getStatus() {
@@ -186,6 +212,7 @@ export class UploadJob {
     this.uploadId = uploadId;
     this.status = mapApiStatusToJobStatus(status);
     this.syncProgress();
+    this.notify();
   }
 
   private async uploadChunk(chunk: Blob, chunkIndex: number) {
@@ -234,6 +261,7 @@ export class UploadJob {
     await completedResponse.json() as CompleteUploadResponse;
     this.progress = 100;
     this.status = "success";
+    this.notify();
   }
 
   private updateCompletedChunkIndexAndProgress(chunkIndex: number) {
@@ -243,6 +271,7 @@ export class UploadJob {
 
     this.completedChunkIndexes.add(chunkIndex);
     this.syncProgress();
+    this.notify();
   }
 
   private syncProgress() {
@@ -260,11 +289,13 @@ export class UploadJob {
   private finalizeRequestedStop() {
     if (this.status === "pausing") {
       this.status = "paused";
+      this.notify();
       return;
     }
 
     if (this.status === "cancelling") {
       this.status = "cancelled";
+      this.notify();
     }
   }
 
