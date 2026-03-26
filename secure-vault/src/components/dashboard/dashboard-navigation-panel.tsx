@@ -5,6 +5,7 @@ import Link from "next/link";
 import { logoutAction } from "@/app/(dashboard)/actions";
 import { EmailVerificationStatus } from "@/components/auth/email-verification-status";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import type { CurrentUserClient } from "@/lib/auth/current-user-client";
 import { cn } from "@/lib/utils";
 
@@ -33,11 +34,11 @@ export function DashboardNavigationPanel({
       <div className="border-b border-border/60 pb-4">
         <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">SecureVault</p>
         <h1 className="mt-2 text-2xl font-semibold">Authenticated workspace</h1>
-        <p className="mt-2 text-sm text-muted-foreground break-all">Signed in as {user.email}</p>
+        <p className="mt-2 text-sm text-muted-foreground break-all line-clamp-1 truncate w-full">Signed in as {user.email}</p>
       </div>
 
       <div className="mt-4 border-b border-border/60 pb-4">
-        <p className="text-sm font-medium">{user.name}</p>
+        <p className="text-sm font-medium ">{user.name}</p>
         <EmailVerificationStatus verified={user.email_verified} className="mt-2" />
         <form action={logoutAction} className="mt-3">
           <Button type="submit" variant="outline" className="w-full justify-center">
@@ -72,9 +73,11 @@ export function DashboardNavigationPanel({
           <span>Storage</span>
           <span>{storagePercent}%</span>
         </div>
-        <div className="mt-3 h-2 bg-muted">
-          <div className="h-full bg-primary" style={{ width: `${storagePercent}%` }} />
-        </div>
+        <Progress
+          value={storagePercent}
+          className="mt-3 bg-muted"
+          aria-label={`${storagePercent}% storage used`}
+        />
         <p className="mt-3 text-xs text-muted-foreground">
           {user.storage_used.toLocaleString()} of {user.storage_quota.toLocaleString()} bytes used
         </p>

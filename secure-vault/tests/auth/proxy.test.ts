@@ -55,6 +55,7 @@ function buildRequest({
 }) {
   return {
     url,
+    headers: new Headers(),
     cookies: {
       get: vi.fn((name: string) => {
         if (name === "__Secure-session" && sessionToken) {
@@ -67,6 +68,8 @@ function buildRequest({
 
         return undefined;
       }),
+      set: vi.fn(),
+      toString: vi.fn(() => "mocked-cookies"),
     },
   };
 }

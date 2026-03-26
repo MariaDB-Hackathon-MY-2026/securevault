@@ -1,0 +1,38 @@
+﻿
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90mC:/Git_Repo/securevault/secure-vault[39m
+
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mreturns the constructor defaults in the initial snapshot[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22msubscribes to notifications and the returned unsubscribe stops later updates[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mignores pause before start but allows cancel to transition to cancelled[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mtransitions from uploading to pausing when pause is requested[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mtransitions to cancelling from uploading and pausing[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mresumes from paused back to queued and clears the error[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mresumes from failed back to queued and clears the error[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mdoes not start again when the job is no longer queued[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mruns the happy-path upload flow and emits milestone snapshots[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mskips chunk uploads that the status endpoint says are already completed[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mexits early when the server already reports the upload as completed[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mfails with an init-stage UploadJobError when init returns a bad response[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mfails with a status-stage UploadJobError when status returns a bad response[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mfails with a chunk-stage UploadJobError when a chunk upload returns a bad response[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mtreats a 409 chunk response as resumable success and continues the upload[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mretries a rate-limited chunk upload with backoff and eventually succeeds[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mretries a retryable chunk failure up to the max and then fails[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mdoes not retry non-retryable chunk failures[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mfails with a complete-stage UploadJobError when complete returns a bad response[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mpauses after the current chunk completes[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mcancels after the current chunk completes[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mmaps server failed status to client failed and exits early[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mmaps server expired status to client failed and exits early[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22msorts out-of-order completed chunk indexes from the status response[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mdeduplicates repeated completed chunk indexes and does not overcount progress[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mignores resume after the job has been cancelled[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mhandles raw fetch rejections by marking the job as failed and storing the message[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22msupports zero-chunk uploads by calling init, status, and complete only[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m tests/upload/upload-job.test.ts[2m > [22mUploadJob[2m > [22mpropagates listener errors during notify and does not continue the upload[32m 0[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m29 passed[39m[22m[90m (29)[39m
+[2m   Start at [22m 01:43:48
+[2m   Duration [22m 1.23s[2m (transform 126ms, setup 0ms, import 151ms, tests 35ms, environment 859ms)[22m
+

@@ -5,7 +5,7 @@ import { fileTypeFromBuffer } from "file-type";
 import { nanoid } from "nanoid";
 
 import type { CurrentUser } from "@/lib/auth/get-current-user";
-import { isAllowedFileType, UPLOAD_CHUNK_LOCK_TIMEOUT_SECONDS } from "@/lib/constants";
+import { isAllowedFileType } from "@/lib/constants";
 import { createEncryptStream, decryptFEK } from "@/lib/crypto";
 import { MariadbConnection } from "@/lib/db";
 import { fileChunks, files, uploadSessions } from "@/lib/db/schema";
@@ -13,7 +13,7 @@ import { buildR2Key, deleteObject, putObjectStream } from "@/lib/storage/r2";
 
 const MIME_SNIFF_BYTES = 4096;
 
-type NodeWebReadableStream = import("node:stream/web").ReadableStream<Uint8Array>;
+
 type DbConnection = ReturnType<typeof MariadbConnection.getConnection>;
 type DbTransaction = Parameters<Parameters<DbConnection["transaction"]>[0]>[0];
 
@@ -74,57 +74,50 @@ export async function uploadChunk({
   const db = MariadbConnection.getConnection();
 
   return db.transaction(async (tx) => {
-    const lockName = buildUploadChunkLockName(uploadId, chunkIndex);
-    await acquireUploadChunkLock(tx, lockName);
+    const uploadSession = await findUploadSession(tx, user.id, uploadId);
+
+    if (!uploadSession) {
+      throw new UploadChunkServiceError("Upload session not found or expired", 404);
+    }
+
+    if (chunkIndex >= uploadSession.totalChunks) {
+      throw new UploadChunkServiceError("Chunk index is out of range", 400);
+    }
+
+    if (await isChunkAlreadyUploaded(tx, uploadSession.fileId, chunkIndex)) {
+      throw new UploadChunkServiceError("Chunk already uploaded", 409);
+    }
+
+    const { detectedMimeType, stream } = await prepareChunkStream(body, chunkIndex);
+    const decryptedFek = decryptFEK(uploadSession.encryptedFek, user.uek);
+    const encryptor = createEncryptStream(decryptedFek);
+    const encryptedStream = stream.pipeThrough(encryptor.stream);
+    const r2Key = buildR2Key(user.id, uploadSession.fileId, chunkIndex);
+
+    await putObjectStream(r2Key, encryptedStream as any);
 
     try {
-      const uploadSession = await findUploadSession(tx, user.id, uploadId);
-
-      if (!uploadSession) {
-        throw new UploadChunkServiceError("Upload session not found or expired", 404);
-      }
-
-      if (chunkIndex >= uploadSession.totalChunks) {
-        throw new UploadChunkServiceError("Chunk index is out of range", 400);
-      }
-
-      if (await isChunkAlreadyUploaded(tx, uploadSession.fileId, chunkIndex)) {
+      await persistChunkUpload(tx, {
+        chunkIndex,
+        detectedMimeType,
+        encryptor,
+        fileId: uploadSession.fileId,
+        r2Key,
+        uploadId,
+      });
+    } catch (error) {
+      if (isDuplicateEntryError(error)) {
         throw new UploadChunkServiceError("Chunk already uploaded", 409);
       }
 
-      const { detectedMimeType, stream } = await prepareChunkStream(body, chunkIndex);
-      const decryptedFek = decryptFEK(uploadSession.encryptedFek, user.uek);
-      const encryptor = createEncryptStream(decryptedFek);
-      const encryptedStream = stream.pipeThrough(encryptor.stream);
-      const r2Key = buildR2Key(user.id, uploadSession.fileId, chunkIndex);
-
-      await putObjectStream(r2Key, encryptedStream as unknown as NodeWebReadableStream);
-
-      try {
-        await persistChunkUpload(tx, {
-          chunkIndex,
-          detectedMimeType,
-          encryptor,
-          fileId: uploadSession.fileId,
-          r2Key,
-          uploadId,
-        });
-      } catch (error) {
-        if (isDuplicateEntryError(error)) {
-          throw new UploadChunkServiceError("Chunk already uploaded", 409);
-        }
-
-        await cleanupUploadedChunk(r2Key);
-        throw error;
-      }
-
-      return {
-        chunkIndex,
-        status: "uploaded",
-      };
-    } finally {
-      await releaseUploadChunkLock(tx, lockName);
+      await cleanupUploadedChunk(r2Key);
+      throw error;
     }
+
+    return {
+      chunkIndex,
+      status: "uploaded",
+    };
   });
 }
 
@@ -154,27 +147,7 @@ export function parseChunkHeaders(headers: Headers): ParsedChunkHeaders {
   };
 }
 
-export function buildUploadChunkLockName(uploadId: string, chunkIndex: number) {
-  return `upload:chunk:${uploadId}:${chunkIndex}`;
-}
 
-async function acquireUploadChunkLock(tx: DbTransaction, lockName: string) {
-  const lockResult = await tx.execute(sql`
-    SELECT GET_LOCK(${lockName}, ${UPLOAD_CHUNK_LOCK_TIMEOUT_SECONDS}) AS acquired
-  `);
-  const lockRows = lockResult as unknown as Array<{ acquired?: number }>;
-  const lockAcquired = Number(lockRows[0]?.acquired ?? 0);
-
-  if (lockAcquired !== 1) {
-    throw new UploadChunkServiceError("Chunk upload is already in progress. Please retry.", 409);
-  }
-}
-
-async function releaseUploadChunkLock(tx: DbTransaction, lockName: string) {
-  await tx.execute(sql`
-    SELECT RELEASE_LOCK(${lockName}) AS released
-  `);
-}
 
 async function findUploadSession(
   db: DbTransaction,
@@ -362,6 +335,4 @@ async function cleanupUploadedChunk(r2Key: string) {
     console.error("Failed to clean up uploaded chunk after a persistence error", cleanupError);
   }
 }
-
-
 

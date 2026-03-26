@@ -42,15 +42,9 @@ function createCurrentUser(overrides: Partial<CurrentUser> = {}): CurrentUser {
 
 function createTransactionHarness(options?: {
   existingUpload?: Array<{ fileId: string; uploadId: string; totalChunks: number }>;
-  lockAcquired?: number;
   fileInsertError?: Error;
   uploadInsertError?: Error;
 }) {
-  const selectLimit = vi.fn().mockResolvedValue(options?.existingUpload ?? []);
-  const selectWhere = vi.fn(() => ({ limit: selectLimit }));
-  const selectFrom = vi.fn(() => ({ where: selectWhere }));
-  const select = vi.fn(() => ({ from: selectFrom }));
-
   const fileValues = vi.fn(async () => {
     if (options?.fileInsertError) {
       throw options.fileInsertError;
@@ -73,15 +67,15 @@ function createTransactionHarness(options?: {
     throw new Error("Unexpected table insert");
   });
 
+  // The service now calls tx.execute(sql`SELECT ... FOR UPDATE`) once.
+  // It returns rows with camelCase aliases (AS fileId, AS uploadId, AS totalChunks).
   const execute = vi
     .fn()
-    .mockResolvedValueOnce([{ acquired: options?.lockAcquired ?? 1 }])
-    .mockResolvedValue([{ released: 1 }]);
+    .mockResolvedValue(options?.existingUpload ?? []);
 
   const tx = {
     execute,
     insert,
-    select,
   };
 
   const db = {
@@ -96,10 +90,6 @@ function createTransactionHarness(options?: {
       execute,
       fileValues,
       insert,
-      select,
-      selectFrom,
-      selectLimit,
-      selectWhere,
       uploadValues,
     },
   };
@@ -213,7 +203,7 @@ describe("upload init service", () => {
     expect(mocks.nanoid).not.toHaveBeenCalled();
     expect(cryptoModule.generateFEK).not.toHaveBeenCalled();
     expect(cryptoModule.encryptFEK).not.toHaveBeenCalled();
-    expect(harness.spies.execute).toHaveBeenCalledTimes(2);
+    expect(harness.spies.execute).toHaveBeenCalledTimes(1);
   });
 
   it("creates both file and upload-session records for a new upload", async () => {
@@ -258,31 +248,11 @@ describe("upload init service", () => {
     });
     expect(cryptoModule.generateFEK).toHaveBeenCalledTimes(1);
     expect(cryptoModule.encryptFEK).toHaveBeenCalledWith(Buffer.alloc(32, 2), Buffer.alloc(32, 1));
-    expect(harness.spies.execute).toHaveBeenCalledTimes(2);
+    expect(harness.spies.execute).toHaveBeenCalledTimes(1);
     expect(harness.spies.dbTransaction).toHaveBeenCalledTimes(1);
   });
 
-  it("throws a conflict error when the advisory lock cannot be acquired", async () => {
-    const harness = createTransactionHarness({ lockAcquired: 0 });
-    vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
-
-    await expect(
-      initializeUpload(createCurrentUser(), {
-        fileName: "report.pdf",
-        fileSize: 100,
-        fileType: "application/pdf",
-      }),
-    ).rejects.toMatchObject({
-      message: "Upload initialization is already in progress. Please retry.",
-      status: 409,
-    });
-
-    expect(harness.spies.execute).toHaveBeenCalledTimes(1);
-    expect(harness.spies.insert).not.toHaveBeenCalled();
-    expect(cryptoModule.generateFEK).not.toHaveBeenCalled();
-  });
-
-  it("releases the advisory lock even when record creation fails", async () => {
+  it("propagates insert errors from the transaction", async () => {
     const harness = createTransactionHarness({
       fileInsertError: new Error("insert failed"),
     });
@@ -297,7 +267,7 @@ describe("upload init service", () => {
       }),
     ).rejects.toThrow("insert failed");
 
-    expect(harness.spies.execute).toHaveBeenCalledTimes(2);
+    expect(harness.spies.execute).toHaveBeenCalledTimes(1);
     expect(harness.spies.uploadValues).not.toHaveBeenCalled();
   });
 });

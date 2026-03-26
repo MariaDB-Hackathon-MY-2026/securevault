@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   buildR2Key: vi.fn(),
@@ -26,7 +26,6 @@ import { encryptFEK } from "@/lib/crypto";
 import { MariadbConnection } from "@/lib/db";
 import { fileChunks, files, uploadSessions } from "@/lib/db/schema";
 import {
-  buildUploadChunkLockName,
   UploadChunkServiceError,
   parseChunkHeaders,
   uploadChunk,
@@ -135,13 +134,7 @@ function createDbHarness(options?: {
     throw new Error("Unexpected table in update");
   });
 
-  const execute = vi
-    .fn()
-    .mockResolvedValueOnce([{ acquired: options?.lockAcquired ?? 1 }])
-    .mockResolvedValue([{ released: 1 }]);
-
   const tx = {
-    execute,
     insert,
     select,
     update,
@@ -155,7 +148,6 @@ function createDbHarness(options?: {
     db,
     spies: {
       dbTransaction: db.transaction,
-      execute,
       fileChunkValues,
       fileSet,
       fileWhere,
@@ -189,10 +181,6 @@ describe("upload chunk service", () => {
     mocks.putObjectStream.mockImplementation(async (_key: string, stream: ReadableStream<Uint8Array>) => {
       await collectStream(stream);
     });
-  });
-
-  it("builds a deterministic advisory lock name", () => {
-    expect(buildUploadChunkLockName("upload-1", 4)).toBe("upload:chunk:upload-1:4");
   });
 
   it("parses valid chunk headers", () => {
@@ -248,28 +236,6 @@ describe("upload chunk service", () => {
     });
   });
 
-  it("returns a conflict when the per-chunk advisory lock cannot be acquired", async () => {
-    const harness = createDbHarness({ lockAcquired: 0 });
-    vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
-
-    await expect(
-      uploadChunk({
-        body: createStream([Buffer.from("chunk")]),
-        headers: new Headers({
-          "x-chunk-index": "0",
-          "x-upload-id": "upload-1",
-        }),
-        user: createUser(),
-      }),
-    ).rejects.toMatchObject({
-      message: "Chunk upload is already in progress. Please retry.",
-      status: 409,
-    });
-
-    expect(harness.spies.execute).toHaveBeenCalledTimes(1);
-    expect(mocks.putObjectStream).not.toHaveBeenCalled();
-  });
-
   it("rejects missing or expired upload sessions", async () => {
     const harness = createDbHarness();
     vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
@@ -288,7 +254,6 @@ describe("upload chunk service", () => {
       status: 404,
     });
 
-    expect(harness.spies.execute).toHaveBeenCalledTimes(2);
     expect(mocks.putObjectStream).not.toHaveBeenCalled();
   });
 
@@ -320,7 +285,6 @@ describe("upload chunk service", () => {
       status: 400,
     });
 
-    expect(harness.spies.execute).toHaveBeenCalledTimes(2);
   });
 
   it("rejects already uploaded chunks for the current file", async () => {
@@ -352,7 +316,6 @@ describe("upload chunk service", () => {
       status: 409,
     });
 
-    expect(harness.spies.execute).toHaveBeenCalledTimes(2);
     expect(mocks.putObjectStream).not.toHaveBeenCalled();
   });
 
@@ -429,7 +392,6 @@ describe("upload chunk service", () => {
     expect(harness.spies.fileSet).toHaveBeenCalledWith({
       mime_type: "application/pdf",
     });
-    expect(harness.spies.execute).toHaveBeenCalledTimes(2);
     expect(harness.spies.dbTransaction).toHaveBeenCalledTimes(1);
   });
 
@@ -463,7 +425,6 @@ describe("upload chunk service", () => {
     expect(mocks.fileTypeFromBuffer).not.toHaveBeenCalled();
     expect(harness.spies.fileSet).not.toHaveBeenCalled();
     expect(harness.spies.fileChunkValues).toHaveBeenCalledTimes(1);
-    expect(harness.spies.execute).toHaveBeenCalledTimes(2);
   });
 
   it("rejects unrecognized first-chunk MIME types", async () => {
@@ -495,7 +456,6 @@ describe("upload chunk service", () => {
       status: 415,
     });
 
-    expect(harness.spies.execute).toHaveBeenCalledTimes(2);
     expect(mocks.putObjectStream).not.toHaveBeenCalled();
   });
 
@@ -531,7 +491,6 @@ describe("upload chunk service", () => {
       status: 415,
     });
 
-    expect(harness.spies.execute).toHaveBeenCalledTimes(2);
     expect(mocks.putObjectStream).not.toHaveBeenCalled();
   });
 
@@ -569,7 +528,6 @@ describe("upload chunk service", () => {
 
     expect(mocks.putObjectStream).toHaveBeenCalledTimes(1);
     expect(mocks.deleteObject).not.toHaveBeenCalled();
-    expect(harness.spies.execute).toHaveBeenCalledTimes(2);
   });
 
   it("deletes the uploaded chunk when persistence fails after the R2 upload", async () => {
@@ -600,6 +558,5 @@ describe("upload chunk service", () => {
 
     expect(mocks.putObjectStream).toHaveBeenCalledTimes(1);
     expect(mocks.deleteObject).toHaveBeenCalledWith("user-1/files/file-1/chunk_0");
-    expect(harness.spies.execute).toHaveBeenCalledTimes(2);
   });
 });

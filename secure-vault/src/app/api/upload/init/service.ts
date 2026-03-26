@@ -8,9 +8,8 @@ import {
 } from "@/lib/constants";
 import { encryptFEK, generateFEK } from "@/lib/crypto";
 import { MariadbConnection } from "@/lib/db";
-import { acquireUploadInitLock, releaseUploadInitLock } from "./lock";
 import {
-  findExistingActiveUpload,
+  findExistingActiveUploadForUpdate,
   insertFileRecord,
   insertUploadSessionRecord,
 } from "./repository";
@@ -45,53 +44,47 @@ export async function initializeUpload(
   const expiresAt = new Date(currentDate.getTime() + UPLOAD_SESSION_EXPIRY_MS);
 
   return MariadbConnection.getConnection().transaction(async (tx) => {
-    const lockName = buildUploadInitLockName(user.id, fileName, fileSize);
+    // Use SELECT ... FOR UPDATE to take a transaction-scoped row lock
+    // instead of GET_LOCK which is session-scoped and leaks across pooled connections.
+    const existingUpload = await findExistingActiveUploadForUpdate(
+      tx,
+      user.id,
+      fileName,
+      fileSize,
+      currentDate,
+    );
 
-    await acquireUploadInitLock(tx, lockName);
-
-    try {
-      const existingUpload = await findExistingActiveUpload(
-        tx,
-        user.id,
-        fileName,
-        fileSize,
-        currentDate,
-      );
-
-      if (existingUpload) {
-        return existingUpload;
-      }
-
-      const fileId = nanoid(FILE_ID_LENGTH);
-      const uploadId = nanoid(UPLOAD_SESSION_ID_LENGTH);
-      const encryptedFek = encryptFEK(generateFEK(), user.uek);
-
-      await insertFileRecord(tx, {
-        encryptedFek,
-        fileId,
-        fileName,
-        fileSize,
-        totalChunks,
-        userId: user.id,
-      });
-
-      await insertUploadSessionRecord(tx, {
-        expiresAt,
-        fileId,
-        fileName,
-        fileSize,
-        totalChunks,
-        uploadId,
-        userId: user.id,
-      });
-
-      return {
-        fileId,
-        uploadId,
-        totalChunks,
-      };
-    } finally {
-      await releaseUploadInitLock(tx, lockName);
+    if (existingUpload) {
+      return existingUpload;
     }
+
+    const fileId = nanoid(FILE_ID_LENGTH);
+    const uploadId = nanoid(UPLOAD_SESSION_ID_LENGTH);
+    const encryptedFek = encryptFEK(generateFEK(), user.uek);
+
+    await insertFileRecord(tx, {
+      encryptedFek,
+      fileId,
+      fileName,
+      fileSize,
+      totalChunks,
+      userId: user.id,
+    });
+
+    await insertUploadSessionRecord(tx, {
+      expiresAt,
+      fileId,
+      fileName,
+      fileSize,
+      totalChunks,
+      uploadId,
+      userId: user.id,
+    });
+
+    return {
+      fileId,
+      uploadId,
+      totalChunks,
+    };
   });
 }

@@ -10,6 +10,7 @@ import {
   MAX_RETRY_JITTER_MS,
   RATE_LIMIT_RETRY_BASE_DELAY_MS,
 } from "@/lib/upload/upload-job.constants";
+import { isAllowedFileType } from "@/lib/constants";
 import { createUploadJobErrorFromHttp, UploadJobError } from "@/lib/upload/upload-job-error";
 
 export type UploadJobStatus =
@@ -22,6 +23,13 @@ export type UploadJobStatus =
   | "success"
   | "failed";
 
+export type UploadJobIndexingStatus =
+  | "idle"
+  | "pending"
+  | "complete"
+  | "failed"
+  | "skipped";
+
 export type UploadJobSnapshot = {
   id: string;
   file: File;
@@ -31,6 +39,8 @@ export type UploadJobSnapshot = {
   fileId: string | null;
   completedChunkIndexes: number[];
   error: string | null;
+  indexingStatus: UploadJobIndexingStatus;
+  indexingError: string | null;
 };
 
 export type UploadJobListener = (snapshot: UploadJobSnapshot) => void;
@@ -45,6 +55,8 @@ export class UploadJob {
   private completedChunkIndexes: Set<number>;
   private totalChunks: number | null;
   private error: string | null;
+  private indexingStatus: UploadJobIndexingStatus;
+  private indexingError: string | null;
   private listeners: Set<UploadJobListener>;
 
   constructor(file: File) {
@@ -57,6 +69,8 @@ export class UploadJob {
     this.completedChunkIndexes = new Set<number>();
     this.totalChunks = null;
     this.error = null;
+    this.indexingStatus = "idle";
+    this.indexingError = null;
     this.listeners = new Set<UploadJobListener>();
   }
 
@@ -86,6 +100,8 @@ export class UploadJob {
       fileId: this.fileId,
       completedChunkIndexes: [...this.completedChunkIndexes].sort((a, b) => a - b),
       error: this.error,
+      indexingStatus: this.indexingStatus,
+      indexingError: this.indexingError,
     };
   }
 
@@ -100,6 +116,9 @@ export class UploadJob {
     if (this.status === "uploading" || this.status === "pausing") {
       this.status = "cancelling";
       this.notify();
+    } else if (this.status === "queued") {
+      this.status = "cancelled";
+      this.notify();
     }
   }
 
@@ -107,6 +126,8 @@ export class UploadJob {
     if (this.status === "paused" || this.status === "failed") {
       this.status = "queued";
       this.error = null;
+      this.indexingStatus = "idle";
+      this.indexingError = null;
       this.notify();
     }
   }
@@ -117,10 +138,13 @@ export class UploadJob {
     }
 
     this.error = null;
+    this.indexingStatus = "idle";
+    this.indexingError = null;
     this.status = "uploading";
     this.notify();
 
     try {
+      this.assertClientFileTypeAllowed();
       const chunksWithMetaData = sliceFilesWithMetaData(this.file);
 
       await this.initUpload();
@@ -175,10 +199,15 @@ export class UploadJob {
     });
 
     if (!initResponse.ok) {
+      const errorMessage = await getUploadErrorMessageFromResponse(
+        initResponse,
+        "Failed to initialize upload",
+      );
+
       throw createUploadJobErrorFromHttp({
         stage: "init",
         status: initResponse.status,
-        message: "Failed to initialize upload",
+        message: errorMessage,
       });
     }
 
@@ -197,8 +226,13 @@ export class UploadJob {
     });
 
     if (!statusResponse.ok) {
+      const errorMessage = await getUploadErrorMessageFromResponse(
+        statusResponse,
+        "Failed to get status",
+      );
+
       throw createUploadJobErrorFromHttp({
-        message: "Failed to get status",
+        message: errorMessage,
         status: statusResponse.status,
         stage: "status",
       });
@@ -242,10 +276,15 @@ export class UploadJob {
         }
 
         if (!uploadResponse.ok) {
+          const errorMessage = await getUploadErrorMessageFromResponse(
+            uploadResponse,
+            `Failed to upload chunk with chunkIndex: ${chunkIndex}`,
+          );
+
           const uploadError = createUploadJobErrorFromHttp({
             stage: "chunk",
             status: uploadResponse.status,
-            message: `Failed to upload chunk with chunkIndex: ${chunkIndex}`,
+            message: errorMessage,
           });
 
           if (!shouldRetryChunkUpload(uploadError) || attempt >= MAX_CHUNK_UPLOAD_RETRIES) {
@@ -285,8 +324,13 @@ export class UploadJob {
     });
 
     if (!completedResponse.ok) {
+      const errorMessage = await getUploadErrorMessageFromResponse(
+        completedResponse,
+        "Failed to mark upload as completed",
+      );
+
       throw createUploadJobErrorFromHttp({
-        message: "Failed to mark upload as completed",
+        message: errorMessage,
         status: completedResponse.status,
         stage: "complete",
       });
@@ -296,6 +340,42 @@ export class UploadJob {
     this.progress = 100;
     this.status = "success";
     this.notify();
+    void this.triggerSemanticIndexing();
+  }
+
+  private async triggerSemanticIndexing() {
+    const indexingRequest = getSemanticIndexingRequest(this.file, this.fileId);
+
+    if (!indexingRequest) {
+      this.indexingStatus = "skipped";
+      this.indexingError = null;
+      this.notify();
+      return;
+    }
+
+    this.indexingStatus = "pending";
+    this.indexingError = null;
+    this.notify();
+
+    try {
+      // Phase 4 only wires the client trigger. The embeddings API may not
+      // exist yet, so any failure here must stay isolated from upload success.
+      await fetch("/api/embeddings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(indexingRequest),
+      });
+
+      this.indexingStatus = "complete";
+      this.indexingError = null;
+      this.notify();
+    } catch (error) {
+      this.indexingStatus = "failed";
+      this.indexingError = getUploadJobErrorMessage(error);
+      this.notify();
+    }
   }
 
   private updateCompletedChunkIndexAndProgress(chunkIndex: number) {
@@ -343,6 +423,19 @@ export class UploadJob {
     }
 
     return this.uploadId;
+  }
+
+  private assertClientFileTypeAllowed() {
+    if (!this.file.type || isAllowedFileType(this.file.type)) {
+      return;
+    }
+
+    throw new UploadJobError({
+      message: `File type ${this.file.type} is not allowed`,
+      code: "UNSUPPORTED_TYPE",
+      stage: "unknown",
+      status: 415,
+    });
   }
 }
 
@@ -423,4 +516,71 @@ function sleep(delayMs: number) {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, delayMs);
   });
+}
+
+async function getUploadErrorMessageFromResponse(
+  response: Response,
+  fallbackMessage: string,
+) {
+  const responseClone = response.clone();
+
+  try {
+    const payload = await response.json() as { message?: unknown };
+
+    if (typeof payload.message === "string" && payload.message.trim().length > 0) {
+      return payload.message;
+    }
+  } catch {
+    // Fall through and try plain text next.
+  }
+
+  try {
+    const responseText = await responseClone.text();
+
+    if (responseText.trim().length > 0) {
+      return responseText;
+    }
+  } catch {
+    // Fall through to the default error message when the error response
+    // cannot be parsed.
+  }
+
+  return fallbackMessage;
+}
+
+function getSemanticIndexingRequest(file: File, fileId: string | null) {
+  if (!fileId) {
+    return null;
+  }
+
+  if (file.type === "application/pdf") {
+    if (file.size > 10 * 1024 * 1024) {
+      return null;
+    }
+
+    return {
+      fileId,
+      modality: "pdf" as const,
+    };
+  }
+
+  if (isEligibleImageMimeType(file.type)) {
+    return {
+      fileId,
+      modality: "image" as const,
+    };
+  }
+
+  return null;
+}
+
+function isEligibleImageMimeType(mimeType: string) {
+  return new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/heic",
+    "image/heif",
+  ]).has(mimeType);
 }

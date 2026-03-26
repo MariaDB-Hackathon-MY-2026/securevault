@@ -17,6 +17,8 @@ const jobState = vi.hoisted(() => {
     file: File;
     fileId: string | null;
     id: string;
+    indexingError: string | null;
+    indexingStatus: "idle" | "pending" | "complete" | "failed" | "skipped";
     progress: number;
     status: Status;
     uploadId: string | null;
@@ -40,6 +42,8 @@ const jobState = vi.hoisted(() => {
         file,
         fileId: null,
         id: `job-${nextId++}`,
+        indexingError: null,
+        indexingStatus: "idle",
         progress: 0,
         status: "queued",
         uploadId: null,
@@ -353,6 +357,7 @@ describe("UploadManager", () => {
     expect(firstInstance).toBe(secondInstance);
   });
 });
+
 
 
 

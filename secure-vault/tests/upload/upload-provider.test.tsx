@@ -90,6 +90,8 @@ function createUploadSnapshot({
   file = createFile("report.pdf"),
   fileId = null,
   id = "job-1",
+  indexingError = null,
+  indexingStatus = "idle",
   progress = 0,
   status = "queued" as UploadJobStatus,
   uploadId = null,
@@ -100,6 +102,8 @@ function createUploadSnapshot({
     file,
     fileId,
     id,
+    indexingError,
+    indexingStatus,
     progress,
     status,
     uploadId,
@@ -590,4 +594,5 @@ describe("UploadQueueProvider", () => {
     expect(screen.getByTestId("summary-b").textContent).toBe("shared.pdf:success");
   });
 });
+
 

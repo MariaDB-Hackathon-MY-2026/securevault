@@ -1,4 +1,4 @@
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 
 import { PENDING_FILE_MIME_TYPE } from "@/lib/constants";
 import { files, uploadSessions } from "@/lib/db/schema";
@@ -31,6 +31,46 @@ export async function findExistingActiveUpload(
     .limit(1);
 
   return existingUpload[0] ?? null;
+}
+
+export async function findExistingActiveUploadForUpdate(
+  tx: DbTransaction,
+  userId: string,
+  fileName: string,
+  fileSize: number,
+  currentDate: Date,
+): Promise<InitUploadResponse | null> {
+  const rows = await tx.execute(sql`
+    SELECT ${uploadSessions.file_id} AS fileId,
+           ${uploadSessions.id} AS uploadId,
+           ${uploadSessions.total_chunks} AS totalChunks
+    FROM ${uploadSessions}
+    WHERE ${uploadSessions.user_id} = ${userId}
+      AND ${uploadSessions.file_name} = ${fileName}
+      AND ${uploadSessions.file_size} = ${fileSize}
+      AND ${uploadSessions.status} = 'uploading'
+      AND ${uploadSessions.expires_at} > ${currentDate}
+    LIMIT 1
+    FOR UPDATE
+  `);
+
+  const resultRows = rows as unknown as Array<{
+    fileId?: string;
+    uploadId?: string;
+    totalChunks?: number;
+  }>;
+
+  const row = resultRows[0];
+
+  if (!row?.fileId || !row?.uploadId || row?.totalChunks == null) {
+    return null;
+  }
+
+  return {
+    fileId: row.fileId,
+    uploadId: row.uploadId,
+    totalChunks: row.totalChunks,
+  };
 }
 
 type InsertFileRecordInput = {

@@ -27,6 +27,8 @@ export const ALLOWED_FILE_TYPES = [
   ...ALLOWED_DOCUMENT_TYPES,
 ] as const;
 
+export const ALLOWED_FILE_INPUT_ACCEPT = ALLOWED_FILE_TYPES.join(",");
+
 export type AllowedMimeType = typeof ALLOWED_FILE_TYPES[number];
 export type AllowedImageType = typeof ALLOWED_IMAGE_TYPES[number];
 export type AllowedDocumentType = typeof ALLOWED_DOCUMENT_TYPES[number];

@@ -51,15 +51,22 @@ export async function putObject(key: string, body: PutObjectCommandInput['Body']
 }
 
 export async function putObjectStream(key: string, body: Readable | ReadableStream, contentType?: string) {
-    // put object that are pipe through the stream with key as ref
-    return S3.send(
-        new PutObjectCommand({
+    // Use @aws-sdk/lib-storage Upload for streaming bodies where
+    // content-length is unknown. This avoids the
+    // "x-amz-decoded-content-length: undefined" error from PutObjectCommand.
+    const { Upload } = await import("@aws-sdk/lib-storage");
+
+    const upload = new Upload({
+        client: S3,
+        params: {
             Bucket: BUCKET_NAME,
             Body: normalizeBody(body),
             Key: key,
-            ContentType: contentType
-        })
-    )
+            ContentType: contentType,
+        },
+    });
+
+    await upload.done();
 }
 
 export async function getObject(key: string) {

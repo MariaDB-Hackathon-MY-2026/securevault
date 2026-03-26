@@ -36,7 +36,7 @@ function createDeferred<T>(): Deferred<T> {
   return { promise, reject, resolve };
 }
 
-function createFile(name = "report.pdf", contents = "hello world", type = "application/pdf") {
+function createFile(name = "report.pdf", contents = "hello world", type = "") {
   return new File([contents], name, { type });
 }
 
@@ -126,6 +126,8 @@ describe("UploadJob", () => {
       file,
       fileId: null,
       id: "job-1",
+      indexingError: null,
+      indexingStatus: "idle",
       progress: 0,
       status: "queued",
       uploadId: null,
@@ -155,15 +157,18 @@ describe("UploadJob", () => {
     expect(snapshots).toHaveLength(1);
   });
 
-  it("ignores pause and cancel before start and does not notify", () => {
+  it("ignores pause before start but allows cancel to transition to cancelled", () => {
     const job = new UploadJob(createFile());
     const { snapshots } = collectSnapshots(job);
 
     job.pause();
-    job.cancel();
-
     expect(job.getSnapshot().status).toBe("queued");
     expect(snapshots).toEqual([]);
+
+    job.cancel();
+    expect(job.getSnapshot().status).toBe("cancelled");
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0].status).toBe("cancelled");
   });
 
   it("transitions from uploading to pausing when pause is requested", async () => {
@@ -257,7 +262,7 @@ describe("UploadJob", () => {
     });
 
     expect(job.getSnapshot().status).toBe("failed");
-    expect(job.getSnapshot().error).toBe("Failed to initialize upload");
+    expect(job.getSnapshot().error).toBe("bad init");
 
     job.resume();
 
@@ -343,6 +348,7 @@ describe("UploadJob", () => {
     expect(job.getSnapshot()).toMatchObject({
       completedChunkIndexes: [0, 1],
       fileId: "file-1",
+      indexingStatus: "skipped",
       progress: 100,
       status: "success",
       uploadId: "upload-1",
@@ -420,11 +426,26 @@ describe("UploadJob", () => {
     expect(getFetchMock()).toHaveBeenCalledTimes(2);
     expect(job.getSnapshot()).toMatchObject({
       completedChunkIndexes: [0, 1],
+      indexingStatus: "idle",
       progress: 100,
       status: "success",
     });
   });
 
+  it("fails fast for a forbidden client-side file type before calling upload init", async () => {
+    const job = new UploadJob(createFile("malware.exe", "binary", "application/x-msdownload"));
+
+    await expect(job.start()).rejects.toMatchObject({
+      code: "UNSUPPORTED_TYPE",
+      message: "File type application/x-msdownload is not allowed",
+      stage: "unknown",
+    });
+    expect(job.getSnapshot()).toMatchObject({
+      error: "File type application/x-msdownload is not allowed",
+      status: "failed",
+    });
+    expect(getFetchMock()).not.toHaveBeenCalled();
+  });
   it("fails with an init-stage UploadJobError when init returns a bad response", async () => {
     const job = new UploadJob(createFile());
 
@@ -432,11 +453,11 @@ describe("UploadJob", () => {
 
     await expect(job.start()).rejects.toMatchObject({
       code: "INIT_FAILED",
-      message: "Failed to initialize upload",
+      message: "bad init",
       stage: "init",
     });
     expect(job.getSnapshot().status).toBe("failed");
-    expect(job.getSnapshot().error).toBe("Failed to initialize upload");
+    expect(job.getSnapshot().error).toBe("bad init");
     expect(getFetchMock()).toHaveBeenCalledTimes(1);
   });
 
@@ -454,7 +475,7 @@ describe("UploadJob", () => {
 
     await expect(job.start()).rejects.toMatchObject({
       code: "STATUS_FAILED",
-      message: "Failed to get status",
+      message: "bad status",
       stage: "status",
     });
     expect(job.getSnapshot().status).toBe("failed");
@@ -483,13 +504,43 @@ describe("UploadJob", () => {
 
     await expect(job.start()).rejects.toMatchObject({
       code: "CHUNK_FAILED",
-      message: "Failed to upload chunk with chunkIndex: 0",
+      message: "bad chunk",
       stage: "chunk",
     });
     expect(job.getSnapshot().status).toBe("failed");
     expect(getFetchMock()).toHaveBeenCalledTimes(3);
   });
 
+  it("surfaces the server file-type validation message on the upload snapshot", async () => {
+    const job = new UploadJob(createFile());
+
+    mocks.sliceFilesWithMetaData.mockReturnValue([createChunk(0, "chunk-0")]);
+    mockFetchSequence([
+      jsonResponse(200, {
+        fileId: "file-1",
+        totalChunks: 1,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(200, {
+        completedChunkIndexes: [],
+        fileId: "file-1",
+        status: "uploading",
+        totalChunks: 1,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(415, { message: "File type application/x-msdownload is not allowed" }),
+    ]);
+
+    await expect(job.start()).rejects.toMatchObject({
+      code: "UNSUPPORTED_TYPE",
+      message: "File type application/x-msdownload is not allowed",
+      stage: "chunk",
+    });
+    expect(job.getSnapshot()).toMatchObject({
+      error: "File type application/x-msdownload is not allowed",
+      status: "failed",
+    });
+  });
   it("treats a 409 chunk response as resumable success and continues the upload", async () => {
     const job = new UploadJob(createFile());
 
@@ -596,7 +647,7 @@ describe("UploadJob", () => {
     const startPromise = job.start();
     const startAssertion = expect(startPromise).rejects.toMatchObject({
       code: "SERVER_ERROR",
-      message: "Failed to upload chunk with chunkIndex: 0",
+      message: "server exploded",
       stage: "chunk",
     });
 
@@ -631,7 +682,7 @@ describe("UploadJob", () => {
 
     await expect(job.start()).rejects.toMatchObject({
       code: "CHUNK_FAILED",
-      message: "Failed to upload chunk with chunkIndex: 0",
+      message: "bad request",
       stage: "chunk",
     });
     expect(getUploadedChunkIndexes()).toEqual([0]);
@@ -664,7 +715,7 @@ describe("UploadJob", () => {
 
     await expect(job.start()).rejects.toMatchObject({
       code: "COMPLETE_FAILED",
-      message: "Failed to mark upload as completed",
+      message: "bad complete",
       stage: "complete",
     });
     expect(job.getSnapshot().status).toBe("failed");
@@ -713,6 +764,7 @@ describe("UploadJob", () => {
     expect(getFetchMock().mock.calls.map(([url]) => url)).not.toContain("/api/upload/complete");
     expect(job.getSnapshot()).toMatchObject({
       completedChunkIndexes: [0],
+      indexingStatus: "idle",
       progress: 50,
       status: "paused",
     });
@@ -762,6 +814,7 @@ describe("UploadJob", () => {
     expect(getFetchMock().mock.calls.map(([url]) => url)).not.toContain("/api/upload/complete");
     expect(job.getSnapshot()).toMatchObject({
       completedChunkIndexes: [0],
+      indexingStatus: "idle",
       progress: 50,
       status: "cancelled",
     });
@@ -886,6 +939,7 @@ describe("UploadJob", () => {
 
     expect(job.getSnapshot()).toMatchObject({
       completedChunkIndexes: [0, 1],
+      indexingStatus: "skipped",
       progress: 100,
       status: "success",
     });
@@ -947,6 +1001,7 @@ describe("UploadJob", () => {
 
     expect(job.getSnapshot()).toMatchObject({
       error: "network down",
+      indexingStatus: "idle",
       status: "failed",
     });
     expect(snapshots.at(-1)?.status).toBe("failed");
@@ -984,12 +1039,182 @@ describe("UploadJob", () => {
     ]);
     expect(job.getSnapshot()).toMatchObject({
       completedChunkIndexes: [],
+      indexingStatus: "skipped",
       progress: 100,
       status: "success",
     });
   });
 
-  it("propagates listener errors during notify and does not continue the upload", async () => {
+
+  it("triggers semantic indexing for eligible pdf uploads without blocking upload success", async () => {
+    const job = new UploadJob(createFile("report.pdf", "pdf-body", "application/pdf"));
+
+    mocks.sliceFilesWithMetaData.mockReturnValue([createChunk(0, "chunk-0")]);
+    mockFetchSequence([
+      jsonResponse(200, {
+        fileId: "file-1",
+        totalChunks: 1,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(200, {
+        completedChunkIndexes: [],
+        fileId: "file-1",
+        status: "uploading",
+        totalChunks: 1,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(200, {
+        chunkIndex: 0,
+        status: "uploaded",
+      }),
+      jsonResponse(200, {
+        fileId: "file-1",
+        status: "ready",
+      }),
+      new Response(null, { status: 204 }),
+    ]);
+
+    await job.start();
+    await Promise.resolve();
+
+    expect(getFetchMock().mock.calls.map(([url]) => url)).toEqual([
+      "/api/upload/init",
+      "/api/upload/status?uploadId=upload-1",
+      "/api/upload/chunk",
+      "/api/upload/complete",
+      "/api/embeddings",
+    ]);
+    expect(getFetchMock().mock.calls[4]?.[1]).toMatchObject({
+      body: JSON.stringify({
+        fileId: "file-1",
+        modality: "pdf",
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
+    expect(job.getSnapshot()).toMatchObject({
+      indexingError: null,
+      indexingStatus: "complete",
+      status: "success",
+    });
+  });
+
+  it("triggers semantic indexing for eligible image uploads", async () => {
+    const job = new UploadJob(createFile("photo.png", "image-body", "image/png"));
+
+    mocks.sliceFilesWithMetaData.mockReturnValue([createChunk(0, "chunk-0")]);
+    mockFetchSequence([
+      jsonResponse(200, {
+        fileId: "file-1",
+        totalChunks: 1,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(200, {
+        completedChunkIndexes: [],
+        fileId: "file-1",
+        status: "uploading",
+        totalChunks: 1,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(200, {
+        chunkIndex: 0,
+        status: "uploaded",
+      }),
+      jsonResponse(200, {
+        fileId: "file-1",
+        status: "ready",
+      }),
+      new Response(null, { status: 204 }),
+    ]);
+
+    await job.start();
+    await Promise.resolve();
+
+    expect(getFetchMock().mock.calls[4]?.[0]).toBe("/api/embeddings");
+    expect(getFetchMock().mock.calls[4]?.[1]).toMatchObject({
+      body: JSON.stringify({
+        fileId: "file-1",
+        modality: "image",
+      }),
+    });
+    expect(job.getSnapshot().indexingStatus).toBe("complete");
+  });
+
+  it("skips semantic indexing for ineligible files and oversized pdfs", async () => {
+    const oversizedPdf = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "large.pdf", {
+      type: "application/pdf",
+    });
+    const job = new UploadJob(oversizedPdf);
+
+    mocks.sliceFilesWithMetaData.mockReturnValue([]);
+    mockFetchSequence([
+      jsonResponse(200, {
+        fileId: "file-1",
+        totalChunks: 0,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(200, {
+        completedChunkIndexes: [],
+        fileId: "file-1",
+        status: "uploading",
+        totalChunks: 0,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(200, {
+        fileId: "file-1",
+        status: "ready",
+      }),
+    ]);
+
+    await job.start();
+    await Promise.resolve();
+
+    expect(getFetchMock().mock.calls.map(([url]) => url)).toEqual([
+      "/api/upload/init",
+      "/api/upload/status?uploadId=upload-1",
+      "/api/upload/complete",
+    ]);
+    expect(job.getSnapshot()).toMatchObject({
+      indexingStatus: "skipped",
+      status: "success",
+    });
+  });
+
+  it("captures semantic indexing trigger failures without rolling back the ready upload", async () => {
+    const job = new UploadJob(createFile("report.pdf", "pdf-body", "application/pdf"));
+
+    mocks.sliceFilesWithMetaData.mockReturnValue([]);
+    getFetchMock()
+      .mockResolvedValueOnce(jsonResponse(200, {
+        fileId: "file-1",
+        totalChunks: 0,
+        uploadId: "upload-1",
+      }))
+      .mockResolvedValueOnce(jsonResponse(200, {
+        completedChunkIndexes: [],
+        fileId: "file-1",
+        status: "uploading",
+        totalChunks: 0,
+        uploadId: "upload-1",
+      }))
+      .mockResolvedValueOnce(jsonResponse(200, {
+        fileId: "file-1",
+        status: "ready",
+      }))
+      .mockRejectedValueOnce(new Error("indexing service unavailable"));
+
+    await job.start();
+    await Promise.resolve();
+
+    expect(job.getSnapshot()).toMatchObject({
+      indexingError: "indexing service unavailable",
+      indexingStatus: "failed",
+      progress: 100,
+      status: "success",
+    });
+  });  it("propagates listener errors during notify and does not continue the upload", async () => {
     const job = new UploadJob(createFile());
     const secondListener = vi.fn();
 
@@ -1004,6 +1229,15 @@ describe("UploadJob", () => {
     expect(secondListener).not.toHaveBeenCalled();
   });
 });
+
+
+
+
+
+
+
+
+
 
 
 

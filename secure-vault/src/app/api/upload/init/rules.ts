@@ -1,4 +1,5 @@
 import * as z from "zod";
+import * as crypto from "node:crypto";
 
 import type { CurrentUser } from "@/lib/auth/get-current-user";
 import { MAX_UPLOAD_SIZE_BYTES, UPLOAD_CHUNK_SIZE_BYTES } from "@/lib/constants";
@@ -49,5 +50,9 @@ export function calculateTotalChunks(fileSizeBytes: number) {
 }
 
 export function buildUploadInitLockName(userId: string, fileName: string, fileSize: number) {
-  return `upload:init:${userId}:${fileName}:${fileSize}`;
+  const rawName = `upload:init:${userId}:${fileName}:${fileSize}`;
+  if (rawName.length <= 64) {
+    return rawName;
+  }
+  return crypto.createHash("sha256").update(rawName).digest("hex");
 }

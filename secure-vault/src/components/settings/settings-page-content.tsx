@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusNotice } from "@/components/ui/status-notice";
 import { formatDisplayDateTime } from "@/lib/format/date";
 import type { CurrentUser } from "@/lib/auth/get-current-user";
 import type { SessionSummary } from "@/lib/auth/session";
@@ -7,10 +8,25 @@ import { revokeOtherSessionsAction, revokeSessionAction } from "@/app/(dashboard
 
 import { PasswordSettingsForm, ProfileSettingsForm } from "@/components/settings/settings-forms";
 
-const statusMessages: Record<string, string> = {
-  "session-revoked": "Selected device session revoked.",
-  "other-sessions-revoked": "All other devices were signed out.",
-  "invalid-session": "That session could not be revoked.",
+const statusMessages: Record<
+  string,
+  { tone: "success" | "error"; title: string; description: string }
+> = {
+  "session-revoked": {
+    tone: "success",
+    title: "Device revoked",
+    description: "Selected device session revoked.",
+  },
+  "other-sessions-revoked": {
+    tone: "success",
+    title: "Other devices signed out",
+    description: "All other devices were signed out.",
+  },
+  "invalid-session": {
+    tone: "error",
+    title: "Session unavailable",
+    description: "That session could not be revoked.",
+  },
 };
 
 type SettingsPageContentProps = {
@@ -39,9 +55,11 @@ export function SettingsPageContent({
       </div>
 
       {statusMessage && (
-        <Card className="border-emerald-500/40 bg-emerald-500/5">
-          <CardContent className="p-4 text-sm">{statusMessage}</CardContent>
-        </Card>
+        <StatusNotice
+          tone={statusMessage.tone}
+          title={statusMessage.title}
+          description={statusMessage.description}
+        />
       )}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
