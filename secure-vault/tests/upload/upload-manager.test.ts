@@ -140,10 +140,11 @@ describe("UploadManager", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     jobState.MockUploadJob.reset();
+    Reflect.set(UploadManager, "instance", null);
   });
 
   it("adds files, exposes snapshots, and starts at most three jobs", () => {
-    const manager = new UploadManager();
+    const manager = UploadManager.getInstance();
     const unsubscribe = manager.subscribe(() => undefined);
     const files = [
       createFile("one.pdf"),
@@ -166,7 +167,7 @@ describe("UploadManager", () => {
   });
 
   it("starts the next queued job when an active job leaves the active pool", () => {
-    const manager = new UploadManager();
+    const manager = UploadManager.getInstance();
     const files = [
       createFile("one.pdf"),
       createFile("two.pdf"),
@@ -183,7 +184,7 @@ describe("UploadManager", () => {
   });
 
   it("delegates pause, resume, and cancel to the matching job", () => {
-    const manager = new UploadManager();
+    const manager = UploadManager.getInstance();
     manager.addFiles([createFile("one.pdf")]);
 
     const [job] = jobState.MockUploadJob.getInstances();
@@ -202,7 +203,7 @@ describe("UploadManager", () => {
   });
 
   it("removes only terminal jobs and cleans up the job subscription", () => {
-    const manager = new UploadManager();
+    const manager = UploadManager.getInstance();
     manager.addFiles([createFile("one.pdf"), createFile("two.pdf")]);
 
     const [firstJob, secondJob] = jobState.MockUploadJob.getInstances();
@@ -223,7 +224,7 @@ describe("UploadManager", () => {
   });
 
   it("manager subscribe returns an unsubscribe cleanup", () => {
-    const manager = new UploadManager();
+    const manager = UploadManager.getInstance();
     const listener = vi.fn();
     const unsubscribe = manager.subscribe(listener);
 
@@ -239,7 +240,7 @@ describe("UploadManager", () => {
   });
 
   it("does not remove unknown or non-terminal jobs", () => {
-    const manager = new UploadManager();
+    const manager = UploadManager.getInstance();
 
     manager.addFiles([createFile("one.pdf")]);
 
@@ -255,7 +256,7 @@ describe("UploadManager", () => {
   });
 
   it("does not start a resumed job until a concurrency slot is free", () => {
-    const manager = new UploadManager();
+    const manager = UploadManager.getInstance();
     const files = [
       createFile("one.pdf"),
       createFile("two.pdf"),
@@ -281,7 +282,7 @@ describe("UploadManager", () => {
   });
 
   it("continues scheduling after a job start rejects and frees its slot", async () => {
-    const manager = new UploadManager();
+    const manager = UploadManager.getInstance();
     const startError = new Error("start failed");
 
     jobState.MockUploadJob.setDefaultStartImplementation(async (job) => {
@@ -317,7 +318,7 @@ describe("UploadManager", () => {
   });
 
   it("preserves insertion order in snapshots across queue activity and removals", () => {
-    const manager = new UploadManager();
+    const manager = UploadManager.getInstance();
 
     manager.addFiles([
       createFile("one.pdf"),
@@ -344,4 +345,14 @@ describe("UploadManager", () => {
       "three.pdf",
     ]);
   });
+
+  it("returns the same singleton instance on repeated calls", () => {
+    const firstInstance = UploadManager.getInstance();
+    const secondInstance = UploadManager.getInstance();
+
+    expect(firstInstance).toBe(secondInstance);
+  });
 });
+
+
+

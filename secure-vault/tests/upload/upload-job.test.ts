@@ -490,6 +490,154 @@ describe("UploadJob", () => {
     expect(getFetchMock()).toHaveBeenCalledTimes(3);
   });
 
+  it("treats a 409 chunk response as resumable success and continues the upload", async () => {
+    const job = new UploadJob(createFile());
+
+    mocks.sliceFilesWithMetaData.mockReturnValue([createChunk(0, "chunk-0")]);
+    mockFetchSequence([
+      jsonResponse(200, {
+        fileId: "file-1",
+        totalChunks: 1,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(200, {
+        completedChunkIndexes: [],
+        fileId: "file-1",
+        status: "uploading",
+        totalChunks: 1,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(409, { message: "Chunk already uploaded" }),
+      jsonResponse(200, {
+        fileId: "file-1",
+        status: "ready",
+      }),
+    ]);
+
+    await job.start();
+
+    expect(getUploadedChunkIndexes()).toEqual([0]);
+    expect(job.getSnapshot()).toMatchObject({
+      completedChunkIndexes: [0],
+      progress: 100,
+      status: "success",
+    });
+  });
+
+  it("retries a rate-limited chunk upload with backoff and eventually succeeds", async () => {
+    vi.useFakeTimers();
+    const mathRandomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    const job = new UploadJob(createFile());
+
+    mocks.sliceFilesWithMetaData.mockReturnValue([createChunk(0, "chunk-0")]);
+    mockFetchSequence([
+      jsonResponse(200, {
+        fileId: "file-1",
+        totalChunks: 1,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(200, {
+        completedChunkIndexes: [],
+        fileId: "file-1",
+        status: "uploading",
+        totalChunks: 1,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(429, { message: "Too many requests" }),
+      jsonResponse(429, { message: "Too many requests" }),
+      jsonResponse(200, {
+        chunkIndex: 0,
+        status: "uploaded",
+      }),
+      jsonResponse(200, {
+        fileId: "file-1",
+        status: "ready",
+      }),
+    ]);
+
+    const startPromise = job.start();
+
+    await vi.runAllTimersAsync();
+    await startPromise;
+
+    expect(getUploadedChunkIndexes()).toEqual([0, 0, 0]);
+    expect(job.getSnapshot().status).toBe("success");
+    expect(job.getSnapshot().progress).toBe(100);
+
+    mathRandomSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("retries a retryable chunk failure up to the max and then fails", async () => {
+    vi.useFakeTimers();
+    const mathRandomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    const job = new UploadJob(createFile());
+
+    mocks.sliceFilesWithMetaData.mockReturnValue([createChunk(0, "chunk-0")]);
+    mockFetchSequence([
+      jsonResponse(200, {
+        fileId: "file-1",
+        totalChunks: 1,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(200, {
+        completedChunkIndexes: [],
+        fileId: "file-1",
+        status: "uploading",
+        totalChunks: 1,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(500, { message: "server exploded" }),
+      jsonResponse(500, { message: "server exploded" }),
+      jsonResponse(500, { message: "server exploded" }),
+      jsonResponse(500, { message: "server exploded" }),
+    ]);
+
+    const startPromise = job.start();
+    const startAssertion = expect(startPromise).rejects.toMatchObject({
+      code: "SERVER_ERROR",
+      message: "Failed to upload chunk with chunkIndex: 0",
+      stage: "chunk",
+    });
+
+    await vi.runAllTimersAsync();
+    await startAssertion;
+    expect(getUploadedChunkIndexes()).toEqual([0, 0, 0, 0]);
+    expect(job.getSnapshot().status).toBe("failed");
+
+    mathRandomSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("does not retry non-retryable chunk failures", async () => {
+    const job = new UploadJob(createFile());
+
+    mocks.sliceFilesWithMetaData.mockReturnValue([createChunk(0, "chunk-0")]);
+    mockFetchSequence([
+      jsonResponse(200, {
+        fileId: "file-1",
+        totalChunks: 1,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(200, {
+        completedChunkIndexes: [],
+        fileId: "file-1",
+        status: "uploading",
+        totalChunks: 1,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(400, { message: "bad request" }),
+    ]);
+
+    await expect(job.start()).rejects.toMatchObject({
+      code: "CHUNK_FAILED",
+      message: "Failed to upload chunk with chunkIndex: 0",
+      stage: "chunk",
+    });
+    expect(getUploadedChunkIndexes()).toEqual([0]);
+    expect(job.getSnapshot().status).toBe("failed");
+  });
+
   it("fails with a complete-stage UploadJobError when complete returns a bad response", async () => {
     const job = new UploadJob(createFile());
 
@@ -856,4 +1004,6 @@ describe("UploadJob", () => {
     expect(secondListener).not.toHaveBeenCalled();
   });
 });
+
+
 

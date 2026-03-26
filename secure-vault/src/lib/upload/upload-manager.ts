@@ -12,18 +12,28 @@ export type UploadManagerSnapshot = {
 export type UploadManagerListener = (snapshot: UploadManagerSnapshot) => void;
 
 export class UploadManager {
+  private static instance: UploadManager | null = null;
+
   private readonly jobs: Map<string, UploadJob>;
   private readonly jobUnsubscribes: Map<string, () => void>;
   private isPumpingQueue: boolean;
   private needsPumpQueue: boolean;
   private readonly listeners: Set<UploadManagerListener>;
 
-  public constructor() {
+  private constructor() {
     this.jobs = new Map();
     this.jobUnsubscribes = new Map();
     this.isPumpingQueue = false;
     this.needsPumpQueue = false;
     this.listeners = new Set();
+  }
+
+  public static getInstance() {
+    if (!UploadManager.instance) {
+      UploadManager.instance = new UploadManager();
+    }
+
+    return UploadManager.instance;
   }
 
   public subscribe(listener: UploadManagerListener) {

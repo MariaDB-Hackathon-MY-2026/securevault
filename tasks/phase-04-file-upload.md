@@ -63,16 +63,13 @@
   - `sliceFile(file: File, chunkSize: number): Blob[]` - splits into 5MB chunks
   - Chunk size constant: `CHUNK_SIZE = 5 * 1024 * 1024`
 
-- [ ] **4.6 - Implement OOP upload queue: `UploadJob` + `UploadManager` + context hook**
+- [ ] **4.6 - Implement OOP upload engine: `UploadJob` + `UploadManager`**
   - Files:
     - `src/lib/upload/upload-job.ts`
     - `src/lib/upload/upload-manager.ts`
-    - `src/components/upload/upload-provider.tsx`
-    - `src/hooks/use-upload-queue.ts`
   - Replace the per-file `useUpload` mental model with an **object-oriented upload system**
   - Each file upload should be represented by an `UploadJob` object responsible for its own lifecycle, state, and upload logic
   - Global concurrency and orchestration should be owned by an `UploadManager`
-  - React components should consume manager state through context instead of each upload card running its own upload loop
   - Implement an `UploadJob` class that at minimum owns:
     - `id`
     - `file`
@@ -107,7 +104,26 @@
   - **File-level concurrency only**: at most `3` `UploadJob` instances uploading at the same time globally
   - **Per-file chunk concurrency**: `1` chunk at a time per file
   - `UploadJob` should own single-file behavior; `UploadManager` should own multi-file scheduling
-  - Expose the manager to UI through `UploadQueueProvider` + `useUploadQueue()`
+
+- [ ] **4.6.1 - Expose upload manager to React via provider + hook**
+  - Files:
+    - `src/components/upload/upload-provider.tsx`
+    - `src/hooks/use-upload-queue.ts`
+  - React components should consume manager state through context instead of each upload card running its own upload loop
+  - Use the singleton upload manager from `UploadManager.getInstance()` as the app-wide queue source
+  - `UploadQueueProvider` should subscribe to the manager and keep React in sync with the latest manager snapshot
+  - `useUploadQueue()` should expose:
+    - `uploads`
+    - `addFiles(files)`
+    - `pauseUpload(id)`
+    - `resumeUpload(id)`
+    - `cancelUpload(id)`
+    - `removeUpload(id)`
+  - Ensure every consumer under the provider sees the same shared queue state
+  - Add React-level tests that prove:
+    - two upload cards/components share the same queue state
+    - actions dispatched from one component are reflected in the others
+    - provider unsubscribes cleanly on unmount
 
 - [ ] **4.7 - Build upload dialog UI**
   - File: `src/components/upload/upload-dialog.tsx`

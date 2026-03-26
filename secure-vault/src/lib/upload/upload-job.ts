@@ -4,6 +4,12 @@ import type { UploadChunkResponse } from "@/app/api/upload/chunk/types";
 import type { CompleteUploadResponse } from "@/app/api/upload/complete/types";
 import type { InitUploadResponse } from "@/app/api/upload/init/types";
 import type { UploadStatusResponse } from "@/app/api/upload/status/types";
+import {
+  CHUNK_RETRY_BASE_DELAY_MS,
+  MAX_CHUNK_UPLOAD_RETRIES,
+  MAX_RETRY_JITTER_MS,
+  RATE_LIMIT_RETRY_BASE_DELAY_MS,
+} from "@/lib/upload/upload-job.constants";
 import { createUploadJobErrorFromHttp, UploadJobError } from "@/lib/upload/upload-job-error";
 
 export type UploadJobStatus =
@@ -217,26 +223,54 @@ export class UploadJob {
 
   private async uploadChunk(chunk: Blob, chunkIndex: number) {
     const uploadId = this.requireUploadId();
+    let attempt = 0;
 
-    const uploadResponse = await fetch("/api/upload/chunk", {
-      method: "POST",
-      body: chunk,
-      headers: {
-        "x-upload-id": uploadId,
-        "x-chunk-index": String(chunkIndex),
-      },
-    });
+    while (attempt <= MAX_CHUNK_UPLOAD_RETRIES) {
+      try {
+        const uploadResponse = await fetch("/api/upload/chunk", {
+          method: "POST",
+          body: chunk,
+          headers: {
+            "x-upload-id": uploadId,
+            "x-chunk-index": String(chunkIndex),
+          },
+        });
 
-    if (!uploadResponse.ok) {
-      throw createUploadJobErrorFromHttp({
-        stage: "chunk",
-        status: uploadResponse.status,
-        message: `Failed to upload chunk with chunkIndex: ${chunkIndex}`,
-      });
+        if (uploadResponse.status === 409) {
+          this.updateCompletedChunkIndexAndProgress(chunkIndex);
+          return;
+        }
+
+        if (!uploadResponse.ok) {
+          const uploadError = createUploadJobErrorFromHttp({
+            stage: "chunk",
+            status: uploadResponse.status,
+            message: `Failed to upload chunk with chunkIndex: ${chunkIndex}`,
+          });
+
+          if (!shouldRetryChunkUpload(uploadError) || attempt >= MAX_CHUNK_UPLOAD_RETRIES) {
+            throw uploadError;
+          }
+
+          await sleep(getChunkRetryDelayMs(attempt, uploadError.status));
+          attempt += 1;
+          continue;
+        }
+
+        const parsedJson: UploadChunkResponse = await uploadResponse.json();
+        this.updateCompletedChunkIndexAndProgress(parsedJson.chunkIndex);
+        return;
+      } catch (error) {
+        const normalizedError = normalizeChunkUploadError(error, chunkIndex);
+
+        if (!shouldRetryChunkUpload(normalizedError) || attempt >= MAX_CHUNK_UPLOAD_RETRIES) {
+          throw normalizedError;
+        }
+
+        await sleep(getChunkRetryDelayMs(attempt, normalizedError.status));
+        attempt += 1;
+      }
     }
-
-    const parsedJson: UploadChunkResponse = await uploadResponse.json();
-    this.updateCompletedChunkIndexAndProgress(parsedJson.chunkIndex);
   }
 
   private async uploadComplete() {
@@ -343,4 +377,50 @@ function getUploadJobErrorMessage(error: unknown) {
   }
 
   return "Upload failed";
+}
+
+function shouldRetryChunkUpload(error: UploadJobError) {
+  return (
+    error.code === "NETWORK_ERROR" ||
+    error.code === "RATE_LIMITED" ||
+    error.code === "SERVER_ERROR"
+  );
+}
+
+function normalizeChunkUploadError(error: unknown, chunkIndex: number) {
+  if (error instanceof UploadJobError) {
+    return error;
+  }
+
+  if (error instanceof Error) {
+    return new UploadJobError({
+      message: error.message,
+      code: "NETWORK_ERROR",
+      stage: "chunk",
+      cause: error,
+    });
+  }
+
+  return new UploadJobError({
+    message: `Failed to upload chunk with chunkIndex: ${chunkIndex}`,
+    code: "CHUNK_FAILED",
+    stage: "chunk",
+    cause: error,
+  });
+}
+
+function getChunkRetryDelayMs(attempt: number, status: number | null) {
+  const baseDelay = status === 429
+    ? RATE_LIMIT_RETRY_BASE_DELAY_MS
+    : CHUNK_RETRY_BASE_DELAY_MS;
+  const exponentialDelay = baseDelay * (2 ** attempt);
+  const jitter = Math.floor(Math.random() * MAX_RETRY_JITTER_MS);
+
+  return exponentialDelay + jitter;
+}
+
+function sleep(delayMs: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
 }
