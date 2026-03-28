@@ -31,60 +31,114 @@ export {
 export type { InitBody } from "./rules";
 export type { InitUploadResponse } from "./types";
 
-
+const MAX_INIT_TRANSACTION_RETRIES = 3;
+const INIT_TRANSACTION_RETRY_DELAY_MS = 50;
 
 export async function initializeUpload(
   user: CurrentUser,
   fileMetaData: InitBody,
 ): Promise<InitUploadResponse> {
-
   const currentDate = new Date();
   const { fileName, fileSize } = fileMetaData;
   const totalChunks = calculateTotalChunks(fileSize);
   const expiresAt = new Date(currentDate.getTime() + UPLOAD_SESSION_EXPIRY_MS);
+  let attempt = 0;
 
-  return MariadbConnection.getConnection().transaction(async (tx) => {
-    // Use SELECT ... FOR UPDATE to take a transaction-scoped row lock
-    // instead of GET_LOCK which is session-scoped and leaks across pooled connections.
-    const existingUpload = await findExistingActiveUploadForUpdate(
-      tx,
-      user.id,
-      fileName,
-      fileSize,
-      currentDate,
-    );
+  while (true) {
+    try {
+      return await MariadbConnection.getConnection().transaction(async (tx) => {
+        // Use SELECT ... FOR UPDATE to take a transaction-scoped row lock
+        // instead of GET_LOCK which is session-scoped and leaks across pooled connections.
+        const existingUpload = await findExistingActiveUploadForUpdate(
+          tx,
+          user.id,
+          fileName,
+          fileSize,
+          currentDate,
+        );
 
-    if (existingUpload) {
-      return existingUpload;
+        if (existingUpload) {
+          return existingUpload;
+        }
+
+        const fileId = nanoid(FILE_ID_LENGTH);
+        const uploadId = nanoid(UPLOAD_SESSION_ID_LENGTH);
+        const encryptedFek = encryptFEK(generateFEK(), user.uek);
+
+        await insertFileRecord(tx, {
+          encryptedFek,
+          fileId,
+          fileName,
+          fileSize,
+          totalChunks,
+          userId: user.id,
+        });
+
+        await insertUploadSessionRecord(tx, {
+          expiresAt,
+          fileId,
+          fileName,
+          fileSize,
+          totalChunks,
+          uploadId,
+          userId: user.id,
+        });
+
+        return {
+          fileId,
+          uploadId,
+          totalChunks,
+        };
+      });
+    } catch (error) {
+      if (!shouldRetryDeadlockedInitTransaction(error) || attempt >= MAX_INIT_TRANSACTION_RETRIES) {
+        throw error;
+      }
+
+      attempt += 1;
+      await sleep(INIT_TRANSACTION_RETRY_DELAY_MS * attempt);
     }
+  }
+}
 
-    const fileId = nanoid(FILE_ID_LENGTH);
-    const uploadId = nanoid(UPLOAD_SESSION_ID_LENGTH);
-    const encryptedFek = encryptFEK(generateFEK(), user.uek);
+function shouldRetryDeadlockedInitTransaction(error: unknown) {
+  const { code, sqlState } = getDatabaseErrorDetails(error);
 
-    await insertFileRecord(tx, {
-      encryptedFek,
-      fileId,
-      fileName,
-      fileSize,
-      totalChunks,
-      userId: user.id,
-    });
+  return code === "ER_LOCK_DEADLOCK" || sqlState === "40001";
+}
 
-    await insertUploadSessionRecord(tx, {
-      expiresAt,
-      fileId,
-      fileName,
-      fileSize,
-      totalChunks,
-      uploadId,
-      userId: user.id,
-    });
-
+function getDatabaseErrorDetails(error: unknown) {
+  if (!error || typeof error !== "object") {
     return {
-      fileId,
-      uploadId,
-      totalChunks,
+      code: undefined,
+      sqlState: undefined,
     };
+  }
+
+  const direct = error as { code?: unknown; sqlState?: unknown; cause?: unknown };
+  const nested =
+    direct.cause && typeof direct.cause === "object"
+      ? direct.cause as { code?: unknown; sqlState?: unknown }
+      : undefined;
+
+  return {
+    code:
+      typeof direct.code === "string"
+        ? direct.code
+        : typeof nested?.code === "string"
+          ? nested.code
+          : undefined,
+    sqlState:
+      typeof direct.sqlState === "string"
+        ? direct.sqlState
+        : typeof nested?.sqlState === "string"
+          ? nested.sqlState
+          : undefined,
+  };
+}
+
+function sleep(delayMs: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, delayMs);
   });
 }

@@ -155,22 +155,50 @@ export function UploadDialog({ children }: { children?: React.ReactNode }) {
                     </div>
                     <div className="flex items-center gap-1 shrink-0 ml-4">
                       {job.status === "uploading" && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => pauseUpload(job.id)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          aria-label={`Pause upload ${job.file.name}`}
+                          title={`Pause upload ${job.file.name}`}
+                          onClick={() => pauseUpload(job.id)}
+                        >
                           <Pause className="w-3.5 h-3.5" />
                         </Button>
                       )}
                       {(job.status === "paused" || job.status === "failed") && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => resumeUpload(job.id)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          aria-label={`Resume upload ${job.file.name}`}
+                          title={`Resume upload ${job.file.name}`}
+                          onClick={() => resumeUpload(job.id)}
+                        >
                           <Play className="w-3.5 h-3.5" />
                         </Button>
                       )}
                       {(job.status === "queued" || job.status === "uploading" || job.status === "pausing" || job.status === "paused") && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => cancelUpload(job.id)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          aria-label={`Cancel upload ${job.file.name}`}
+                          title={`Cancel upload ${job.file.name}`}
+                          onClick={() => cancelUpload(job.id)}
+                        >
                           <X className="w-3.5 h-3.5" />
                         </Button>
                       )}
                       {(job.status === "success" || job.status === "failed" || job.status === "cancelled") && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => removeUpload(job.id)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          aria-label={`Remove upload ${job.file.name}`}
+                          title={`Remove upload ${job.file.name}`}
+                          onClick={() => removeUpload(job.id)}
+                        >
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       )}

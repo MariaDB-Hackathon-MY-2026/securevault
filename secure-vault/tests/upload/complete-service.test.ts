@@ -59,6 +59,7 @@ function createSession(overrides: Partial<{
 // ---------------------------------------------------------------------------
 function createDbHarness(options?: {
   session?: ReturnType<typeof createSession> | null;
+  transactionErrors?: Error[];
   updateError?: Error;
 }) {
   // SELECT chain
@@ -88,16 +89,24 @@ function createDbHarness(options?: {
 
   const tx = { select, update };
 
+  const transaction = vi.fn(async (callback: (transaction: unknown) => Promise<unknown>) => {
+    const nextTransactionError = options?.transactionErrors?.shift();
+
+    if (nextTransactionError) {
+      throw nextTransactionError;
+    }
+
+    return callback(tx);
+  });
+
   const db = {
-    transaction: vi.fn(
-      (callback: (transaction: unknown) => Promise<unknown>) => callback(tx),
-    ),
+    transaction,
   };
 
   return {
     db,
     spies: {
-      dbTransaction: db.transaction,
+      dbTransaction: transaction,
       filesSet,
       select,
       selectFrom,
@@ -452,5 +461,28 @@ describe("upload complete service", () => {
         completeUploadTransaction(createUser(), { uploadId: VALID_UPLOAD_ID }),
       ).rejects.toThrow("ER_LOCK_DEADLOCK");
     });
+
+    it("retries a deadlocked complete transaction and succeeds on the next attempt", async () => {
+      vi.useFakeTimers();
+      const harness = createDbHarness({
+        session: createSession(),
+        transactionErrors: [
+          Object.assign(new Error("Deadlock found when trying to get lock; try restarting transaction"), {
+            code: "ER_LOCK_DEADLOCK",
+            sqlState: "40001",
+          }),
+        ],
+      });
+      vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+      const uploadPromise = completeUploadTransaction(createUser(), { uploadId: VALID_UPLOAD_ID });
+
+      await vi.runAllTimersAsync();
+
+      await expect(uploadPromise).resolves.toEqual({ fileId: FILE_ID, status: "ready" });
+      expect(harness.spies.dbTransaction).toHaveBeenCalledTimes(2);
+      expect(harness.spies.update).toHaveBeenCalledTimes(3);
+    });
   });
 });
+

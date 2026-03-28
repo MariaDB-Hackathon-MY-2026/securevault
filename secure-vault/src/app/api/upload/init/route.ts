@@ -28,6 +28,12 @@ export async function POST(req: NextRequest) {
     );
   } catch (error) {
     console.error("Upload init failed", error);
+    console.error(
+      "Upload init failed cause",
+      error && typeof error === "object" && "cause" in error
+        ? (error as { cause?: unknown }).cause
+        : undefined,
+    );
 
     if (error instanceof UploadInitServiceError) {
       return createErrorResponse(error.message, error.status);

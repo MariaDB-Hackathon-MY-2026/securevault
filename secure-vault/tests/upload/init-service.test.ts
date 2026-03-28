@@ -43,6 +43,7 @@ function createCurrentUser(overrides: Partial<CurrentUser> = {}): CurrentUser {
 function createTransactionHarness(options?: {
   existingUpload?: Array<{ fileId: string; uploadId: string; totalChunks: number }>;
   fileInsertError?: Error;
+  transactionErrors?: Error[];
   uploadInsertError?: Error;
 }) {
   const fileValues = vi.fn(async () => {
@@ -78,15 +79,25 @@ function createTransactionHarness(options?: {
     insert,
   };
 
+  const transaction = vi.fn(async (callback: (transaction: unknown) => Promise<unknown>) => {
+    const nextTransactionError = options?.transactionErrors?.shift();
+
+    if (nextTransactionError) {
+      throw nextTransactionError;
+    }
+
+    return callback(tx);
+  });
+
   const db = {
-    transaction: vi.fn((callback: (transaction: unknown) => Promise<unknown>) => callback(tx)),
+    transaction,
   };
 
   return {
     db,
     tx,
     spies: {
-      dbTransaction: db.transaction,
+      dbTransaction: transaction,
       execute,
       fileValues,
       insert,
@@ -270,4 +281,36 @@ describe("upload init service", () => {
     expect(harness.spies.execute).toHaveBeenCalledTimes(1);
     expect(harness.spies.uploadValues).not.toHaveBeenCalled();
   });
+
+  it("retries a deadlocked upload init transaction and succeeds on the next attempt", async () => {
+    vi.useFakeTimers();
+    const harness = createTransactionHarness({
+      transactionErrors: [
+        Object.assign(new Error("Deadlock found when trying to get lock; try restarting transaction"), {
+          code: "ER_LOCK_DEADLOCK",
+          sqlState: "40001",
+        }),
+      ],
+    });
+    vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+    mocks.nanoid.mockReturnValueOnce("file-retry").mockReturnValueOnce("upload-retry");
+
+    const uploadPromise = initializeUpload(createCurrentUser(), {
+      fileName: "report.pdf",
+      fileSize: 100,
+      fileType: "application/pdf",
+    });
+
+    await vi.runAllTimersAsync();
+
+    await expect(uploadPromise).resolves.toEqual({
+      fileId: "file-retry",
+      uploadId: "upload-retry",
+      totalChunks: 1,
+    });
+    expect(harness.spies.dbTransaction).toHaveBeenCalledTimes(2);
+    expect(harness.spies.fileValues).toHaveBeenCalledTimes(1);
+    expect(harness.spies.uploadValues).toHaveBeenCalledTimes(1);
+  });
 });
+
