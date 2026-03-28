@@ -4,7 +4,7 @@ import { MariadbConnection } from "@/lib/db";
 import { files, uploadSessions, users } from "@/lib/db/schema";
 import type { CurrentUser } from "@/lib/auth/get-current-user";
 import { completeUploadTransaction, validateBody } from "@/app/api/upload/complete/service";
-import { BodyRequestErrorResponse, TransactionFailureErrorResponse } from "@/app/api/upload/complete/Error";
+import { BodyRequestErrorResponse } from "@/app/api/upload/complete/Error";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -52,7 +52,7 @@ function createSession(overrides: Partial<{
 // DB / transaction harness
 //
 // Models the Drizzle query builder chain:
-//   tx.select({...}).from(uploadSessions).where(and(...))   → returns [session]
+//   tx.select({...}).from(uploadSessions).where(and(...)) -> returns [session]
 //   tx.update(files).set({...}).where(...)
 //   tx.update(uploadSessions).set({...}).where(...)
 //   tx.update(users).set({...}).where(...)
@@ -62,7 +62,6 @@ function createDbHarness(options?: {
   transactionErrors?: Error[];
   updateError?: Error;
 }) {
-  // SELECT chain
   const selectWhere = vi.fn().mockResolvedValue(
     options?.session !== undefined && options.session !== null
       ? [options.session]
@@ -199,13 +198,12 @@ describe("upload complete service", () => {
       expect(harness.spies.dbTransaction).toHaveBeenCalledTimes(1);
     });
 
-    it("queries upload session by uploadId and user_id (not by column equality)", async () => {
+    it("queries upload session by uploadId and user_id", async () => {
       const harness = createDbHarness({ session: createSession() });
       vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
 
       await completeUploadTransaction(createUser(), { uploadId: VALID_UPLOAD_ID });
 
-      // select() called once; from() called on uploadSessions; where() called once
       expect(harness.spies.select).toHaveBeenCalledTimes(1);
       expect(harness.spies.selectFrom).toHaveBeenCalledWith(uploadSessions);
       expect(harness.spies.selectWhere).toHaveBeenCalledTimes(1);
@@ -483,6 +481,34 @@ describe("upload complete service", () => {
       expect(harness.spies.dbTransaction).toHaveBeenCalledTimes(2);
       expect(harness.spies.update).toHaveBeenCalledTimes(3);
     });
+
+    it("retries an ER_CHECKREAD conflict and succeeds on the next attempt", async () => {
+      vi.useFakeTimers();
+      const harness = createDbHarness({
+        session: createSession(),
+        transactionErrors: [
+          Object.assign(new Error("Record has changed since last read in table 'upload_sessions'"), {
+            code: "ER_CHECKREAD",
+            sqlState: "HY000",
+          }),
+        ],
+      });
+      vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+      const uploadPromise = completeUploadTransaction(createUser(), { uploadId: VALID_UPLOAD_ID });
+
+      await vi.runAllTimersAsync();
+
+      await expect(uploadPromise).resolves.toEqual({ fileId: FILE_ID, status: "ready" });
+      expect(harness.spies.dbTransaction).toHaveBeenCalledTimes(2);
+      expect(harness.spies.update).toHaveBeenCalledTimes(3);
+    });
   });
 });
+
+
+
+
+
+
 

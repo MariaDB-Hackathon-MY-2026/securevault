@@ -26,7 +26,7 @@ const S3 = new S3Client({
 });
 
 
-type R2Body = PutObjectCommandInput['Body'] | Readable | ReadableStream
+type R2Body = PutObjectCommandInput['Body'] | Readable | ReadableStream<unknown>
 function normalizeBody(body: R2Body) {
     //S3 only accepts readable stream and putobjectCommandInput body
     if (body instanceof Readable) return body
@@ -50,7 +50,7 @@ export async function putObject(key: string, body: PutObjectCommandInput['Body']
     )
 }
 
-export async function putObjectStream(key: string, body: Readable | ReadableStream, contentType?: string) {
+export async function putObjectStream(key: string, body: Readable | ReadableStream<unknown>, contentType?: string) {
     // Use @aws-sdk/lib-storage Upload for streaming bodies where
     // content-length is unknown. This avoids the
     // "x-amz-decoded-content-length: undefined" error from PutObjectCommand.
@@ -108,3 +108,5 @@ export function buildR2Key(userId: string, fileId: string, chunkIndex?: number):
     const basePath = `${userId}/files/${fileId}`;
     return chunkIndex !== undefined ? `${basePath}/chunk_${chunkIndex}` : basePath;
 }
+
+

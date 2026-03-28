@@ -12,7 +12,6 @@ import type { CompleteUploadResponse } from "@/app/api/upload/complete/types";
 const MAX_COMPLETE_TRANSACTION_RETRIES = 3;
 const COMPLETE_TRANSACTION_RETRY_DELAY_MS = 50;
 
-// P3: enforce exact nanoid length to reject garbage values early
 const uploadBodySchema = z.object({
   uploadId: z.string().length(21),
 });
@@ -87,7 +86,7 @@ export async function completeUploadTransaction(
         return { fileId: session.file_id, status: "ready" };
       });
     } catch (error) {
-      if (!shouldRetryDeadlockedCompleteTransaction(error) || attempt >= MAX_COMPLETE_TRANSACTION_RETRIES) {
+      if (!shouldRetryConcurrentCompleteTransaction(error) || attempt >= MAX_COMPLETE_TRANSACTION_RETRIES) {
         throw error;
       }
 
@@ -97,10 +96,10 @@ export async function completeUploadTransaction(
   }
 }
 
-function shouldRetryDeadlockedCompleteTransaction(error: unknown) {
+function shouldRetryConcurrentCompleteTransaction(error: unknown) {
   const { code, sqlState } = getDatabaseErrorDetails(error);
 
-  return code === "ER_LOCK_DEADLOCK" || sqlState === "40001";
+  return code === "ER_LOCK_DEADLOCK" || code === "ER_CHECKREAD" || sqlState === "40001";
 }
 
 function getDatabaseErrorDetails(error: unknown) {

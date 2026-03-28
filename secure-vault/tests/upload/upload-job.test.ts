@@ -9,7 +9,7 @@ vi.mock("@/lib/storage/chunker", () => ({
 }));
 
 import { UploadJob, type UploadJobSnapshot } from "@/lib/upload/upload-job";
-import { UploadJobError } from "@/lib/upload/upload-job-error";
+
 
 type MockedChunk = {
   blob: Blob;
@@ -1229,6 +1229,8 @@ describe("UploadJob", () => {
     expect(secondListener).not.toHaveBeenCalled();
   });
 });
+
+
 
 
 

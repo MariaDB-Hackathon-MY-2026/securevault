@@ -14,7 +14,6 @@ import {
   insertUploadSessionRecord,
 } from "./repository";
 import {
-  buildUploadInitLockName,
   calculateTotalChunks,
   type InitBody,
 } from "./rules";
@@ -142,3 +141,4 @@ function sleep(delayMs: number) {
     setTimeout(resolve, delayMs);
   });
 }
+

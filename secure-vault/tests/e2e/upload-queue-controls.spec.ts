@@ -6,7 +6,7 @@ import {
 } from "./helpers/test-user-cleanup";
 import { buildTestUserCredentials, type TestUserCredentials } from "./helpers/test-user";
 
-const QUEUE_FILES = ["tiny.pdf", "chunked.pdf", "photo.png", "animated.gif"] as const;
+
 const QUEUE_FILE_PAYLOADS = [
   {
     name: "tiny.pdf",
@@ -293,3 +293,4 @@ test.describe("upload queue controls", () => {
     await expect(page.getByText("animated.gif", { exact: true })).toHaveCount(0);
   });
 });
+

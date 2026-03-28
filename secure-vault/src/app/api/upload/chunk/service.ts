@@ -94,7 +94,7 @@ export async function uploadChunk({
     const encryptedStream = stream.pipeThrough(encryptor.stream);
     const r2Key = buildR2Key(user.id, uploadSession.fileId, chunkIndex);
 
-    await putObjectStream(r2Key, encryptedStream as any);
+    await putObjectStream(r2Key, encryptedStream as unknown as Parameters<typeof putObjectStream>[1]);
 
     try {
       await persistChunkUpload(tx, {
@@ -335,4 +335,10 @@ async function cleanupUploadedChunk(r2Key: string) {
     console.error("Failed to clean up uploaded chunk after a persistence error", cleanupError);
   }
 }
+
+
+
+
+
+
 
