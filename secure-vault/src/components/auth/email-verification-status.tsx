@@ -1,6 +1,7 @@
-import { RiCheckboxCircleLine, RiErrorWarningLine } from "@remixicon/react";
+import { RiCheckboxCircleLine } from "@remixicon/react";
 
 import { Badge } from "@/components/ui/badge";
+import { StatusNotice } from "@/components/ui/status-notice";
 import { cn } from "@/lib/utils";
 
 type EmailVerificationStatusProps = {
@@ -16,48 +17,36 @@ export function EmailVerificationStatus({
 }: EmailVerificationStatusProps) {
   if (variant === "notice") {
     return verified ? (
-      <div
-        className={cn(
-          "flex items-start gap-3 border border-emerald-500/40 bg-emerald-500/5 p-4 text-sm",
-          className,
-        )}
-      >
-        <RiCheckboxCircleLine className="mt-0.5 size-5 text-emerald-600" />
-        <div className="space-y-1">
-          <p className="font-medium text-foreground">Email verified</p>
-          <p className="text-muted-foreground">
-            Your account is cleared for protected file and sharing features.
-          </p>
-        </div>
-      </div>
+      <StatusNotice
+        tone="success"
+        title="Email verified"
+        description="Your account is cleared for protected file and sharing features."
+        className={className}
+      />
     ) : (
-      <div
-        className={cn(
-          "flex items-start gap-3 border border-amber-500/60 bg-amber-500/10 p-4 text-sm shadow-sm shadow-amber-500/10",
-          className,
-        )}
-      >
-        <RiErrorWarningLine className="mt-0.5 size-5 text-amber-600" />
-        <div className="space-y-1">
-          <p className="font-medium text-amber-950">Email verification pending</p>
-          <p className="text-amber-900/80">
-            Upload, sharing, and AI features stay blocked until the email verification flow is
-            completed.
-          </p>
-        </div>
-      </div>
+      <StatusNotice
+        tone="warning"
+        title="Email verification pending"
+        description="Upload, sharing, and AI features stay blocked until the email verification flow is completed."
+        className={className}
+      />
     );
   }
 
   return verified ? (
-    <Badge className={cn("gap-1.5 bg-emerald-600 text-white hover:bg-emerald-600", className)}>
+    <Badge
+      className={cn(
+        "gap-1.5 bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:hover:bg-emerald-500",
+        className,
+      )}
+    >
       <RiCheckboxCircleLine className="size-3.5" />
       Email verified
     </Badge>
   ) : (
     <Badge
       className={cn(
-        "gap-2 border-amber-500/80 bg-amber-400/15 px-3 py-1 text-amber-900 shadow-sm shadow-amber-500/10 hover:bg-amber-400/15",
+        "gap-2 border-amber-500/80 bg-amber-400/15 px-3 py-1 text-amber-950 shadow-sm shadow-amber-500/10 hover:bg-amber-400/15 dark:border-amber-400/60 dark:bg-amber-400/10 dark:text-amber-100 dark:hover:bg-amber-400/10",
         className,
       )}
       variant="outline"

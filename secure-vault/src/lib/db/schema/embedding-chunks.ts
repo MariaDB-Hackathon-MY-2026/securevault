@@ -1,3 +1,4 @@
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { index, int, mysqlEnum, mysqlTable, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 import { files } from "@/lib/db/schema/files";
 import { embeddingJobs } from "@/lib/db/schema/embedding-jobs";
@@ -28,3 +29,8 @@ export const embeddingChunks = mysqlTable(
     index("idx_embedding_chunks_file_id").on(table.file_id),
   ],
 );
+
+export type embeddingChunks = InferSelectModel<typeof embeddingChunks>;
+export type embeddingChunksInsert = InferInsertModel<typeof embeddingChunks>;
+
+

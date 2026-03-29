@@ -8,6 +8,20 @@
       "when": 1773625804614,
       "tag": "0000_military_doctor_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1773860840638,
+      "tag": "0001_perpetual_weapon_omega",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1773959270545,
+      "tag": "0002_cooing_corsair",
+      "breakpoints": true
     }
   ]
 }

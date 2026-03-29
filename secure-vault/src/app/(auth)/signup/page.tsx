@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StatusNotice } from "@/components/ui/status-notice";
 
 const strengthLabels = ["Very weak", "Weak", "Fair", "Good", "Strong"] as const;
 
@@ -132,18 +133,24 @@ export default function SignupPage() {
                       style={{ width: `${strengthPercent}%` }}
                     />
                   </div>
-                  {strength?.valid && (
-                    <p className="text-xs text-red-600">{strength.feedback}</p>
+                  {!strength?.valid && (
+                    <p className="text-xs text-muted-foreground">{strength?.feedback}</p>
                   )}
                   {strength?.valid && (
-                    <p className="text-xs text-emerald-600">Password strength looks good.</p>
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                      Password strength looks good.
+                    </p>
                   )}
                 </div>
               )}
             </div>
 
             {state?.error && (
-              <div className="text-sm font-medium text-destructive">{state.error}</div>
+              <StatusNotice
+                tone="error"
+                title="Unable to create account"
+                description={state.error}
+              />
             )}
           </CardContent>
           <CardFooter className="flex-col gap-4">
@@ -152,9 +159,9 @@ export default function SignupPage() {
             </Button>
             <div className="text-center text-sm">
               Already have an account?{" "}
-              <Link href="/login" className="underline underline-offset-4">
-                Login
-              </Link>
+              <Button asChild variant="link" className="h-auto px-0 text-sm">
+                <Link href="/login">Login</Link>
+              </Button>
             </div>
           </CardFooter>
         </form>

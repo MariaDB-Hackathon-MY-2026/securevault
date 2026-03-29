@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { validatePasswordStrength } from "@/lib/auth/password-strength";
+
 vi.mock("react", async () => {
   const actual = await vi.importActual<typeof import("react")>("react");
 
@@ -27,13 +29,15 @@ describe("signup page password feedback", () => {
 
     const passwordInput = screen.getByLabelText(/password/i);
     const submitButton = screen.getByRole("button", { name: /create an account/i });
+    const weakPassword = "12345678";
 
     expect(screen.queryByText(/Strength:/i)).toBeNull();
     expect((submitButton as HTMLButtonElement).disabled).toBe(true);
 
-    fireEvent.change(passwordInput, { target: { value: "12345678" } });
+    fireEvent.change(passwordInput, { target: { value: weakPassword } });
 
     expect(screen.getByText(/Strength:/i).textContent).toMatch(/Strength: /);
+    expect(screen.getByText(validatePasswordStrength(weakPassword).feedback)).not.toBeNull();
     expect((passwordInput as HTMLInputElement).getAttribute("aria-invalid")).toBe("true");
     expect((submitButton as HTMLButtonElement).disabled).toBe(true);
 

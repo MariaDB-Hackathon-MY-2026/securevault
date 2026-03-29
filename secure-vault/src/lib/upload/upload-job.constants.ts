@@ -1,0 +1,4 @@
+export const MAX_CHUNK_UPLOAD_RETRIES = 3;
+export const CHUNK_RETRY_BASE_DELAY_MS = 500;
+export const RATE_LIMIT_RETRY_BASE_DELAY_MS = 1000;
+export const MAX_RETRY_JITTER_MS = 250;

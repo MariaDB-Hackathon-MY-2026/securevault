@@ -26,6 +26,14 @@ secure-vault/out/
 # production
 /build
 
+#Artifacts
+artifacts
+
+# sample_test file
+secure-vault/test-results
+secure-vault/sample_upload_test_file
+
+
 # misc
 .DS_Store
 *.pem

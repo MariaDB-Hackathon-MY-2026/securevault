@@ -1,3 +1,4 @@
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { bigint, index, int, mysqlEnum, mysqlTable, timestamp, varchar } from "drizzle-orm/mysql-core";
 import { files } from "@/lib/db/schema/files";
 import { users } from "@/lib/db/schema/users";
@@ -9,10 +10,12 @@ export const uploadSessions = mysqlTable(
     user_id: varchar("user_id", { length: 21 })
       .notNull()
       .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
-    file_id: varchar("file_id", { length: 21 }).references(() => files.id, {
-      onDelete: "set null",
-      onUpdate: "cascade",
-    }),
+    file_id: varchar("file_id", { length: 21 })
+      .notNull()
+      .references(() => files.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     file_name: varchar("file_name", { length: 255 }).notNull(),
     file_size: bigint({ mode: "number" }).notNull(),
     total_chunks: int().notNull(),
@@ -32,3 +35,8 @@ export const uploadSessions = mysqlTable(
     ),
   ],
 );
+
+export type uploadSessions = InferSelectModel<typeof uploadSessions>;
+export type uploadSessionsInsert = InferInsertModel<typeof uploadSessions>;
+
+

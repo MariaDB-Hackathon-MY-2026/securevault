@@ -33,3 +33,7 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      # Playwright E2E is intentionally excluded from CI for now.
+      # Run it manually or in a dedicated workflow once the environment
+      # and test data are stable enough for GitHub-hosted runners.

@@ -1,3 +1,4 @@
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { bigint, int, mysqlEnum, mysqlTable, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 import { files } from "@/lib/db/schema/files";
 import { users } from "@/lib/db/schema/users";
@@ -31,3 +32,8 @@ export const embeddingJobs = mysqlTable(
   },
   (table) => [uniqueIndex("uq_embedding_jobs_file_modality").on(table.file_id, table.modality)],
 );
+
+export type embeddingJobs = InferSelectModel<typeof embeddingJobs>;
+export type embeddingJobsInsert = InferInsertModel<typeof embeddingJobs>;
+
+

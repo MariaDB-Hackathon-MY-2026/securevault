@@ -1,3 +1,4 @@
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { int, mysqlTable, timestamp, uniqueIndex, varchar, bigint } from "drizzle-orm/mysql-core";
 import { files } from "@/lib/db/schema/files";
 import { mysqlBlob } from "@/lib/db/schema/_custom-types";
@@ -17,3 +18,8 @@ export const fileVersions = mysqlTable(
   },
   (table) => [uniqueIndex("uq_file_versions_file_version").on(table.file_id, table.version_number)],
 );
+
+export type fileVersions = InferSelectModel<typeof fileVersions>;
+export type fileVersionsInsert = InferInsertModel<typeof fileVersions>;
+
+

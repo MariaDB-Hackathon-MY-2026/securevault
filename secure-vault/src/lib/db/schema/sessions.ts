@@ -1,3 +1,4 @@
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { index, mysqlTable, timestamp, varchar } from "drizzle-orm/mysql-core";
 import { users } from "@/lib/db/schema/users";
 
@@ -18,4 +19,8 @@ export const sessions = mysqlTable(
   },
   (table) => [index("idx_sessions_user_id").on(table.user_id)],
 );
+
+export type sessions = InferSelectModel<typeof sessions>;
+export type sessionsInsert = InferInsertModel<typeof sessions>;
+
 

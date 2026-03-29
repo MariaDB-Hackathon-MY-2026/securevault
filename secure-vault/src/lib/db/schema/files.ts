@@ -1,3 +1,4 @@
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import {
   bigint,
   boolean,
@@ -41,3 +42,8 @@ export const files = mysqlTable(
     index("idx_files_user_folder").on(table.user_id, table.folder_id),
   ],
 );
+
+export type files = InferSelectModel<typeof files>;
+export type filesInsert = InferInsertModel<typeof files>;
+
+
