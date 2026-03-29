@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { CurrentUser } from "@/lib/auth/get-current-user";
 import { MariadbConnection } from "@/lib/db";
@@ -11,6 +11,9 @@ import type { CompleteUploadResponse } from "@/app/api/upload/complete/types";
 
 const MAX_COMPLETE_TRANSACTION_RETRIES = 3;
 const COMPLETE_TRANSACTION_RETRY_DELAY_MS = 50;
+
+type DbConnection = ReturnType<typeof MariadbConnection.getConnection>;
+type DbTransaction = Parameters<Parameters<DbConnection["transaction"]>[0]>[0];
 
 const uploadBodySchema = z.object({
   uploadId: z.string().length(21),
@@ -34,20 +37,7 @@ export async function completeUploadTransaction(
     try {
       const db_conn = MariadbConnection.getConnection();
       return await db_conn.transaction(async (tx) => {
-        const [session] = await tx.select({
-          file_id: uploadSessions.file_id,
-          uploadId: uploadSessions.id,
-          fileSize: uploadSessions.file_size,
-          status: uploadSessions.status,
-          total_chunks: uploadSessions.total_chunks,
-          completed_chunks: uploadSessions.completed_chunks,
-          expires_at: uploadSessions.expires_at,
-        })
-          .from(uploadSessions)
-          .where(and(
-            eq(uploadSessions.id, validatedBody.uploadId),
-            eq(uploadSessions.user_id, user.id),
-          ));
+        const session = await findUploadSessionForCompletion(tx, user.id, validatedBody.uploadId);
 
         if (!session) {
           throw new TransactionFailureErrorResponse("Upload session not found", 404);
@@ -68,16 +58,13 @@ export async function completeUploadTransaction(
           throw new TransactionFailureErrorResponse("Not all chunks have been uploaded", 409);
         }
 
-        await tx.update(files)
-          .set({ status: "ready" })
-          .where(and(
-            eq(files.user_id, user.id),
-            eq(files.id, session.file_id),
-          ));
-
         await tx.update(uploadSessions)
           .set({ status: "completed" })
           .where(eq(uploadSessions.id, validatedBody.uploadId));
+
+        await tx.update(files)
+          .set({ status: "ready" })
+          .where(eq(files.id, session.file_id));
 
         await tx.update(users)
           .set({ storage_used: sql`${users.storage_used} + ${session.fileSize}` })
@@ -94,6 +81,99 @@ export async function completeUploadTransaction(
       await sleep(COMPLETE_TRANSACTION_RETRY_DELAY_MS * attempt);
     }
   }
+}
+
+type CompletionSession = {
+  file_id: string;
+  fileSize: number;
+  status: "uploading" | "completed" | "failed" | "expired";
+  total_chunks: number;
+  completed_chunks: number;
+  expires_at: Date;
+};
+
+async function findUploadSessionForCompletion(
+  tx: DbTransaction,
+  userId: string,
+  uploadId: string,
+): Promise<CompletionSession | null> {
+  const rawResult = await tx.execute(sql`
+    SELECT ${uploadSessions.file_id} AS file_id,
+           ${uploadSessions.file_size} AS fileSize,
+           ${uploadSessions.status} AS status,
+           ${uploadSessions.total_chunks} AS total_chunks,
+           ${uploadSessions.completed_chunks} AS completed_chunks,
+           ${uploadSessions.expires_at} AS expires_at
+    FROM ${uploadSessions}
+    WHERE ${uploadSessions.id} = ${uploadId}
+      AND ${uploadSessions.user_id} = ${userId}
+    LIMIT 1
+    FOR UPDATE
+  `);
+
+  const resultRows = unwrapSelectRows(rawResult) as Array<{
+    file_id?: unknown;
+    fileSize?: unknown;
+    status?: unknown;
+    total_chunks?: unknown;
+    completed_chunks?: unknown;
+    expires_at?: unknown;
+  }>;
+  const row = resultRows[0];
+
+  if (typeof row?.file_id !== "string" || typeof row?.status !== "string") {
+    return null;
+  }
+
+  const fileSize = Number(row.fileSize);
+  const totalChunks = Number(row.total_chunks);
+  const completedChunks = Number(row.completed_chunks);
+  const expiresAt = parseCompletionExpiresAt(row.expires_at);
+
+  if (
+    !Number.isFinite(fileSize) ||
+    !Number.isFinite(totalChunks) ||
+    !Number.isFinite(completedChunks) ||
+    !expiresAt
+  ) {
+    return null;
+  }
+
+  return {
+    file_id: row.file_id,
+    fileSize,
+    status: row.status as CompletionSession["status"],
+    total_chunks: totalChunks,
+    completed_chunks: completedChunks,
+    expires_at: expiresAt,
+  };
+}
+
+function parseCompletionExpiresAt(value: unknown): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  return null;
+}
+
+function unwrapSelectRows(result: unknown): unknown[] {
+  if (!Array.isArray(result)) {
+    return [];
+  }
+
+  const [rows] = result;
+
+  if (Array.isArray(rows)) {
+    return rows;
+  }
+
+  return result;
 }
 
 function shouldRetryConcurrentCompleteTransaction(error: unknown) {

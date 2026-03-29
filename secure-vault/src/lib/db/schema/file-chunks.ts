@@ -1,5 +1,5 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
-import { index, int, mysqlTable, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { int, mysqlTable, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 import { files } from "@/lib/db/schema/files";
 import { mysqlBlob } from "@/lib/db/schema/_custom-types";
 
@@ -16,7 +16,6 @@ export const fileChunks = mysqlTable(
     auth_tag: mysqlBlob("auth_tag").notNull(),
   },
   (table) => [
-    index("idx_file_chunks_file_id").on(table.file_id),
     uniqueIndex("uq_file_chunks_file_chunk").on(table.file_id, table.chunk_index),
   ],
 );

@@ -40,7 +40,7 @@ export async function findExistingActiveUploadForUpdate(
   fileSize: number,
   currentDate: Date,
 ): Promise<InitUploadResponse | null> {
-  const rows = await tx.execute(sql`
+  const rawResult = await tx.execute(sql`
     SELECT ${uploadSessions.file_id} AS fileId,
            ${uploadSessions.id} AS uploadId,
            ${uploadSessions.total_chunks} AS totalChunks
@@ -54,7 +54,7 @@ export async function findExistingActiveUploadForUpdate(
     FOR UPDATE
   `);
 
-  const resultRows = rows as unknown as Array<{
+  const resultRows = unwrapSelectRows(rawResult) as Array<{
     fileId?: string;
     uploadId?: string;
     totalChunks?: number;
@@ -71,6 +71,20 @@ export async function findExistingActiveUploadForUpdate(
     uploadId: row.uploadId,
     totalChunks: row.totalChunks,
   };
+}
+
+function unwrapSelectRows(result: unknown): unknown[] {
+  if (!Array.isArray(result)) {
+    return [];
+  }
+
+  const [rows] = result;
+
+  if (Array.isArray(rows)) {
+    return rows;
+  }
+
+  return result;
 }
 
 type InsertFileRecordInput = {
