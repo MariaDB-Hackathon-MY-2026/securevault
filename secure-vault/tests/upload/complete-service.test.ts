@@ -51,10 +51,10 @@ function createSession(overrides: Partial<{
 // ---------------------------------------------------------------------------
 // DB / transaction harness
 //
-// Models the Drizzle query builder chain:
-//   tx.select({...}).from(uploadSessions).where(and(...)) -> returns [session]
-//   tx.update(files).set({...}).where(...)
+// Models the current transaction flow:
+//   tx.execute(sql`SELECT ... FOR UPDATE`) -> returns [session]
 //   tx.update(uploadSessions).set({...}).where(...)
+//   tx.update(files).set({...}).where(...)
 //   tx.update(users).set({...}).where(...)
 // ---------------------------------------------------------------------------
 function createDbHarness(options?: {
@@ -62,15 +62,13 @@ function createDbHarness(options?: {
   transactionErrors?: Error[];
   updateError?: Error;
 }) {
-  const selectWhere = vi.fn().mockResolvedValue(
+  const execute = vi.fn().mockResolvedValue(
     options?.session !== undefined && options.session !== null
       ? [options.session]
       : [],
   );
-  const selectFrom = vi.fn(() => ({ where: selectWhere }));
-  const select = vi.fn(() => ({ from: selectFrom }));
 
-  // Per-table update SET spies — each returns { where } whose fn throws on updateError.
+  // Per-table update SET spies - each returns { where } whose fn throws on updateError.
   const updateWhere = vi.fn(async () => {
     if (options?.updateError) throw options.updateError;
   });
@@ -86,7 +84,7 @@ function createDbHarness(options?: {
     throw new Error(`Unexpected table in update: ${String(table)}`);
   });
 
-  const tx = { select, update };
+  const tx = { execute, update };
 
   const transaction = vi.fn(async (callback: (transaction: unknown) => Promise<unknown>) => {
     const nextTransactionError = options?.transactionErrors?.shift();
@@ -106,10 +104,8 @@ function createDbHarness(options?: {
     db,
     spies: {
       dbTransaction: transaction,
+      execute,
       filesSet,
-      select,
-      selectFrom,
-      selectWhere,
       update,
       updateWhere,
       uploadSessionsSet,
@@ -136,7 +132,7 @@ describe("upload complete service", () => {
   });
 
   // =========================================================================
-  // validateBody — Zod schema guards (pure, no DB)
+  // validateBody - Zod schema guards (pure, no DB)
   // =========================================================================
   describe("validateBody", () => {
     it("accepts an uploadId of exactly 21 characters", () => {
@@ -174,9 +170,9 @@ describe("upload complete service", () => {
   });
 
   // =========================================================================
-  // completeUploadTransaction — happy path
+  // completeUploadTransaction - happy path
   // =========================================================================
-  describe("completeUploadTransaction — success", () => {
+  describe("completeUploadTransaction - success", () => {
     it("returns fileId and status:'ready' when the session is fully uploaded", async () => {
       const harness = createDbHarness({ session: createSession() });
       vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
@@ -198,15 +194,13 @@ describe("upload complete service", () => {
       expect(harness.spies.dbTransaction).toHaveBeenCalledTimes(1);
     });
 
-    it("queries upload session by uploadId and user_id", async () => {
+    it("locks the upload session row before writing", async () => {
       const harness = createDbHarness({ session: createSession() });
       vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
 
       await completeUploadTransaction(createUser(), { uploadId: VALID_UPLOAD_ID });
 
-      expect(harness.spies.select).toHaveBeenCalledTimes(1);
-      expect(harness.spies.selectFrom).toHaveBeenCalledWith(uploadSessions);
-      expect(harness.spies.selectWhere).toHaveBeenCalledTimes(1);
+      expect(harness.spies.execute).toHaveBeenCalledTimes(1);
     });
 
     it("updates the file status to 'ready'", async () => {
@@ -231,7 +225,7 @@ describe("upload complete service", () => {
       );
     });
 
-    it("updates storage_used with a SQL expression, not a plain number (P1 fix — no race condition)", async () => {
+    it("updates storage_used with a SQL expression, not a plain number (P1 fix - no race condition)", async () => {
       const harness = createDbHarness({ session: createSession() });
       vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
 
@@ -247,20 +241,25 @@ describe("upload complete service", () => {
       expect(storageUsedValue).toBeDefined();
     });
 
-    it("performs exactly three update statements (files + uploadSessions + users)", async () => {
+    it("updates rows in uploadSessions -> files -> users order", async () => {
       const harness = createDbHarness({ session: createSession() });
       vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
 
       await completeUploadTransaction(createUser(), { uploadId: VALID_UPLOAD_ID });
 
       expect(harness.spies.update).toHaveBeenCalledTimes(3);
+      expect(harness.spies.update.mock.calls.map(([table]) => table)).toEqual([
+        uploadSessions,
+        files,
+        users,
+      ]);
     });
   });
 
   // =========================================================================
-  // completeUploadTransaction — error guards
+  // completeUploadTransaction - error guards
   // =========================================================================
-  describe("completeUploadTransaction — session not found", () => {
+  describe("completeUploadTransaction - session not found", () => {
     it("throws TransactionFailureErrorResponse with status 404 when the session does not exist", async () => {
       const harness = createDbHarness({ session: null });
       vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
@@ -285,7 +284,7 @@ describe("upload complete service", () => {
     });
   });
 
-  describe("completeUploadTransaction — wrong session status", () => {
+  describe("completeUploadTransaction - wrong session status", () => {
     it("throws 409 when session status is 'completed'", async () => {
       const harness = createDbHarness({
         session: createSession({ status: "completed" }),
@@ -320,7 +319,7 @@ describe("upload complete service", () => {
     });
   });
 
-  describe("completeUploadTransaction — session expired (P2 fix)", () => {
+  describe("completeUploadTransaction - session expired (P2 fix)", () => {
     it("throws 410 when expires_at is in the past", async () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-03-21T10:00:00.000Z"));
@@ -379,7 +378,7 @@ describe("upload complete service", () => {
     });
   });
 
-  describe("completeUploadTransaction — incomplete chunks (Bug 1 fix)", () => {
+  describe("completeUploadTransaction - incomplete chunks (Bug 1 fix)", () => {
     it("throws 409 when completed_chunks < total_chunks", async () => {
       const harness = createDbHarness({
         session: createSession({ total_chunks: 5, completed_chunks: 3 }),
@@ -422,11 +421,11 @@ describe("upload complete service", () => {
   });
 
   // =========================================================================
-  // Guard-order correctness — confirms guards are checked before writes
+  // Guard-order correctness - confirms guards are checked before writes
   // =========================================================================
   describe("guard order", () => {
     it("checks status before expiry (does not reach expiry check on wrong status)", async () => {
-      // Session has wrong status AND is expired — status check must win
+      // Session has wrong status AND is expired - status check must win
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-03-21T10:00:00.000Z"));
 
@@ -480,6 +479,11 @@ describe("upload complete service", () => {
       await expect(uploadPromise).resolves.toEqual({ fileId: FILE_ID, status: "ready" });
       expect(harness.spies.dbTransaction).toHaveBeenCalledTimes(2);
       expect(harness.spies.update).toHaveBeenCalledTimes(3);
+      expect(harness.spies.update.mock.calls.map(([table]) => table)).toEqual([
+        uploadSessions,
+        files,
+        users,
+      ]);
     });
 
     it("retries an ER_CHECKREAD conflict and succeeds on the next attempt", async () => {
@@ -502,13 +506,11 @@ describe("upload complete service", () => {
       await expect(uploadPromise).resolves.toEqual({ fileId: FILE_ID, status: "ready" });
       expect(harness.spies.dbTransaction).toHaveBeenCalledTimes(2);
       expect(harness.spies.update).toHaveBeenCalledTimes(3);
+      expect(harness.spies.update.mock.calls.map(([table]) => table)).toEqual([
+        uploadSessions,
+        files,
+        users,
+      ]);
     });
   });
 });
-
-
-
-
-
-
-

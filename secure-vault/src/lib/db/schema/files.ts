@@ -37,7 +37,6 @@ export const files = mysqlTable(
     updated_at: timestamp().defaultNow().onUpdateNow().notNull(),
   },
   (table) => [
-    index("idx_files_user_id").on(table.user_id),
     index("idx_files_folder_id").on(table.folder_id),
     index("idx_files_user_folder").on(table.user_id, table.folder_id),
   ],
