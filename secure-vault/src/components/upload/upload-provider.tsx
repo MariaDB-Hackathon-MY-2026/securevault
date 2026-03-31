@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
+import { QueryClientContext } from "@tanstack/react-query";
 
 import type { UploadJobSnapshot } from "@/lib/upload/upload-job";
 import {
   UploadManager,
   type UploadManagerSnapshot,
 } from "@/lib/upload/upload-manager";
+import { filesQueryKey } from "@/lib/files/files-query";
 
 export type UploadQueueContextValue = {
   uploads: UploadJobSnapshot[];
@@ -21,7 +23,9 @@ export const UploadQueueContext = React.createContext<UploadQueueContextValue | 
 
 export function UploadQueueProvider({ children }: React.PropsWithChildren) {
   const [manager] = React.useState(() => UploadManager.getInstance());
+  const queryClient = React.useContext(QueryClientContext);
   const snapshotRef = React.useRef<UploadManagerSnapshot>(manager.getSnapshot());
+  const successfulUploadIdsRef = React.useRef<Set<string>>(new Set());
 
   const subscribe = React.useCallback((onStoreChange: () => void) => {
     // Refresh once on subscribe so React does not miss mutations that land
@@ -36,6 +40,29 @@ export function UploadQueueProvider({ children }: React.PropsWithChildren) {
 
   const getSnapshot = React.useCallback(() => snapshotRef.current, []);
   const snapshot = React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+  React.useEffect(() => {
+    const nextSuccessfulIds = new Set(
+      snapshot.uploads
+        .filter((upload) => upload.status === "success")
+        .map((upload) => upload.id),
+    );
+
+    let shouldInvalidateFiles = false;
+
+    for (const uploadId of nextSuccessfulIds) {
+      if (!successfulUploadIdsRef.current.has(uploadId)) {
+        shouldInvalidateFiles = true;
+        break;
+      }
+    }
+
+    successfulUploadIdsRef.current = nextSuccessfulIds;
+
+    if (shouldInvalidateFiles && queryClient) {
+      void queryClient.invalidateQueries({ queryKey: filesQueryKey });
+    }
+  }, [queryClient, snapshot.uploads]);
 
   const addFiles = React.useCallback((files: File[]) => {
     manager.addFiles(files);

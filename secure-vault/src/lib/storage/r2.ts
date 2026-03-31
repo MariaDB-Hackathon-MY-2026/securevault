@@ -5,7 +5,6 @@ import {
     PutObjectCommand, PutObjectCommandInput, DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { Readable } from "node:stream";
-import { ReadableStream } from "node:stream/web";
 
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID
@@ -34,7 +33,9 @@ function normalizeBody(body: R2Body) {
     //we dont use instanceof ReadableStream because it only compares the constructor created not the actual characteristics
     // duck typing instead of object comparison, walk like a duck, quack like a duck then its a duck without comparing wether the duck
     //is created by a creator or the other
-    if (body && typeof body === 'object' && 'getReader' in body) return Readable.fromWeb(body as ReadableStream)
+    if (body && typeof body === 'object' && 'getReader' in body) {
+        return Readable.fromWeb(body as unknown as import("node:stream/web").ReadableStream)
+    }
 
     return body as PutObjectCommandInput['Body']
 }
@@ -77,6 +78,36 @@ export async function getObject(key: string) {
             Key: key
         })
     )
+}
+
+export async function getObjectStream(key: string, abortSignal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+    const response = await S3.send(
+        new GetObjectCommand({
+            Bucket: BUCKET_NAME,
+            Key: key
+        }),
+        abortSignal ? { abortSignal } : undefined,
+    )
+
+    const body = response.Body
+
+    if (!body) {
+        throw new Error(`R2 object ${key} has no body`)
+    }
+
+    if (typeof body === "object" && "transformToWebStream" in body && typeof body.transformToWebStream === "function") {
+        return await body.transformToWebStream() as unknown as ReadableStream<Uint8Array>
+    }
+
+    if (body instanceof Readable) {
+        return Readable.toWeb(body) as unknown as ReadableStream<Uint8Array>
+    }
+
+    if (body && typeof body === "object" && "getReader" in body) {
+        return body as unknown as ReadableStream<Uint8Array>
+    }
+
+    throw new Error(`Unsupported R2 body type for ${key}`)
 }
 
 export async function deleteObject(key: string) {

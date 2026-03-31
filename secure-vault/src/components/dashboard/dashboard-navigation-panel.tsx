@@ -33,7 +33,7 @@ export function DashboardNavigationPanel({
     <div className={cn("flex h-full flex-col", className)}>
       <div className="border-b border-border/60 pb-4">
         <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">SecureVault</p>
-        <h1 className="mt-2 text-2xl font-semibold">Authenticated workspace</h1>
+        <h1 className="mt-2 text-xl font-semibold">Workspace</h1>
         <p className="mt-2 text-sm text-muted-foreground break-all line-clamp-1 truncate w-full">Signed in as {user.email}</p>
       </div>
 
@@ -57,7 +57,7 @@ export function DashboardNavigationPanel({
               href={href}
               onClick={onNavigate}
               className={cn(
-                "flex items-center gap-3 border border-border/60 px-3 py-3 text-sm transition-colors hover:bg-muted",
+                "flex items-center gap-2.5 border border-border/60 px-3 py-2.5 text-sm transition-colors hover:bg-muted",
                 isActive && "bg-muted",
               )}
             >
