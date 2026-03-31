@@ -176,7 +176,9 @@ describe("download service", () => {
     expect(response.headers.get("Content-Type")).toBe("application/pdf");
     expect(response.headers.get("Content-Length")).toBe("11");
     expect(response.headers.get("Content-Disposition")).toContain("attachment;");
-    await expect(collectStream(response.body!)).resolves.toEqual(Buffer.from("hello world"));
+    const body = await collectStream(response.body!);
+    expect(body).toEqual(Buffer.from("hello world"));
+    expect(body.byteLength).toBe(Number(response.headers.get("Content-Length")));
   });
 
   it("rejects inline preview for unsupported mime types", async () => {
@@ -294,6 +296,43 @@ describe("download service", () => {
     );
   });
 
+  it("errors the response stream when ciphertext is tampered", async () => {
+    const user = createUser();
+    const fek = Buffer.alloc(32, 9);
+    const chunk = await encryptChunk(Buffer.from("hello world"), fek);
+    const corrupted = Buffer.from(chunk.encrypted);
+    corrupted[corrupted.length - 1] ^= 0xff;
+    const harness = createDownloadDbHarness({
+      chunkRows: [
+        {
+          authTag: chunk.authTag,
+          chunkIndex: 0,
+          iv: chunk.iv,
+          r2Key: "chunk-0",
+        },
+      ],
+      fileRows: [
+        {
+          encryptedFek: encryptFEK(fek, user.uek),
+          mimeType: "application/pdf",
+          name: "tampered.pdf",
+          size: 11,
+          totalChunks: 1,
+        },
+      ],
+    });
+
+    vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+    mocks.getObjectStream.mockResolvedValue(createStream([corrupted]));
+
+    const response = await streamOwnedFile({
+      disposition: "attachment",
+      fileId: "file-tampered",
+      user,
+    });
+
+    await expect(collectStream(response.body!)).rejects.toThrow("Failed to stream file");
+  });
   it("forwards the request abort signal to the underlying chunk fetch", async () => {
     const user = createUser();
     const fek = Buffer.alloc(32, 9);
@@ -345,3 +384,7 @@ describe("download service", () => {
     expect(receivedSignal?.aborted).toBe(true);
   });
 });
+
+
+
+

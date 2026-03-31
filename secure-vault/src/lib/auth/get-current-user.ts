@@ -28,10 +28,14 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     return null;
   }
 
-  return {
-    ...sessionUser,
-    uek: decryptUEK(user.encrypted_uek),
-  };
+  try {
+    return {
+      ...sessionUser,
+      uek: decryptUEK(user.encrypted_uek),
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function requireCurrentUser(): Promise<CurrentUser> {

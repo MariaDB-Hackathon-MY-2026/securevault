@@ -189,6 +189,7 @@ export async function deleteOtherSessions(userId: string, currentSessionId: stri
 
 export async function listUserSessions(userId: string): Promise<SessionSummary[]> {
   const db = MariadbConnection.getConnection();
+  const currentDate = new Date();
 
   return db
     .select({
@@ -200,6 +201,11 @@ export async function listUserSessions(userId: string): Promise<SessionSummary[]
       created_at: sessions.created_at,
     })
     .from(sessions)
-    .where(eq(sessions.user_id, userId))
+    .where(
+      and(
+        eq(sessions.user_id, userId),
+        gte(sessions.refresh_expires_at, currentDate),
+      ),
+    )
     .orderBy(desc(sessions.created_at));
 }

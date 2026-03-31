@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MariadbConnection } from "@/lib/db";
 import { files, uploadSessions, users } from "@/lib/db/schema";
 import type { CurrentUser } from "@/lib/auth/get-current-user";
+import { UPLOAD_SESSION_ID_LENGTH } from "@/lib/constants";
 import { completeUploadTransaction, validateBody } from "@/app/api/upload/complete/service";
 import { BodyRequestErrorResponse } from "@/app/api/upload/complete/Error";
 
@@ -23,7 +24,7 @@ function createUser(overrides: Partial<CurrentUser> = {}): CurrentUser {
   };
 }
 
-const VALID_UPLOAD_ID = "a".repeat(21);
+const VALID_UPLOAD_ID = "a".repeat(UPLOAD_SESSION_ID_LENGTH);
 const FILE_ID = "f".repeat(21);
 const FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
@@ -135,7 +136,7 @@ describe("upload complete service", () => {
   // validateBody - Zod schema guards (pure, no DB)
   // =========================================================================
   describe("validateBody", () => {
-    it("accepts an uploadId of exactly 21 characters", () => {
+    it("accepts an uploadId of exactly the configured length", () => {
       expect(() => validateBody({ uploadId: VALID_UPLOAD_ID })).not.toThrow();
     });
 
@@ -148,12 +149,16 @@ describe("upload complete service", () => {
       expect(() => validateBody({})).toThrow(BodyRequestErrorResponse);
     });
 
-    it("throws BodyRequestErrorResponse when uploadId is shorter than 21 chars", () => {
-      expect(() => validateBody({ uploadId: "short" })).toThrow(BodyRequestErrorResponse);
+    it("throws BodyRequestErrorResponse when uploadId is shorter than the configured length", () => {
+      expect(() =>
+        validateBody({ uploadId: "a".repeat(UPLOAD_SESSION_ID_LENGTH - 1) }),
+      ).toThrow(BodyRequestErrorResponse);
     });
 
-    it("throws BodyRequestErrorResponse when uploadId is longer than 21 chars", () => {
-      expect(() => validateBody({ uploadId: "a".repeat(22) })).toThrow(BodyRequestErrorResponse);
+    it("throws BodyRequestErrorResponse when uploadId is longer than the configured length", () => {
+      expect(() =>
+        validateBody({ uploadId: "a".repeat(UPLOAD_SESSION_ID_LENGTH + 1) }),
+      ).toThrow(BodyRequestErrorResponse);
     });
 
     it("throws BodyRequestErrorResponse when uploadId is not a string", () => {
@@ -514,3 +519,7 @@ describe("upload complete service", () => {
     });
   });
 });
+
+
+
+

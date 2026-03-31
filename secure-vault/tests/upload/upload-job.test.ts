@@ -446,6 +446,40 @@ describe("UploadJob", () => {
     });
     expect(getFetchMock()).not.toHaveBeenCalled();
   });
+  it("allows an empty client MIME type and relies on the server-side sniffing path", async () => {
+    const job = new UploadJob(createFile("mystery.bin", "hello", ""));
+
+    mocks.sliceFilesWithMetaData.mockReturnValue([]);
+    mockFetchSequence([
+      jsonResponse(200, {
+        fileId: "file-1",
+        totalChunks: 0,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(200, {
+        completedChunkIndexes: [],
+        fileId: "file-1",
+        status: "uploading",
+        totalChunks: 0,
+        uploadId: "upload-1",
+      }),
+      jsonResponse(200, {
+        fileId: "file-1",
+        status: "ready",
+      }),
+    ]);
+
+    await job.start();
+
+    expect(getFetchMock().mock.calls[0]?.[1]).toMatchObject({
+      body: JSON.stringify({
+        fileName: "mystery.bin",
+        fileSize: 5,
+        fileType: "",
+      }),
+    });
+    expect(job.getSnapshot().status).toBe("success");
+  });
   it("fails with an init-stage UploadJobError when init returns a bad response", async () => {
     const job = new UploadJob(createFile());
 
@@ -1229,6 +1263,7 @@ describe("UploadJob", () => {
     expect(secondListener).not.toHaveBeenCalled();
   });
 });
+
 
 
 

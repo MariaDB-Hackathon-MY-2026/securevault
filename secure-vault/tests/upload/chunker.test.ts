@@ -102,6 +102,12 @@ describe("chunker", () => {
     ]);
   });
 
+  it("splits a 10 MiB file into exactly two full-size chunks", () => {
+    const chunks = sliceFile(createFile(2 * UPLOAD_CHUNK_SIZE_BYTES));
+
+    expect(chunks).toHaveLength(2);
+    expect(chunks.every((chunk) => chunk.size === UPLOAD_CHUNK_SIZE_BYTES)).toBe(true);
+  });
   it("returns a single chunk when the chunk size is larger than the file", () => {
     const file = createFile(64);
     const chunks = sliceFile(file, 1024);
@@ -215,5 +221,6 @@ describe("chunker", () => {
     );
   });
 });
+
 
 

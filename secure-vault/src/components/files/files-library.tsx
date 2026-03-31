@@ -60,7 +60,7 @@ export function FilesLibrary({ initialFiles }: FilesLibraryProps) {
                 <div className="min-w-0 space-y-1">
                   <p className="truncate text-sm font-medium">{file.name}</p>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <span>{file.mimeType}</span>
+                    <span>{file.mimeType.split('/')[1]}</span>
                     <span>{formatFileSize(file.size)}</span>
                     <span>Uploaded {formatUploadDate(file.createdAt)}</span>
                   </div>

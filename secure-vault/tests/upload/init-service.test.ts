@@ -187,6 +187,18 @@ describe("upload init service", () => {
     );
   });
 
+  it("returns a sha256 advisory lock name when the raw name would exceed 64 characters", () => {
+    const lockName = buildUploadInitLockName("u".repeat(30), "f".repeat(30), 9999);
+
+    expect(lockName).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("produces distinct hashes for distinct long advisory lock inputs", () => {
+    const firstLockName = buildUploadInitLockName("u".repeat(30), "a".repeat(30), 1);
+    const secondLockName = buildUploadInitLockName("u".repeat(30), "b".repeat(30), 1);
+
+    expect(firstLockName).not.toBe(secondLockName);
+  });
   it("returns an existing active upload without generating new records or keys", async () => {
     const harness = createTransactionHarness({
       existingUpload: [
@@ -313,4 +325,5 @@ describe("upload init service", () => {
     expect(harness.spies.uploadValues).toHaveBeenCalledTimes(1);
   });
 });
+
 
