@@ -9,7 +9,7 @@ vi.mock("@/lib/auth/get-current-user", () => ({
   getCurrentUser: mocks.getCurrentUser,
 }));
 
-vi.mock("@/lib/files/download-service", () => ({
+vi.mock("@/app/api/files/service", () => ({
   listReadyFilesForUser: mocks.listReadyFilesForUser,
 }));
 

@@ -9,7 +9,7 @@ vi.mock("@/lib/auth/get-current-user", () => ({
   getCurrentUser: mocks.getCurrentUser,
 }));
 
-vi.mock("@/lib/files/download-service", () => ({
+vi.mock("@/app/api/files/[id]/service", () => ({
   FileDownloadServiceError: class FileDownloadServiceError extends Error {
     status: number;
 
@@ -23,7 +23,7 @@ vi.mock("@/lib/files/download-service", () => ({
 }));
 
 import { GET } from "@/app/api/files/[id]/download/route";
-import { FileDownloadServiceError } from "@/lib/files/download-service";
+import { FileDownloadServiceError } from "@/app/api/files/[id]/service";
 
 function createUser() {
   return {

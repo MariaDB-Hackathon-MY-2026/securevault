@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/get-current-user";
-import { listReadyFilesForUser } from "@/lib/files/download-service";
+import { listReadyFilesForUser } from "@/app/api/files/service";
 
 export async function GET() {
   try {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/get-current-user";
-import { FileDownloadServiceError, streamOwnedFile } from "@/lib/files/download-service";
+import { FileDownloadServiceError, streamOwnedFile } from "@/app/api/files/[id]/service";
 
 export const runtime = "nodejs";
 

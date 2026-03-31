@@ -9,9 +9,9 @@ vi.mock("@/lib/storage/r2", () => ({
 }));
 
 import { createEncryptStream, encryptFEK } from "@/lib/crypto";
+import { FileDownloadServiceError, streamOwnedFile } from "@/app/api/files/[id]/service";
 import { MariadbConnection } from "@/lib/db";
 import { fileChunks, files } from "@/lib/db/schema";
-import { FileDownloadServiceError, streamOwnedFile } from "@/lib/files/download-service";
 
 function createUser() {
   return {

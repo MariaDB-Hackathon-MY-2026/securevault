@@ -1,11 +1,10 @@
-import { asc, and, desc, eq, isNull } from "drizzle-orm";
+import { asc, and, eq, isNull } from "drizzle-orm";
 
 import type { CurrentUser } from "@/lib/auth/get-current-user";
-import { decryptFEK, sanitizeFilename, createDecryptStream } from "@/lib/crypto";
+import { createDecryptStream, decryptFEK, sanitizeFilename } from "@/lib/crypto";
 import { MariadbConnection } from "@/lib/db";
 import { fileChunks, files } from "@/lib/db/schema";
 import { canPreviewMime } from "@/lib/files/preview";
-import type { FileListItem } from "@/lib/files/types";
 import { getObjectStream } from "@/lib/storage/r2";
 
 type DownloadDisposition = "attachment" | "inline";
@@ -38,35 +37,6 @@ export class FileDownloadServiceError extends Error {
     this.name = "FileDownloadServiceError";
     this.status = status;
   }
-}
-
-export async function listReadyFilesForUser(userId: string): Promise<FileListItem[]> {
-  const db = MariadbConnection.getConnection();
-  const result = await db
-    .select({
-      createdAt: files.created_at,
-      id: files.id,
-      mimeType: files.mime_type,
-      name: files.name,
-      size: files.size,
-    })
-    .from(files)
-    .where(
-      and(
-        eq(files.user_id, userId),
-        eq(files.status, "ready"),
-        isNull(files.deleted_at),
-      ),
-    )
-    .orderBy(desc(files.created_at));
-
-  return result.map((file) => ({
-    createdAt: new Date(file.createdAt).toISOString(),
-    id: file.id,
-    mimeType: file.mimeType,
-    name: file.name,
-    size: file.size,
-  }));
 }
 
 export async function streamOwnedFile(options: {
