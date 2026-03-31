@@ -14,4 +14,16 @@ describe("sanitizeFilename", () => {
   it("removes leading dots from hidden files", () => {
     expect(sanitizeFilename(".env")).toBe("env");
   });
+
+  it("strips null bytes", () => {
+    expect(sanitizeFilename("fi\u0000le.pdf")).toBe("file.pdf");
+  });
+
+  it("strips ASCII control characters", () => {
+    expect(sanitizeFilename("fi\u0001le.pdf")).toBe("file.pdf");
+  });
+
+  it("strips zero-width spaces", () => {
+    expect(sanitizeFilename("fi\u200Ble.pdf")).toBe("file.pdf");
+  });
 });

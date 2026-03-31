@@ -1,14 +1,17 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmailVerificationStatus } from "@/components/auth/email-verification-status";
 import type { CurrentUser } from "@/lib/auth/get-current-user";
+import type { FileListItem } from "@/lib/files/types";
+import { FilesLibrary } from "@/components/files/files-library";
 import { UploadDialog } from "@/components/upload/upload-dialog";
 import { UploadQueueSummary } from "@/components/upload/upload-queue-summary";
 
 type FilesPageContentProps = {
+  files: FileListItem[];
   user: CurrentUser | null;
 };
 
-export function FilesPageContent({ user }: FilesPageContentProps) {
+export function FilesPageContent({ files, user }: FilesPageContentProps) {
   return (
     <div className="grid gap-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -59,6 +62,8 @@ export function FilesPageContent({ user }: FilesPageContentProps) {
           </Card>
         )}
       </div>
+
+      <FilesLibrary initialFiles={files} />
     </div>
   );
 }

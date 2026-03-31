@@ -2,6 +2,7 @@ import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 
 import { CurrentUser } from "@/lib/auth/get-current-user";
+import { UPLOAD_SESSION_ID_LENGTH } from "@/lib/constants";
 import { MariadbConnection } from "@/lib/db";
 import { files, users } from "@/lib/db/schema";
 import { uploadSessions } from "@/lib/db/schema/upload-sessions";
@@ -16,7 +17,7 @@ type DbConnection = ReturnType<typeof MariadbConnection.getConnection>;
 type DbTransaction = Parameters<Parameters<DbConnection["transaction"]>[0]>[0];
 
 const uploadBodySchema = z.object({
-  uploadId: z.string().length(21),
+  uploadId: z.string().length(UPLOAD_SESSION_ID_LENGTH),
 });
 
 export function validateBody(jsonBody: unknown) {

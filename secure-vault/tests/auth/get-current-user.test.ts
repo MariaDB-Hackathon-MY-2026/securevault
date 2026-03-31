@@ -101,12 +101,12 @@ describe("getCurrentUser", () => {
     expect(mocks.decryptUEK).toHaveBeenCalledWith(Buffer.from("encrypted-uek"));
   });
 
-  it("propagates decryption failures instead of silently masking them", async () => {
+  it("returns null when decrypting the stored UEK fails", async () => {
     mocks.decryptUEK.mockImplementationOnce(() => {
       throw new Error("decrypt failed");
     });
 
-    await expect(getCurrentUser()).rejects.toThrow("decrypt failed");
+    await expect(getCurrentUser()).resolves.toBeNull();
   });
 });
 

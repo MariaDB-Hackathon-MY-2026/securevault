@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => {
     ip_address: "sessions.ip_address",
     session_expires_at: "sessions.session_expires_at",
     refresh_expires_at: "sessions.refresh_expires_at",
+    created_at: "sessions.created_at",
   };
 
   const users = {
@@ -36,6 +37,7 @@ const mocks = vi.hoisted(() => {
       selectRows: [] as unknown[],
       updateSetValues: null as Record<string, unknown> | null,
       updateWhereClause: null as unknown,
+      orderByClause: null as unknown,
     },
   };
 });
@@ -46,8 +48,10 @@ vi.mock("nanoid", () => ({
 
 vi.mock("drizzle-orm", () => ({
   and: (...conditions: unknown[]) => ({ type: "and", conditions }),
+  desc: (field: unknown) => ({ type: "desc", field }),
   eq: (left: unknown, right: unknown) => ({ type: "eq", left, right }),
   gte: (left: unknown, right: unknown) => ({ type: "gte", left, right }),
+  ne: (left: unknown, right: unknown) => ({ type: "ne", left, right }),
 }));
 
 vi.mock("@/lib/db/schema", () => ({
@@ -67,6 +71,16 @@ vi.mock("@/lib/db", () => {
 
       return {
         from: vi.fn(() => ({
+          where: vi.fn((condition) => {
+            mocks.state.selectWhereClause = condition;
+
+            return {
+              orderBy: vi.fn(async (order) => {
+                mocks.state.orderByClause = order;
+                return mocks.state.selectRows;
+              }),
+            };
+          }),
           innerJoin: vi.fn(() => ({
             where: vi.fn((condition) => {
               mocks.state.selectWhereClause = condition;
@@ -105,6 +119,7 @@ vi.mock("@/lib/db", () => {
 import {
   createSession,
   generateSha256Hash,
+  listUserSessions,
   refreshSession,
   validateRefreshToken,
   validateSession,
@@ -121,6 +136,7 @@ describe("auth session", () => {
     mocks.state.selectRows = [];
     mocks.state.updateSetValues = null;
     mocks.state.updateWhereClause = null;
+    mocks.state.orderByClause = null;
   });
 
   it("stores hashed tokens, returns raw tokens, and sets exact session vs refresh expiries on createSession", async () => {
@@ -240,6 +256,40 @@ describe("auth session", () => {
     });
   });
 
+  it("lists only unexpired sessions for the current user ordered by newest first", async () => {
+    mocks.state.selectRows = [
+      {
+        id: "session-1",
+        device_name: "Chrome",
+        ip_address: "127.0.0.1",
+        session_expires_at: new Date("2026-03-16T03:00:00.000Z"),
+        refresh_expires_at: new Date("2026-04-15T02:45:00.000Z"),
+        created_at: new Date("2026-03-16T02:40:00.000Z"),
+      },
+    ];
+
+    await expect(listUserSessions("user-1")).resolves.toEqual(mocks.state.selectRows);
+    expect(mocks.state.selectWhereClause).toEqual({
+      type: "and",
+      conditions: [
+        {
+          type: "eq",
+          left: mocks.sessions.user_id,
+          right: "user-1",
+        },
+        {
+          type: "gte",
+          left: mocks.sessions.refresh_expires_at,
+          right: fixedNow,
+        },
+      ],
+    });
+    expect(mocks.state.orderByClause).toEqual({
+      type: "desc",
+      field: mocks.sessions.created_at,
+    });
+  });
+
   it("returns null when refresh token validation fails", async () => {
     mocks.state.selectRows = [];
 
@@ -247,3 +297,5 @@ describe("auth session", () => {
     expect(mocks.state.updateSetValues).toBeNull();
   });
 });
+
+

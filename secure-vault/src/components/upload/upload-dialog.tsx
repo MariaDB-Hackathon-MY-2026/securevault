@@ -16,6 +16,7 @@ export function UploadDialog({ children }: { children?: React.ReactNode }) {
   const { uploads, addFiles, pauseUpload, resumeUpload, cancelUpload, removeUpload } = context;
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -96,8 +97,20 @@ export function UploadDialog({ children }: { children?: React.ReactNode }) {
     return errorMessage;
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (open && !nextOpen) {
+      uploads
+        .filter((job) => job.status === "success")
+        .forEach((job) => {
+          removeUpload(job.id);
+        });
+    }
+
+    setOpen(nextOpen);
+  };
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         {children || (
           <Button>

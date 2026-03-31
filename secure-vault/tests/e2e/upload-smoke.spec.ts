@@ -80,6 +80,12 @@ function uploadRow(page: Page, fileName: string) {
     .locator("xpath=ancestor::div[contains(@class,'p-3 border rounded-md text-sm')][1]");
 }
 
+function libraryRow(page: Page, fileName: string) {
+  return page
+    .getByText(fileName, { exact: true })
+    .locator("xpath=ancestor::div[contains(@class,'rounded-lg border border-border p-4')][1]");
+}
+
 test.describe("upload smoke", () => {
   test.afterEach(async ({ page }, testInfo) => {
     const { email } = buildTestUserCredentials(testInfo);
@@ -127,5 +133,43 @@ test.describe("upload smoke", () => {
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Upload Files" })).toBeHidden();
     await expect(page.getByText("Track progress of your file uploads here.")).toBeVisible();
+
+    const pdfRow = libraryRow(page, "tiny.pdf");
+    await expect(pdfRow).toBeVisible({ timeout: 30_000 });
+    const pdfPreviewResponsePromise = page.waitForResponse((response) => {
+      return (
+        response.request().method() === "GET" &&
+        response.url().includes("/api/files/") &&
+        response.url().endsWith("/preview") &&
+        response.ok() &&
+        response.headers()["content-type"]?.includes("application/pdf")
+      );
+    });
+    await pdfRow.getByRole("button", { name: "Preview" }).click();
+    await expect(page.getByRole("dialog", { name: "tiny.pdf" })).toBeVisible();
+    const pdfPreviewFrame = page.locator('iframe[title="Preview of tiny.pdf"]');
+    await expect(pdfPreviewFrame).toBeVisible();
+    await expect(pdfPreviewFrame).toHaveAttribute("src", /\/api\/files\/.+\/preview$/);
+    await pdfPreviewResponsePromise;
+    await page.getByRole("button", { name: "Close preview" }).click();
+    await expect(page.getByRole("dialog", { name: "tiny.pdf" })).toBeHidden();
+
+    const imageRow = libraryRow(page, "photo.png");
+    await expect(imageRow).toBeVisible({ timeout: 30_000 });
+    const imagePreviewResponsePromise = page.waitForResponse((response) => {
+      return (
+        response.request().method() === "GET" &&
+        response.url().includes("/api/files/") &&
+        response.url().endsWith("/preview") &&
+        response.ok() &&
+        response.headers()["content-type"]?.includes("image/png")
+      );
+    });
+    await imageRow.getByRole("button", { name: "Preview" }).click();
+    await expect(page.getByRole("dialog", { name: "photo.png" })).toBeVisible();
+    await expect(page.getByAltText("photo.png")).toBeVisible();
+    await imagePreviewResponsePromise;
+    await page.getByRole("button", { name: "Close preview" }).click();
+    await expect(page.getByRole("dialog", { name: "photo.png" })).toBeHidden();
   });
 });

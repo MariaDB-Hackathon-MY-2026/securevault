@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import { expect, test, type Page } from "@playwright/test";
 
 import {
@@ -6,6 +8,7 @@ import {
 } from "./helpers/test-user-cleanup";
 import { buildTestUserCredentials, type TestUserCredentials } from "./helpers/test-user";
 
+const SAMPLE_DIR = path.resolve(process.cwd(), "sample_upload_test_file");
 
 const QUEUE_FILE_PAYLOADS = [
   {
@@ -90,6 +93,11 @@ async function openUploadDialog(page: Page) {
 
 async function setUploadFiles(page: Page) {
   await page.locator('input[type="file"]').setInputFiles(QUEUE_FILE_PAYLOADS);
+}
+
+async function setUploadFilesFromSampleDirectory(page: Page, fileNames: readonly string[]) {
+  const filePaths = fileNames.map((fileName) => path.join(SAMPLE_DIR, fileName));
+  await page.locator('input[type="file"]').setInputFiles(filePaths);
 }
 
 function uploadRow(page: Page, fileName: string) {
@@ -291,6 +299,180 @@ test.describe("upload queue controls", () => {
 
     await page.getByRole("button", { name: "Remove upload animated.gif" }).click();
     await expect(page.getByText("animated.gif", { exact: true })).toHaveCount(0);
+  });
+
+  test("resumes a partially uploaded multi-chunk file from the status endpoint", async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+
+    const credentials = buildTestUserCredentials(testInfo);
+    const uploadedChunkIndexes: number[] = [];
+    const uploadRecord = {
+      fileId: "file-resume",
+      uploadId: "upload-resume",
+    };
+
+    await page.route("**/api/upload/init", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          fileId: uploadRecord.fileId,
+          totalChunks: 3,
+          uploadId: uploadRecord.uploadId,
+        }),
+      });
+    });
+
+    await page.route("**/api/upload/status?*", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          completedChunkIndexes: [0],
+          fileId: uploadRecord.fileId,
+          status: "uploading",
+          totalChunks: 3,
+          uploadId: uploadRecord.uploadId,
+        }),
+      });
+    });
+
+    await page.route("**/api/upload/chunk", async (route) => {
+      uploadedChunkIndexes.push(Number(route.request().headers()["x-chunk-index"] ?? "-1"));
+
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          chunkIndex: Number(route.request().headers()["x-chunk-index"] ?? "0"),
+          status: "uploaded",
+        }),
+      });
+    });
+
+    await page.route("**/api/upload/complete", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          fileId: uploadRecord.fileId,
+          status: "ready",
+        }),
+      });
+    });
+
+    await page.route("**/api/embeddings", async (route) => {
+      await route.fulfill({ status: 204 });
+    });
+
+    await signUpAndBypassVerification(page, credentials);
+    await openUploadDialog(page);
+    await setUploadFilesFromSampleDirectory(page, ["chunked.pdf"]);
+
+    await expect(uploadRow(page, "chunked.pdf")).toContainText("Done", {
+      timeout: 120_000,
+    });
+    await expect
+      .poll(() => [...uploadedChunkIndexes].sort((a, b) => a - b))
+      .toEqual([1, 2]);
+  });
+
+  test("resumes a multi-chunk upload after a reload and skips already completed chunks", async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+
+    const credentials = buildTestUserCredentials(testInfo);
+    const initialPhaseChunkIndexes: number[] = [];
+    const resumedPhaseChunkIndexes: number[] = [];
+    const uploadRecord = {
+      fileId: "file-reload-resume",
+      uploadId: "upload-reload-resume",
+    };
+    let phase: "initial" | "resume" = "initial";
+    let initCallCount = 0;
+
+    await page.route("**/api/upload/init", async (route) => {
+      initCallCount += 1;
+
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          fileId: uploadRecord.fileId,
+          totalChunks: 3,
+          uploadId: uploadRecord.uploadId,
+        }),
+      });
+    });
+
+    await page.route("**/api/upload/status?*", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          completedChunkIndexes: phase === "initial" ? [] : [0],
+          fileId: uploadRecord.fileId,
+          status: "uploading",
+          totalChunks: 3,
+          uploadId: uploadRecord.uploadId,
+        }),
+      });
+    });
+
+    await page.route("**/api/upload/chunk", async (route) => {
+      const chunkIndex = Number(route.request().headers()["x-chunk-index"] ?? "-1");
+
+      if (phase === "initial") {
+        initialPhaseChunkIndexes.push(chunkIndex);
+      } else {
+        resumedPhaseChunkIndexes.push(chunkIndex);
+      }
+
+      if (phase === "initial" && chunkIndex === 1) {
+        await route.abort("failed");
+        return;
+      }
+
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          chunkIndex,
+          status: "uploaded",
+        }),
+      });
+    });
+
+    await page.route("**/api/upload/complete", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          fileId: uploadRecord.fileId,
+          status: "ready",
+        }),
+      });
+    });
+
+    await page.route("**/api/embeddings", async (route) => {
+      await route.fulfill({ status: 204 });
+    });
+
+    await signUpAndBypassVerification(page, credentials);
+    await openUploadDialog(page);
+    await setUploadFilesFromSampleDirectory(page, ["chunked.pdf"]);
+
+    await expect(uploadRow(page, "chunked.pdf")).toContainText(/failed|error/i, {
+      timeout: 120_000,
+    });
+    await expect.poll(() => [...initialPhaseChunkIndexes]).toContain(0);
+    await expect.poll(() => [...initialPhaseChunkIndexes]).toContain(1);
+
+    phase = "resume";
+    await page.reload();
+    await openUploadDialog(page);
+    await setUploadFilesFromSampleDirectory(page, ["chunked.pdf"]);
+
+    await expect(uploadRow(page, "chunked.pdf")).toContainText("Done", {
+      timeout: 120_000,
+    });
+    expect(initCallCount).toBeGreaterThanOrEqual(2);
+    expect(initialPhaseChunkIndexes).toContain(0);
+    expect(initialPhaseChunkIndexes).toContain(1);
+    expect(resumedPhaseChunkIndexes).not.toContain(0);
+    expect(resumedPhaseChunkIndexes).toContain(1);
+    expect(resumedPhaseChunkIndexes).toContain(2);
   });
 });
 
