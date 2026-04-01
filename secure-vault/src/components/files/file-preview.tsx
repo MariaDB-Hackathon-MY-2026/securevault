@@ -19,10 +19,11 @@ import type { FileListItem } from "@/lib/files/types";
 import { canPreviewMime } from "@/lib/files/preview";
 
 type FilePreviewProps = {
+  children?: React.ReactNode;
   file: FileListItem;
 };
 
-export function FilePreview({ file }: FilePreviewProps) {
+export function FilePreview({ children, file }: FilePreviewProps) {
   if (!canPreviewMime(file.mimeType)) {
     return (
       <Button disabled size="sm" type="button" variant="ghost">
@@ -38,12 +39,14 @@ export function FilePreview({ file }: FilePreviewProps) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button size="sm" type="button" variant="ghost">
-          <Eye className="mr-1" />
-          Preview
-        </Button>
+        {children || (
+          <Button size="sm" type="button" variant="ghost">
+            <Eye className="mr-1" />
+            Preview
+          </Button>
+        )}
       </DialogTrigger>
-      <DialogContent className="max-w-5xl">
+      <DialogContent className="h-dvh max-w-none rounded-none p-4 sm:h-auto sm:max-w-5xl sm:rounded-lg sm:p-6">
         <DialogHeader className="flex-row items-start justify-between gap-4">
           <div>
             <DialogTitle>{file.name}</DialogTitle>

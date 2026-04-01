@@ -39,10 +39,12 @@ describe("files route", () => {
     mocks.listReadyFilesForUser.mockResolvedValueOnce([
       {
         createdAt: "2026-03-31T00:00:00.000Z",
+        folderId: null,
         id: "file-1",
         mimeType: "application/pdf",
         name: "report.pdf",
         size: 1234,
+        updatedAt: "2026-03-31T00:00:00.000Z",
       },
     ]);
 
@@ -53,10 +55,12 @@ describe("files route", () => {
       files: [
         {
           createdAt: "2026-03-31T00:00:00.000Z",
+          folderId: null,
           id: "file-1",
           mimeType: "application/pdf",
           name: "report.pdf",
           size: 1234,
+          updatedAt: "2026-03-31T00:00:00.000Z",
         },
       ],
     });

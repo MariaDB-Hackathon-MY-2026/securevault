@@ -1,17 +1,23 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmailVerificationStatus } from "@/components/auth/email-verification-status";
 import type { CurrentUser } from "@/lib/auth/get-current-user";
-import type { FileListItem } from "@/lib/files/types";
+import type { FileListItem, FolderListItem, StorageUsage } from "@/lib/files/types";
 import { FilesLibrary } from "@/components/files/files-library";
-import { UploadDialog } from "@/components/upload/upload-dialog";
 import { UploadQueueSummary } from "@/components/upload/upload-queue-summary";
 
 type FilesPageContentProps = {
   files: FileListItem[];
+  folders: FolderListItem[];
+  storageUsage: StorageUsage;
   user: CurrentUser | null;
 };
 
-export function FilesPageContent({ files, user }: FilesPageContentProps) {
+export function FilesPageContent({
+  files,
+  folders,
+  storageUsage,
+  user,
+}: FilesPageContentProps) {
   return (
     <div className="grid gap-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -22,7 +28,6 @@ export function FilesPageContent({ files, user }: FilesPageContentProps) {
             Manage your secured documents. All files are encrypted client-side before upload.
           </p>
         </div>
-        {user?.email_verified && <UploadDialog />}
       </div>
 
       {!user?.email_verified && (
@@ -36,7 +41,7 @@ export function FilesPageContent({ files, user }: FilesPageContentProps) {
             <CardDescription>Current account storage allocation</CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            {user?.storage_used.toLocaleString()} / {user?.storage_quota.toLocaleString()} bytes used
+            {storageUsage.totalBytes.toLocaleString()} / {user?.storage_quota.toLocaleString()} bytes used
           </CardContent>
         </Card>
         <Card>
@@ -63,7 +68,11 @@ export function FilesPageContent({ files, user }: FilesPageContentProps) {
         )}
       </div>
 
-      <FilesLibrary initialFiles={files} />
+      <FilesLibrary
+        canUpload={Boolean(user?.email_verified)}
+        initialFiles={files}
+        initialFolders={folders}
+      />
     </div>
   );
 }
