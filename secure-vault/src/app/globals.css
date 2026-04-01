@@ -126,4 +126,13 @@
   html {
     @apply font-mono;
   }
+  a[href],
+  button:not(:disabled),
+  input[type="checkbox"],
+  input[type="radio"],
+  select,
+  summary,
+  [role="button"]:not([aria-disabled="true"]) {
+    @apply cursor-pointer;
+  }
 }

@@ -119,7 +119,7 @@ export function UploadDialog({ children }: { children?: React.ReactNode }) {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="h-dvh max-w-none rounded-none p-4 sm:h-auto sm:max-w-2xl sm:rounded-lg sm:p-6">
         <DialogHeader>
           <DialogTitle>Upload Files</DialogTitle>
           <DialogDescription className="sr-only">
