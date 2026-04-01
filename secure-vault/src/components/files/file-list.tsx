@@ -82,9 +82,10 @@ export function FileList({
   selectedFileIds,
   sort,
 }: FileListProps) {
+  const selectedFileIdSet = React.useMemo(() => new Set(selectedFileIds), [selectedFileIds]);
   const visibleFileIds = files.map((file) => file.id);
   const selectedVisibleCount = visibleFileIds.filter((fileId) =>
-    selectedFileIds.includes(fileId),
+    selectedFileIdSet.has(fileId),
   ).length;
   const allVisibleSelected =
     visibleFileIds.length > 0 && selectedVisibleCount === visibleFileIds.length;
@@ -126,9 +127,24 @@ export function FileList({
                 onChange={onToggleAllFiles}
               />
             </th>
-            <th className="px-4 py-3 text-left">{renderSortButton("Name", "name")}</th>
-            <th className="px-4 py-3 text-left">{renderSortButton("Size", "size")}</th>
-            <th className="px-4 py-3 text-left">{renderSortButton("Modified", "updatedAt")}</th>
+            <th
+              aria-sort={sort.key === "name" ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
+              className="px-4 py-3 text-left"
+            >
+              {renderSortButton("Name", "name")}
+            </th>
+            <th
+              aria-sort={sort.key === "size" ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
+              className="px-4 py-3 text-left"
+            >
+              {renderSortButton("Size", "size")}
+            </th>
+            <th
+              aria-sort={sort.key === "updatedAt" ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
+              className="px-4 py-3 text-left"
+            >
+              {renderSortButton("Modified", "updatedAt")}
+            </th>
             <th className="w-40 px-4 py-3 text-right text-xs uppercase tracking-[0.2em] text-muted-foreground">
               Actions
             </th>
@@ -160,7 +176,7 @@ export function FileList({
           ))}
 
           {files.map((file) => {
-            const isSelected = selectedFileIds.includes(file.id);
+            const isSelected = selectedFileIdSet.has(file.id);
 
             return (
               <tr
@@ -187,7 +203,7 @@ export function FileList({
                     <FileIcon mimeType={file.mimeType} />
                     {renamingFileId === file.id ? (
                       <Input
-                        aria-label={`Rename ${file.name}`}
+                        aria-label="Rename file"
                         autoFocus
                         className="h-10 max-w-md"
                         onBlur={() => onRenameCommit(file)}

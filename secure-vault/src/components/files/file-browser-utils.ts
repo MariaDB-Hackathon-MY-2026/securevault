@@ -14,7 +14,7 @@ const collator = new Intl.Collator("en", {
 });
 
 export function formatFileSize(bytes: number) {
-  if (bytes === 0) {
+  if (bytes <= 0 || !Number.isFinite(bytes)) {
     return "0 B";
   }
 

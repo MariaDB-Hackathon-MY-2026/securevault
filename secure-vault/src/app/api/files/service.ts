@@ -6,8 +6,11 @@ import { files, folders } from "@/lib/db/schema";
 import { sanitizeFilename } from "@/lib/crypto";
 import type { FileListItem, FolderListItem, StorageUsage } from "@/lib/files/types";
 
+export const MAX_BULK_FILE_IDS = 500;
+
 function mapFileListItem(file: {
   createdAt: Date;
+  deletedAt?: Date | null;
   folderId: string | null;
   id: string;
   mimeType: string;
@@ -24,6 +27,48 @@ function mapFileListItem(file: {
     size: file.size,
     updatedAt: new Date(file.updatedAt).toISOString(),
   };
+}
+
+type ScopedFileRecord = {
+  createdAt: Date;
+  deletedAt: Date | null;
+  folderId: string | null;
+  id: string;
+  mimeType: string;
+  name: string;
+  size: number;
+  updatedAt: Date;
+};
+
+async function getScopedFileRecord(
+  userId: string,
+  fileId: string,
+  options?: { includeDeleted?: boolean },
+): Promise<ScopedFileRecord | null> {
+  const db = MariadbConnection.getConnection();
+  const includeDeleted = options?.includeDeleted ?? false;
+  const result = await db
+    .select({
+      createdAt: files.created_at,
+      deletedAt: files.deleted_at,
+      folderId: files.folder_id,
+      id: files.id,
+      mimeType: files.mime_type,
+      name: files.name,
+      size: files.size,
+      updatedAt: files.updated_at,
+    })
+    .from(files)
+    .where(
+      and(
+        eq(files.id, fileId),
+        eq(files.user_id, userId),
+        ...(includeDeleted ? [] : [isNull(files.deleted_at)]),
+      ),
+    )
+    .limit(1);
+
+  return result[0] ?? null;
 }
 
 function mapFolderListItem(folder: {
@@ -98,28 +143,8 @@ export async function listReadyFilesForUser(userId: string): Promise<FileListIte
 }
 
 export async function getFileById(userId: string, fileId: string): Promise<FileListItem | null> {
-  const db = MariadbConnection.getConnection();
-  const result = await db
-    .select({
-      createdAt: files.created_at,
-      folderId: files.folder_id,
-      id: files.id,
-      mimeType: files.mime_type,
-      name: files.name,
-      size: files.size,
-      updatedAt: files.updated_at,
-    })
-    .from(files)
-    .where(
-      and(
-        eq(files.id, fileId),
-        eq(files.user_id, userId),
-        isNull(files.deleted_at),
-      ),
-    )
-    .limit(1);
-
-  return result[0] ? mapFileListItem(result[0]) : null;
+  const file = await getScopedFileRecord(userId, fileId);
+  return file ? mapFileListItem(file) : null;
 }
 
 export async function renameFile(userId: string, fileId: string, newName: string) {
@@ -138,6 +163,12 @@ export async function renameFile(userId: string, fileId: string, newName: string
     );
 
   if (getAffectedCount(result) === 0) {
+    const existingFile = await getFileById(userId, fileId);
+
+    if (existingFile?.name === sanitizedName) {
+      return existingFile;
+    }
+
     throw new Error("File not found");
   }
 
@@ -172,6 +203,12 @@ export async function moveFile(
     );
 
   if (getAffectedCount(result) === 0) {
+    const existingFile = await getFileById(userId, fileId);
+
+    if (existingFile?.folderId === targetFolderId) {
+      return existingFile;
+    }
+
     throw new Error("File not found");
   }
 
@@ -198,6 +235,12 @@ export async function softDeleteFile(userId: string, fileId: string) {
     );
 
   if (getAffectedCount(result) === 0) {
+    const existingFile = await getScopedFileRecord(userId, fileId, { includeDeleted: true });
+
+    if (existingFile?.deletedAt) {
+      return { deletedAt: existingFile.deletedAt.toISOString(), fileId };
+    }
+
     throw new Error("File not found");
   }
 
@@ -207,6 +250,10 @@ export async function softDeleteFile(userId: string, fileId: string) {
 export async function bulkSoftDelete(userId: string, fileIds: string[]) {
   if (fileIds.length === 0) {
     return { affectedCount: 0 };
+  }
+
+  if (fileIds.length > MAX_BULK_FILE_IDS) {
+    throw new Error(`Cannot bulk-delete more than ${MAX_BULK_FILE_IDS} files at once`);
   }
 
   const db = MariadbConnection.getConnection();
@@ -231,6 +278,10 @@ export async function bulkMoveFiles(
 ) {
   if (fileIds.length === 0) {
     return { affectedCount: 0 };
+  }
+
+  if (fileIds.length > MAX_BULK_FILE_IDS) {
+    throw new Error(`Cannot bulk-move more than ${MAX_BULK_FILE_IDS} files at once`);
   }
 
   const db = MariadbConnection.getConnection();
@@ -310,6 +361,7 @@ export async function getStorageUsage(userId: string): Promise<StorageUsage> {
     .where(
       and(
         eq(files.user_id, userId),
+        eq(files.status, "ready"),
         isNull(files.deleted_at),
       ),
     );

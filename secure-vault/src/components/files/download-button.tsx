@@ -5,15 +5,17 @@ import { Download, LoaderCircle, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 import type { FileListItem } from "@/lib/files/types";
 
 type DownloadButtonProps = {
+  className?: string;
   file: FileListItem;
 };
 
 type DownloadState = "idle" | "downloading" | "success" | "error";
 
-export function DownloadButton({ file }: DownloadButtonProps) {
+export function DownloadButton({ className, file }: DownloadButtonProps) {
   const [downloadState, setDownloadState] = React.useState<DownloadState>("idle");
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [progress, setProgress] = React.useState<number | null>(null);
@@ -130,7 +132,7 @@ export function DownloadButton({ file }: DownloadButtonProps) {
   }, [file.id, file.mimeType, file.name]);
 
   return (
-    <div className="min-w-[13rem] space-y-2">
+    <div className={cn("space-y-2", className)}>
       <div className="flex items-center justify-end gap-2">
         {downloadState === "downloading" ? (
           <>

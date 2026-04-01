@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FolderTree, HardDrive, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -18,34 +17,19 @@ import {
   compareFolders,
   type FileSortState,
   type FilesViewMode,
-  getFolderDepth,
   getFolderPath,
   matchesExplorerFilter,
 } from "@/components/files/file-browser-utils";
+import { CreateFolderDialog } from "@/components/files/create-folder-dialog";
+import { DeleteFilesDialog } from "@/components/files/delete-files-dialog";
+import { FilesBreadcrumbs } from "@/components/files/files-breadcrumbs";
+import { FilesEmptyState } from "@/components/files/files-empty-state";
+import { FilesLibraryHeader } from "@/components/files/files-library-header";
 import { FileGrid } from "@/components/files/file-grid";
 import { FileList } from "@/components/files/file-list";
+import { MoveFilesDialog } from "@/components/files/move-files-dialog";
 import { Toolbar } from "@/components/files/toolbar";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useFilesQuery } from "@/hooks/use-files-query";
 import { sanitizeFilename } from "@/lib/crypto/sanitize";
 import { filesQueryKey } from "@/lib/files/files-query";
@@ -86,7 +70,14 @@ export function FilesLibrary({
   const [moveTargetFolderId, setMoveTargetFolderId] = React.useState<string | null>(null);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
-  const folderMap = new Map(folders.map((folder) => [folder.id, folder]));
+  const [isMovePending, setIsMovePending] = React.useState(false);
+  const [isDeletePending, setIsDeletePending] = React.useState(false);
+  const [isCreateFolderPending, setIsCreateFolderPending] = React.useState(false);
+  const renameInFlight = React.useRef(false);
+  const folderMap = React.useMemo(
+    () => new Map(folders.map((folder) => [folder.id, folder])),
+    [folders],
+  );
 
   React.useEffect(() => {
     setSelectedFileIds((currentSelection) =>
@@ -163,6 +154,10 @@ export function FilesLibrary({
   }
 
   async function commitRename(file: FileListItem) {
+    if (renameInFlight.current) {
+      return;
+    }
+
     const sanitizedName = sanitizeFilename(renameDraft);
 
     if (sanitizedName === file.name) {
@@ -185,6 +180,7 @@ export function FilesLibrary({
     );
 
     cancelRename();
+    renameInFlight.current = true;
 
     try {
       const updatedFile = await renameFileAction(file.id, renameDraft);
@@ -199,16 +195,18 @@ export function FilesLibrary({
       queryClient.setQueryData(filesQueryKey, previousFiles);
       toast.error(error instanceof Error ? error.message : "Failed to rename file");
     } finally {
+      renameInFlight.current = false;
       await invalidateFiles();
     }
   }
 
   async function confirmMove() {
-    if (moveDialogFileIds.length === 0) {
+    if (moveDialogFileIds.length === 0 || isMovePending) {
       return;
     }
 
     const previousFiles = queryClient.getQueryData<FileListItem[]>(filesQueryKey) ?? files;
+    setIsMovePending(true);
 
     updateFilesInCache((currentFiles) =>
       currentFiles.map((file) =>
@@ -233,16 +231,18 @@ export function FilesLibrary({
       queryClient.setQueryData(filesQueryKey, previousFiles);
       toast.error(error instanceof Error ? error.message : "Failed to move file");
     } finally {
+      setIsMovePending(false);
       await invalidateFiles();
     }
   }
 
   async function confirmDelete() {
-    if (deleteDialogFileIds.length === 0) {
+    if (deleteDialogFileIds.length === 0 || isDeletePending) {
       return;
     }
 
     const previousFiles = queryClient.getQueryData<FileListItem[]>(filesQueryKey) ?? files;
+    setIsDeletePending(true);
 
     updateFilesInCache((currentFiles) =>
       currentFiles.filter((file) => !deleteDialogFileIds.includes(file.id)),
@@ -263,11 +263,17 @@ export function FilesLibrary({
       queryClient.setQueryData(filesQueryKey, previousFiles);
       toast.error(error instanceof Error ? error.message : "Failed to delete file");
     } finally {
+      setIsDeletePending(false);
       await invalidateFiles();
     }
   }
 
   async function confirmCreateFolder() {
+    if (isCreateFolderPending) {
+      return;
+    }
+
+    setIsCreateFolderPending(true);
     try {
       const createdFolder = await createFolderAction(createFolderName, createFolderParentId);
       setFolders((currentFolders) => [...currentFolders, createdFolder]);
@@ -276,6 +282,8 @@ export function FilesLibrary({
       toast.success("Folder created");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create folder");
+    } finally {
+      setIsCreateFolderPending(false);
     }
   }
 
@@ -312,52 +320,15 @@ export function FilesLibrary({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle>Your files</CardTitle>
-            <CardDescription>
-              Browse, rename, move, preview, and delete encrypted files without leaving the page.
-            </CardDescription>
-          </div>
-          <div className="rounded-full border border-border/70 px-3 py-2 text-right text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <HardDrive className="size-4" />
-              {files.length} files
-            </div>
-          </div>
-        </div>
+        <FilesLibraryHeader fileCount={files.length} />
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <Button
-              className="h-auto px-0 text-sm"
-              onClick={() => navigateToFolder(null)}
-              type="button"
-              variant="link"
-            >
-              All files
-            </Button>
-            {currentFolderPath.map((folder) => (
-              <React.Fragment key={folder.id}>
-                <span>/</span>
-                <Button
-                  className="h-auto px-0 text-sm"
-                  onClick={() => navigateToFolder(folder.id)}
-                  type="button"
-                  variant="link"
-                >
-                  {folder.name}
-                </Button>
-              </React.Fragment>
-            ))}
-            {isFetching ? (
-              <span className="ml-auto inline-flex items-center gap-2">
-                <RefreshCcw className="size-4 animate-spin" />
-                Refreshing
-              </span>
-            ) : null}
-          </div>
+          <FilesBreadcrumbs
+            currentFolderPath={currentFolderPath}
+            isFetching={isFetching}
+            onNavigate={navigateToFolder}
+          />
 
           <Toolbar
             canUpload={canUpload}
@@ -380,21 +351,7 @@ export function FilesLibrary({
           />
 
           {visibleFolders.length === 0 && visibleFiles.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border px-4 py-12 text-center">
-              <div className="mx-auto flex max-w-md flex-col items-center gap-3">
-                <FolderTree className="size-10 text-muted-foreground" />
-                <p className="text-base font-medium">
-                  {deferredFilterValue
-                    ? "No matching files or folders"
-                    : "This folder is empty"}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {deferredFilterValue
-                    ? "Try a different search term or clear the current filter."
-                    : "Upload a file to get started, or move files into this folder from another location."}
-                </p>
-              </div>
-            </div>
+            <FilesEmptyState hasFilter={Boolean(deferredFilterValue)} />
           ) : viewMode === "grid" ? (
             <FileGrid
               files={visibleFiles}
@@ -431,136 +388,45 @@ export function FilesLibrary({
           )}
         </div>
 
-        <Dialog
+        <MoveFilesDialog
+          folderMap={folderMap}
+          folders={folders}
+          isOpen={isMoveDialogOpen}
+          isPending={isMovePending}
+          onConfirm={confirmMove}
           onOpenChange={(open) => {
             setIsMoveDialogOpen(open);
             if (!open) {
               setMoveDialogFileIds([]);
             }
           }}
-          open={isMoveDialogOpen}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{moveDialogTitle}</DialogTitle>
-              <DialogDescription>
-                Pick a destination folder. Selecting All files moves the chosen files back to the root.
-              </DialogDescription>
-            </DialogHeader>
+          onTargetFolderChange={setMoveTargetFolderId}
+          selectedFolderId={moveTargetFolderId}
+          title={moveDialogTitle}
+        />
 
-            <div className="space-y-2">
-              <Button
-                className="w-full justify-start"
-                onClick={() => setMoveTargetFolderId(null)}
-                type="button"
-                variant={moveTargetFolderId === null ? "default" : "outline"}
-              >
-                All files (root)
-              </Button>
-
-              <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-                {folders.map((folder) => (
-                  <Button
-                    key={folder.id}
-                    className="w-full justify-start"
-                    onClick={() => setMoveTargetFolderId(folder.id)}
-                    style={{ paddingLeft: `${getFolderDepth(folder.id, folderMap) * 16 + 12}px` }}
-                    type="button"
-                    variant={moveTargetFolderId === folder.id ? "default" : "outline"}
-                  >
-                    {folder.name}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button
-                onClick={() => setIsMoveDialogOpen(false)}
-                type="button"
-                variant="ghost"
-              >
-                Cancel
-              </Button>
-              <Button onClick={confirmMove} type="button">
-                Move files
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog
+        <CreateFolderDialog
+          isOpen={isCreateFolderDialogOpen}
+          isPending={isCreateFolderPending}
+          name={createFolderName}
+          onConfirm={confirmCreateFolder}
+          onNameChange={setCreateFolderName}
           onOpenChange={setIsCreateFolderDialogOpen}
-          open={isCreateFolderDialogOpen}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create folder</DialogTitle>
-              <DialogDescription>
-                Create a new folder inside {createFolderParentLabel}.
-              </DialogDescription>
-            </DialogHeader>
+          parentLabel={createFolderParentLabel}
+        />
 
-            <div className="space-y-3">
-              <Input
-                aria-label="Folder name"
-                autoFocus
-                onChange={(event) => setCreateFolderName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && createFolderName.trim()) {
-                    event.preventDefault();
-                    void confirmCreateFolder();
-                  }
-                }}
-                placeholder="Folder name"
-                value={createFolderName}
-              />
-              <p className="text-sm text-muted-foreground">
-                Parent folder: {createFolderParentLabel}
-              </p>
-            </div>
-
-            <DialogFooter>
-              <Button
-                onClick={() => setIsCreateFolderDialogOpen(false)}
-                type="button"
-                variant="ghost"
-              >
-                Cancel
-              </Button>
-              <Button
-                disabled={!createFolderName.trim()}
-                onClick={confirmCreateFolder}
-                type="button"
-              >
-                Create folder
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <AlertDialog
+        <DeleteFilesDialog
+          isOpen={isDeleteDialogOpen}
+          isPending={isDeletePending}
+          onConfirm={confirmDelete}
           onOpenChange={(open) => {
             setIsDeleteDialogOpen(open);
             if (!open) {
               setDeleteDialogFileIds([]);
             }
           }}
-          open={isDeleteDialogOpen}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{deleteDialogTitle}</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action moves the selected files to trash by setting a soft-delete timestamp.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          title={deleteDialogTitle}
+        />
       </CardContent>
     </Card>
   );
