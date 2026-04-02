@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,8 +11,11 @@ const mocks = vi.hoisted(() => ({
   bulkMoveAction: vi.fn(),
   createFolderAction: vi.fn(),
   deleteFileAction: vi.fn(),
+  deleteFolderAction: vi.fn(),
   moveFileAction: vi.fn(),
+  moveFolderAction: vi.fn(),
   renameFileAction: vi.fn(),
+  renameFolderAction: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
 }));
@@ -22,8 +25,11 @@ vi.mock("@/app/(dashboard)/files/actions", () => ({
   bulkMoveAction: mocks.bulkMoveAction,
   createFolderAction: mocks.createFolderAction,
   deleteFileAction: mocks.deleteFileAction,
+  deleteFolderAction: mocks.deleteFolderAction,
   moveFileAction: mocks.moveFileAction,
+  moveFolderAction: mocks.moveFolderAction,
   renameFileAction: mocks.renameFileAction,
+  renameFolderAction: mocks.renameFolderAction,
 }));
 
 vi.mock("sonner", () => ({
@@ -59,10 +65,22 @@ function createFolder(overrides: Partial<FolderListItem> = {}): FolderListItem {
 function renderLibrary(files: FileListItem[], folders: FolderListItem[] = []) {
   const queryClient = new QueryClient();
 
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <FilesLibrary canUpload={false} initialFiles={files} initialFolders={folders} />
     </QueryClientProvider>,
+  );
+
+  return {
+    queryClient,
+    ...view,
+  };
+}
+
+function openFolderActions(folderName: string) {
+  fireEvent.pointerDown(
+    screen.getByRole("button", { name: `Open actions for folder ${folderName}` }),
+    { button: 0, ctrlKey: false },
   );
 }
 
@@ -297,5 +315,325 @@ describe("FilesLibrary", () => {
       expect(mocks.toastSuccess).toHaveBeenCalledWith("File deleted");
     });
     expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
+  it("optimistically renames a folder from the grid before the action resolves", async () => {
+    let resolveRename: ((value: FolderListItem) => void) | null = null;
+    mocks.renameFolderAction.mockImplementation(
+      () =>
+        new Promise<FolderListItem>((resolve) => {
+          resolveRename = resolve;
+        }),
+    );
+
+    renderLibrary([], [createFolder()]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    const input = await screen.findByLabelText("Rename folder");
+
+    fireEvent.change(input, { target: { value: "Archives" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(screen.getByText("Archives")).toBeTruthy();
+    expect(mocks.renameFolderAction).toHaveBeenCalledWith("folder-1", "Archives");
+
+    if (resolveRename) {
+      (resolveRename as (value: FolderListItem) => void)(
+        createFolder({
+          name: "Archives",
+        }),
+      );
+    }
+
+    await waitFor(() => {
+      expect(mocks.toastSuccess).toHaveBeenCalledWith("Folder renamed");
+    });
+  });
+
+  it("rolls a folder rename back when the action fails", async () => {
+    mocks.renameFolderAction.mockRejectedValue(new Error("Folder rename failed"));
+
+    renderLibrary([], [createFolder()]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    const input = await screen.findByLabelText("Rename folder");
+
+    fireEvent.change(input, { target: { value: "Archives" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(screen.getByText("Projects")).toBeTruthy();
+      expect(mocks.toastError).toHaveBeenCalledWith("Folder rename failed");
+    });
+  });
+
+  it("does not optimistically rename a folder to the upload fallback for invalid input", async () => {
+    renderLibrary([], [createFolder({ name: "Projects" })]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    const input = await screen.findByLabelText("Rename folder");
+
+    fireEvent.change(input, { target: { value: "../???" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(screen.queryByText("file")).toBeNull();
+    expect(mocks.renameFolderAction).not.toHaveBeenCalled();
+    expect(mocks.toastError).toHaveBeenCalledWith("Folder name is required");
+  });
+
+  it("skips folder rename actions when the name does not change", async () => {
+    renderLibrary([], [createFolder()]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.keyDown(await screen.findByLabelText("Rename folder"), { key: "Enter" });
+
+    expect(mocks.renameFolderAction).not.toHaveBeenCalled();
+  });
+
+  it("commits a folder rename only once when Enter is followed by blur", async () => {
+    let resolveRename: ((value: FolderListItem) => void) | null = null;
+    mocks.renameFolderAction.mockImplementation(
+      () =>
+        new Promise<FolderListItem>((resolve) => {
+          resolveRename = resolve;
+        }),
+    );
+
+    renderLibrary([], [createFolder()]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    const input = await screen.findByLabelText("Rename folder");
+
+    fireEvent.change(input, { target: { value: "Archives" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.blur(input);
+
+    expect(mocks.renameFolderAction).toHaveBeenCalledTimes(1);
+
+    if (resolveRename) {
+      (resolveRename as (value: FolderListItem) => void)(
+        createFolder({
+          name: "Archives",
+        }),
+      );
+    }
+
+    await waitFor(() => {
+      expect(mocks.toastSuccess).toHaveBeenCalledWith("Folder renamed");
+    });
+  });
+
+  it("shows subtree counts in the folder delete dialog", () => {
+    renderLibrary(
+      [
+        createFile({ id: "file-1", folderId: "folder-1", name: "budget.pdf" }),
+        createFile({ id: "file-2", folderId: "folder-2", name: "taxes.pdf" }),
+      ],
+      [
+        createFolder({ id: "folder-1", name: "Documents" }),
+        createFolder({ id: "folder-2", name: "Taxes", parentId: "folder-1" }),
+      ],
+    );
+
+    openFolderActions("Documents");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+
+    expect(screen.getByText("This will permanently delete 2 files and 1 sub-folder.")).toBeTruthy();
+  });
+
+  it("optimistically removes a folder while delete is pending", () => {
+    mocks.deleteFolderAction.mockImplementation(
+      () => new Promise(() => undefined),
+    );
+
+    renderLibrary([], [createFolder()]);
+
+    openFolderActions("Projects");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete folder" }));
+
+    expect(mocks.deleteFolderAction).toHaveBeenCalledWith("folder-1");
+    expect(screen.queryByText("Projects")).toBeNull();
+  });
+
+  it("restores a deleted folder when the server action fails", async () => {
+    mocks.deleteFolderAction.mockRejectedValue(new Error("Folder delete failed"));
+
+    renderLibrary([], [createFolder()]);
+
+    openFolderActions("Projects");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete folder" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Projects")).toBeTruthy();
+      expect(mocks.toastError).toHaveBeenCalledWith("Folder delete failed");
+    });
+  });
+
+  it("restores the current folder view when deleting that folder fails", async () => {
+    mocks.deleteFolderAction.mockRejectedValue(new Error("Folder delete failed"));
+
+    renderLibrary(
+      [createFile({ id: "inside", folderId: "temp", name: "inside.pdf" })],
+      [createFolder({ id: "temp", name: "Temp" })],
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+    expect(screen.getByRole("button", { name: "inside.pdf" })).toBeTruthy();
+
+    openFolderActions("Temp");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete folder" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Temp" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "inside.pdf" })).toBeTruthy();
+      expect(mocks.toastError).toHaveBeenCalledWith("Folder delete failed");
+    });
+  });
+
+  it("submits a folder delete only once when the confirm button is clicked repeatedly", () => {
+    mocks.deleteFolderAction.mockImplementation(
+      () => new Promise(() => undefined),
+    );
+
+    renderLibrary([], [createFolder()]);
+
+    openFolderActions("Projects");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+
+    const deleteButton = screen.getByRole("button", { name: "Delete folder" });
+    fireEvent.click(deleteButton);
+    fireEvent.click(deleteButton);
+
+    expect(mocks.deleteFolderAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the root view when the current folder disappears", async () => {
+    const rendered = renderLibrary([], [createFolder({ id: "temp", name: "Temp" })]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+    expect(screen.getByRole("button", { name: "Temp" })).toBeTruthy();
+
+    rendered.rerender(
+      <QueryClientProvider client={rendered.queryClient}>
+        <FilesLibrary canUpload={false} initialFiles={[]} initialFolders={[]} />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Temp" })).toBeNull();
+      expect(screen.getByRole("button", { name: "All files" })).toBeTruthy();
+    });
+  });
+
+  it("excludes the moved folder from the folder destination list", () => {
+    renderLibrary([], [createFolder()]);
+
+    openFolderActions("Projects");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Move folder" });
+    expect(within(dialog).queryByRole("button", { name: "Projects" })).toBeNull();
+  });
+
+  it("excludes the entire folder subtree from the move destination list", () => {
+    renderLibrary(
+      [],
+      [
+        createFolder({ id: "projects", name: "Projects" }),
+        createFolder({ id: "taxes", name: "Taxes", parentId: "projects" }),
+        createFolder({ id: "archive", name: "Archive" }),
+      ],
+    );
+
+    openFolderActions("Projects");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Move folder" });
+    expect(within(dialog).queryByRole("button", { name: "Projects" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Taxes" })).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Archive" })).toBeTruthy();
+  });
+
+  it("submits a folder move only once when the confirm button is clicked repeatedly", () => {
+    mocks.moveFolderAction.mockImplementation(
+      () => new Promise(() => undefined),
+    );
+
+    renderLibrary(
+      [],
+      [
+        createFolder({ id: "projects", name: "Projects" }),
+        createFolder({ id: "archive", name: "Archive" }),
+      ],
+    );
+
+    openFolderActions("Projects");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Move folder" })).getByRole("button", {
+        name: "Archive",
+      }),
+    );
+
+    const moveButton = screen.getByRole("button", { name: "Move folder" });
+    fireEvent.click(moveButton);
+    fireEvent.click(moveButton);
+
+    expect(mocks.moveFolderAction).toHaveBeenCalledTimes(1);
+    expect(mocks.moveFolderAction).toHaveBeenCalledWith("projects", "archive");
+  });
+
+  it("optimistically updates folder placement after a move", () => {
+    mocks.moveFolderAction.mockImplementation(
+      () => new Promise(() => undefined),
+    );
+
+    renderLibrary(
+      [],
+      [
+        createFolder({ id: "projects", name: "Projects" }),
+        createFolder({ id: "archive", name: "Archive" }),
+      ],
+    );
+
+    openFolderActions("Projects");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Move folder" })).getByRole("button", {
+        name: "Archive",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Move folder" }));
+
+    expect(screen.queryByText("Projects")).toBeNull();
+  });
+
+  it("rolls back folder moves when the action fails", async () => {
+    mocks.moveFolderAction.mockRejectedValue(new Error("Folder move failed"));
+
+    renderLibrary(
+      [],
+      [
+        createFolder({ id: "projects", name: "Projects" }),
+        createFolder({ id: "archive", name: "Archive" }),
+      ],
+    );
+
+    openFolderActions("Projects");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Move folder" })).getByRole("button", {
+        name: "Archive",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Move folder" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Projects")).toBeTruthy();
+      expect(mocks.toastError).toHaveBeenCalledWith("Folder move failed");
+    });
   });
 });

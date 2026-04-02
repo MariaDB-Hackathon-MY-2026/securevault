@@ -8,8 +8,11 @@ import {
   bulkMoveFiles,
   bulkSoftDelete,
   createFolder,
+  moveFolder,
   moveFile,
+  renameFolder,
   renameFile,
+  softDeleteFolder,
   softDeleteFile,
 } from "@/app/api/files/service";
 
@@ -72,6 +75,15 @@ export async function renameFileAction(fileId: string, newName: string) {
   return result;
 }
 
+export async function renameFolderAction(folderId: string, newName: string) {
+  const normalizedFolderId = assertValidId(folderId, "folder ID");
+  const validatedName = assertValidName(newName, "Folder name");
+  const user = await requireCurrentUser();
+  const result = await renameFolder(user.id, normalizedFolderId, validatedName);
+  revalidatePath(FILES_PATH);
+  return result;
+}
+
 export async function moveFileAction(fileId: string, targetFolderId: string | null) {
   const normalizedFileId = assertValidId(fileId, "file ID");
   const normalizedTargetFolderId = normalizeOptionalId(targetFolderId);
@@ -81,10 +93,27 @@ export async function moveFileAction(fileId: string, targetFolderId: string | nu
   return result;
 }
 
+export async function moveFolderAction(folderId: string, targetParentId: string | null) {
+  const normalizedFolderId = assertValidId(folderId, "folder ID");
+  const normalizedTargetParentId = normalizeOptionalId(targetParentId);
+  const user = await requireCurrentUser();
+  const result = await moveFolder(user.id, normalizedFolderId, normalizedTargetParentId);
+  revalidatePath(FILES_PATH);
+  return result;
+}
+
 export async function deleteFileAction(fileId: string) {
   const normalizedFileId = assertValidId(fileId, "file ID");
   const user = await requireCurrentUser();
   const result = await softDeleteFile(user.id, normalizedFileId);
+  revalidatePath(FILES_PATH);
+  return result;
+}
+
+export async function deleteFolderAction(folderId: string) {
+  const normalizedFolderId = assertValidId(folderId, "folder ID");
+  const user = await requireCurrentUser();
+  const result = await softDeleteFolder(user.id, normalizedFolderId);
   revalidatePath(FILES_PATH);
   return result;
 }

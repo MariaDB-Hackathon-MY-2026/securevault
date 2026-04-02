@@ -13,6 +13,8 @@ import { getFolderDepth } from "@/components/files/file-browser-utils";
 import type { FolderListItem } from "@/lib/files/types";
 
 type MoveFilesDialogProps = {
+  confirmLabel?: string;
+  description?: string;
   folderMap: Map<string, FolderListItem>;
   folders: FolderListItem[];
   isOpen: boolean;
@@ -25,6 +27,8 @@ type MoveFilesDialogProps = {
 };
 
 export function MoveFilesDialog({
+  confirmLabel = "Move files",
+  description = "Pick a destination folder. Selecting All files moves the chosen files back to the root.",
   folderMap,
   folders,
   isOpen,
@@ -40,9 +44,7 @@ export function MoveFilesDialog({
       <DialogContent className="gap-5 p-6 sm:max-w-xl">
         <DialogHeader className="space-y-3">
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            Pick a destination folder. Selecting All files moves the chosen files back to the root.
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-1 pt-2">
@@ -76,7 +78,7 @@ export function MoveFilesDialog({
             Cancel
           </Button>
           <Button disabled={isPending} onClick={onConfirm} type="button">
-            Move files
+            {confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

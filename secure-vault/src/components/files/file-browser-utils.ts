@@ -78,6 +78,53 @@ export function getFolderDepth(
   return getFolderPath(folderId, folderMap).length - 1;
 }
 
+export function getFolderSubtreeIds(
+  folderId: string,
+  folderMap: Map<string, FolderListItem>,
+) {
+  const childFolderIdsByParentId = new Map<string, string[]>();
+
+  for (const folder of folderMap.values()) {
+    if (!folder.parentId) {
+      continue;
+    }
+
+    const childFolderIds = childFolderIdsByParentId.get(folder.parentId) ?? [];
+    childFolderIds.push(folder.id);
+    childFolderIdsByParentId.set(folder.parentId, childFolderIds);
+  }
+
+  const seenFolderIds = new Set<string>();
+  const folderIdsToVisit = [folderId];
+  const subtreeFolderIds: string[] = [];
+
+  while (folderIdsToVisit.length > 0) {
+    const currentFolderId = folderIdsToVisit.pop();
+
+    if (!currentFolderId || seenFolderIds.has(currentFolderId)) {
+      continue;
+    }
+
+    seenFolderIds.add(currentFolderId);
+    subtreeFolderIds.push(currentFolderId);
+
+    for (const childFolderId of childFolderIdsByParentId.get(currentFolderId) ?? []) {
+      folderIdsToVisit.push(childFolderId);
+    }
+  }
+
+  return subtreeFolderIds;
+}
+
+export function getFolderDescendantIds(
+  folderId: string,
+  folderMap: Map<string, FolderListItem>,
+) {
+  return getFolderSubtreeIds(folderId, folderMap).filter(
+    (descendantFolderId) => descendantFolderId !== folderId,
+  );
+}
+
 function compareDates(leftIso: string, rightIso: string) {
   return new Date(leftIso).getTime() - new Date(rightIso).getTime();
 }

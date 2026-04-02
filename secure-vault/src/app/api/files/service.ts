@@ -7,6 +7,7 @@ import { sanitizeFilename } from "@/lib/crypto";
 import type { FileListItem, FolderListItem, StorageUsage } from "@/lib/files/types";
 
 export const MAX_BULK_FILE_IDS = 500;
+const MAX_NAME_LENGTH = 255;
 
 function mapFileListItem(file: {
   createdAt: Date;
@@ -85,6 +86,66 @@ function mapFolderListItem(folder: {
   };
 }
 
+type ScopedFolderRecord = {
+  createdAt: Date;
+  deletedAt: Date | null;
+  id: string;
+  name: string;
+  parentId: string | null;
+};
+
+async function getScopedFolderRecord(
+  userId: string,
+  folderId: string,
+  options?: { includeDeleted?: boolean },
+): Promise<ScopedFolderRecord | null> {
+  const db = MariadbConnection.getConnection();
+  const includeDeleted = options?.includeDeleted ?? false;
+  const result = await db
+    .select({
+      createdAt: folders.created_at,
+      deletedAt: folders.deleted_at,
+      id: folders.id,
+      name: folders.name,
+      parentId: folders.parent_id,
+    })
+    .from(folders)
+    .where(
+      and(
+        eq(folders.id, folderId),
+        eq(folders.user_id, userId),
+        ...(includeDeleted ? [] : [isNull(folders.deleted_at)]),
+      ),
+    )
+    .limit(1);
+
+  return result[0] ?? null;
+}
+
+async function listScopedFolderRecords(
+  userId: string,
+  options?: { includeDeleted?: boolean },
+): Promise<ScopedFolderRecord[]> {
+  const db = MariadbConnection.getConnection();
+  const includeDeleted = options?.includeDeleted ?? false;
+
+  return db
+    .select({
+      createdAt: folders.created_at,
+      deletedAt: folders.deleted_at,
+      id: folders.id,
+      name: folders.name,
+      parentId: folders.parent_id,
+    })
+    .from(folders)
+    .where(
+      and(
+        eq(folders.user_id, userId),
+        ...(includeDeleted ? [] : [isNull(folders.deleted_at)]),
+      ),
+    );
+}
+
 async function assertFolderOwnership(userId: string, folderId: string) {
   const db = MariadbConnection.getConnection();
   const result = await db
@@ -115,6 +176,82 @@ function getAffectedCount(result: unknown) {
   };
 
   return maybeResult.rowsAffected ?? maybeResult.affectedRows ?? 0;
+}
+
+function assertValidSanitizedName(name: string, label: string) {
+  if (!name) {
+    throw new Error(`${label} is required`);
+  }
+
+  if (name.length > MAX_NAME_LENGTH) {
+    throw new Error("Name too long");
+  }
+
+  return name;
+}
+
+function collectFolderSubtreeIds(
+  rootFolderId: string,
+  folderRecords: Array<Pick<ScopedFolderRecord, "id" | "parentId">>,
+) {
+  const childFolderIdsByParentId = new Map<string, string[]>();
+
+  for (const folder of folderRecords) {
+    if (!folder.parentId) {
+      continue;
+    }
+
+    const childFolderIds = childFolderIdsByParentId.get(folder.parentId) ?? [];
+    childFolderIds.push(folder.id);
+    childFolderIdsByParentId.set(folder.parentId, childFolderIds);
+  }
+
+  const seenFolderIds = new Set<string>();
+  const folderIdsToVisit = [rootFolderId];
+  const subtreeFolderIds: string[] = [];
+
+  while (folderIdsToVisit.length > 0) {
+    const currentFolderId = folderIdsToVisit.pop();
+
+    if (!currentFolderId || seenFolderIds.has(currentFolderId)) {
+      continue;
+    }
+
+    seenFolderIds.add(currentFolderId);
+    subtreeFolderIds.push(currentFolderId);
+
+    for (const childFolderId of childFolderIdsByParentId.get(currentFolderId) ?? []) {
+      folderIdsToVisit.push(childFolderId);
+    }
+  }
+
+  return subtreeFolderIds;
+}
+
+function assertNoCircularFolderMove(
+  folderId: string,
+  targetParentId: string | null,
+  folderMap: Map<string, Pick<ScopedFolderRecord, "id" | "parentId">>,
+) {
+  if (!targetParentId) {
+    return;
+  }
+
+  const visitedFolderIds = new Set<string>();
+  let currentFolderId: string | null = targetParentId;
+
+  while (currentFolderId) {
+    if (currentFolderId === folderId) {
+      throw new Error("Cannot move a folder into itself or one of its descendants");
+    }
+
+    if (visitedFolderIds.has(currentFolderId)) {
+      break;
+    }
+
+    visitedFolderIds.add(currentFolderId);
+    currentFolderId = folderMap.get(currentFolderId)?.parentId ?? null;
+  }
 }
 
 export async function listReadyFilesForUser(userId: string): Promise<FileListItem[]> {
@@ -178,6 +315,45 @@ export async function renameFile(userId: string, fileId: string, newName: string
   }
 
   return updatedFile;
+}
+
+export async function renameFolder(userId: string, folderId: string, newName: string) {
+  const db = MariadbConnection.getConnection();
+  const sanitizedName = assertValidSanitizedName(
+    sanitizeFilename(newName, { fallback: "" }),
+    "Folder name",
+  );
+  const existingFolder = await getScopedFolderRecord(userId, folderId);
+
+  if (!existingFolder || existingFolder.deletedAt) {
+    throw new Error("Folder not found");
+  }
+
+  const result = await db
+    .update(folders)
+    .set({ name: sanitizedName })
+    .where(
+      and(
+        eq(folders.id, folderId),
+        eq(folders.user_id, userId),
+        isNull(folders.deleted_at),
+      ),
+    );
+
+  if (getAffectedCount(result) === 0) {
+    if (existingFolder.name === sanitizedName) {
+      return mapFolderListItem(existingFolder);
+    }
+
+    throw new Error("Folder not found");
+  }
+
+  const updatedFolder = await getScopedFolderRecord(userId, folderId);
+  if (!updatedFolder) {
+    throw new Error("Folder not found");
+  }
+
+  return mapFolderListItem(updatedFolder);
 }
 
 export async function moveFile(
@@ -247,6 +423,51 @@ export async function softDeleteFile(userId: string, fileId: string) {
   return { deletedAt: deletedAt.toISOString(), fileId };
 }
 
+export async function softDeleteFolder(userId: string, folderId: string) {
+  const db = MariadbConnection.getConnection();
+  const scopedFolders = await listScopedFolderRecords(userId, { includeDeleted: true });
+  const folderMap = new Map(scopedFolders.map((folder) => [folder.id, folder]));
+  const targetFolder = folderMap.get(folderId);
+
+  if (!targetFolder) {
+    throw new Error("Folder not found");
+  }
+
+  if (targetFolder.deletedAt) {
+    return { deletedFiles: 0, deletedFolders: 0 };
+  }
+
+  const subtreeFolderIds = collectFolderSubtreeIds(folderId, scopedFolders);
+  const deletedAt = new Date();
+  return db.transaction(async (tx) => {
+    const folderDeleteResult = await tx
+      .update(folders)
+      .set({ deleted_at: deletedAt })
+      .where(
+        and(
+          eq(folders.user_id, userId),
+          inArray(folders.id, subtreeFolderIds),
+          isNull(folders.deleted_at),
+        ),
+      );
+    const fileDeleteResult = await tx
+      .update(files)
+      .set({ deleted_at: deletedAt })
+      .where(
+        and(
+          eq(files.user_id, userId),
+          inArray(files.folder_id, subtreeFolderIds),
+          isNull(files.deleted_at),
+        ),
+      );
+
+    return {
+      deletedFiles: getAffectedCount(fileDeleteResult),
+      deletedFolders: getAffectedCount(folderDeleteResult),
+    };
+  });
+}
+
 export async function bulkSoftDelete(userId: string, fileIds: string[]) {
   if (fileIds.length === 0) {
     return { affectedCount: 0 };
@@ -304,20 +525,57 @@ export async function bulkMoveFiles(
   return { affectedCount: getAffectedCount(result) };
 }
 
-export async function listFoldersForUser(userId: string): Promise<FolderListItem[]> {
+export async function moveFolder(
+  userId: string,
+  folderId: string,
+  targetParentId: string | null,
+) {
   const db = MariadbConnection.getConnection();
-  const result = await db
-    .select({
-      createdAt: folders.created_at,
-      id: folders.id,
-      name: folders.name,
-      parentId: folders.parent_id,
-    })
-    .from(folders)
-    .where(and(eq(folders.user_id, userId), isNull(folders.deleted_at)))
-    .orderBy(folders.name);
+  const existingFolder = await getScopedFolderRecord(userId, folderId);
 
-  return result.map(mapFolderListItem);
+  if (!existingFolder || existingFolder.deletedAt) {
+    throw new Error("Folder not found");
+  }
+
+  if (targetParentId) {
+    await assertFolderOwnership(userId, targetParentId);
+    const scopedFolders = await listScopedFolderRecords(userId);
+    const folderMap = new Map(scopedFolders.map((folder) => [folder.id, folder]));
+    assertNoCircularFolderMove(folderId, targetParentId, folderMap);
+  }
+
+  const result = await db
+    .update(folders)
+    .set({ parent_id: targetParentId })
+    .where(
+      and(
+        eq(folders.id, folderId),
+        eq(folders.user_id, userId),
+        isNull(folders.deleted_at),
+      ),
+    );
+
+  if (getAffectedCount(result) === 0) {
+    if (existingFolder.parentId === targetParentId) {
+      return mapFolderListItem(existingFolder);
+    }
+
+    throw new Error("Folder not found");
+  }
+
+  const updatedFolder = await getScopedFolderRecord(userId, folderId);
+  if (!updatedFolder) {
+    throw new Error("Folder not found");
+  }
+
+  return mapFolderListItem(updatedFolder);
+}
+
+export async function listFoldersForUser(userId: string): Promise<FolderListItem[]> {
+  const result = await listScopedFolderRecords(userId);
+  return result
+    .map(mapFolderListItem)
+    .sort((left, right) => left.name.localeCompare(right.name));
 }
 
 export async function createFolder(
@@ -326,7 +584,10 @@ export async function createFolder(
   parentId: string | null,
 ): Promise<FolderListItem> {
   const db = MariadbConnection.getConnection();
-  const sanitizedName = sanitizeFilename(name);
+  const sanitizedName = assertValidSanitizedName(
+    sanitizeFilename(name, { fallback: "" }),
+    "Folder name",
+  );
   const createdAt = new Date();
   const folderId = nanoid();
 

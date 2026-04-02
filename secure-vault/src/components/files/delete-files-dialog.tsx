@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type DeleteFilesDialogProps = {
+  confirmLabel?: string;
+  description?: string;
   isOpen: boolean;
   isPending?: boolean;
   onConfirm: () => void;
@@ -20,6 +22,8 @@ type DeleteFilesDialogProps = {
 };
 
 export function DeleteFilesDialog({
+  confirmLabel = "Delete",
+  description = "This action moves the selected files to trash. You can restore them later from the trash view.",
   isOpen,
   isPending = false,
   onConfirm,
@@ -31,9 +35,7 @@ export function DeleteFilesDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>
-            This action moves the selected files to trash. You can restore them later from the trash view.
-          </AlertDialogDescription>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -48,7 +50,7 @@ export function DeleteFilesDialog({
               onConfirm();
             }}
           >
-            Delete
+            {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

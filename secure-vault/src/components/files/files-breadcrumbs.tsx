@@ -3,18 +3,25 @@
 import * as React from "react";
 import { RefreshCcw } from "lucide-react";
 
+import { FolderActionsMenu } from "@/components/files/folder-actions-menu";
 import { Button } from "@/components/ui/button";
 import type { FolderListItem } from "@/lib/files/types";
 
 type FilesBreadcrumbsProps = {
   currentFolderPath: FolderListItem[];
+  currentFolder?: FolderListItem | null;
   isFetching: boolean;
+  onCurrentFolderDelete?: (folder: FolderListItem) => void;
+  onCurrentFolderMove?: (folder: FolderListItem) => void;
   onNavigate: (folderId: string | null) => void;
 };
 
 export function FilesBreadcrumbs({
   currentFolderPath,
+  currentFolder = null,
   isFetching,
+  onCurrentFolderDelete,
+  onCurrentFolderMove,
   onNavigate,
 }: FilesBreadcrumbsProps) {
   return (
@@ -30,14 +37,23 @@ export function FilesBreadcrumbs({
       {currentFolderPath.map((folder) => (
         <React.Fragment key={folder.id}>
           <span>/</span>
-          <Button
-            className="h-auto px-0 text-sm"
-            onClick={() => onNavigate(folder.id)}
-            type="button"
-            variant="link"
-          >
-            {folder.name}
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              className="h-auto px-0 text-sm"
+              onClick={() => onNavigate(folder.id)}
+              type="button"
+              variant="link"
+            >
+              {folder.name}
+            </Button>
+            {currentFolder?.id === folder.id && onCurrentFolderDelete && onCurrentFolderMove ? (
+              <FolderActionsMenu
+                folder={folder}
+                onDelete={onCurrentFolderDelete}
+                onMove={onCurrentFolderMove}
+              />
+            ) : null}
+          </div>
         </React.Fragment>
       ))}
       {isFetching ? (
