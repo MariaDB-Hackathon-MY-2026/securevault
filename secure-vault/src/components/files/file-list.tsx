@@ -198,7 +198,7 @@ export function FileList({
                   ) : (
                     <button
                       className="truncate text-left font-medium transition-colors hover:text-primary"
-                      onClick={() => onFolderRenameStart(folder)}
+                      onClick={() => onFolderOpen(folder.id)}
                       type="button"
                     >
                       {folder.name}
@@ -219,6 +219,7 @@ export function FileList({
                     folder={folder}
                     onDelete={onFolderDelete}
                     onMove={onFolderMove}
+                    onRename={onFolderRenameStart}
                   />
                 </div>
               </td>

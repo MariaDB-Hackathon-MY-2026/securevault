@@ -84,6 +84,11 @@ function openFolderActions(folderName: string) {
   );
 }
 
+function chooseFolderAction(folderName: string, actionName: "Delete" | "Move" | "Rename") {
+  openFolderActions(folderName);
+  fireEvent.click(screen.getByRole("menuitem", { name: actionName }));
+}
+
 describe("FilesLibrary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -317,7 +322,21 @@ describe("FilesLibrary", () => {
     expect(mocks.toastError).not.toHaveBeenCalled();
   });
 
-  it("optimistically renames a folder from the grid before the action resolves", async () => {
+  it("opens a folder when its name is clicked", async () => {
+    renderLibrary(
+      [createFile({ id: "inside", folderId: "folder-1", name: "inside.pdf" })],
+      [createFolder()],
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "inside.pdf" })).toBeTruthy();
+    });
+    expect(screen.queryByLabelText("Rename folder")).toBeNull();
+  });
+
+  it("optimistically renames a folder from the actions menu before the action resolves", async () => {
     let resolveRename: ((value: FolderListItem) => void) | null = null;
     mocks.renameFolderAction.mockImplementation(
       () =>
@@ -328,7 +347,7 @@ describe("FilesLibrary", () => {
 
     renderLibrary([], [createFolder()]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    chooseFolderAction("Projects", "Rename");
     const input = await screen.findByLabelText("Rename folder");
 
     fireEvent.change(input, { target: { value: "Archives" } });
@@ -355,7 +374,7 @@ describe("FilesLibrary", () => {
 
     renderLibrary([], [createFolder()]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    chooseFolderAction("Projects", "Rename");
     const input = await screen.findByLabelText("Rename folder");
 
     fireEvent.change(input, { target: { value: "Archives" } });
@@ -370,7 +389,7 @@ describe("FilesLibrary", () => {
   it("does not optimistically rename a folder to the upload fallback for invalid input", async () => {
     renderLibrary([], [createFolder({ name: "Projects" })]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    chooseFolderAction("Projects", "Rename");
     const input = await screen.findByLabelText("Rename folder");
 
     fireEvent.change(input, { target: { value: "../???" } });
@@ -384,7 +403,7 @@ describe("FilesLibrary", () => {
   it("skips folder rename actions when the name does not change", async () => {
     renderLibrary([], [createFolder()]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    chooseFolderAction("Projects", "Rename");
     fireEvent.keyDown(await screen.findByLabelText("Rename folder"), { key: "Enter" });
 
     expect(mocks.renameFolderAction).not.toHaveBeenCalled();
@@ -401,7 +420,7 @@ describe("FilesLibrary", () => {
 
     renderLibrary([], [createFolder()]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    chooseFolderAction("Projects", "Rename");
     const input = await screen.findByLabelText("Rename folder");
 
     fireEvent.change(input, { target: { value: "Archives" } });
@@ -423,6 +442,26 @@ describe("FilesLibrary", () => {
     });
   });
 
+  it("renames the current folder from the breadcrumb actions menu", async () => {
+    mocks.renameFolderAction.mockResolvedValue(
+      createFolder({ id: "folder-1", name: "Archives" }),
+    );
+
+    renderLibrary([], [createFolder()]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+    chooseFolderAction("Projects", "Rename");
+    const input = await screen.findByLabelText("Rename folder");
+
+    fireEvent.change(input, { target: { value: "Archives" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Archives" })).toBeTruthy();
+      expect(mocks.toastSuccess).toHaveBeenCalledWith("Folder renamed");
+    });
+  });
+
   it("shows subtree counts in the folder delete dialog", () => {
     renderLibrary(
       [
@@ -435,8 +474,7 @@ describe("FilesLibrary", () => {
       ],
     );
 
-    openFolderActions("Documents");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    chooseFolderAction("Documents", "Delete");
 
     expect(screen.getByText("This will permanently delete 2 files and 1 sub-folder.")).toBeTruthy();
   });
@@ -448,8 +486,7 @@ describe("FilesLibrary", () => {
 
     renderLibrary([], [createFolder()]);
 
-    openFolderActions("Projects");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    chooseFolderAction("Projects", "Delete");
     fireEvent.click(screen.getByRole("button", { name: "Delete folder" }));
 
     expect(mocks.deleteFolderAction).toHaveBeenCalledWith("folder-1");
@@ -461,8 +498,7 @@ describe("FilesLibrary", () => {
 
     renderLibrary([], [createFolder()]);
 
-    openFolderActions("Projects");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    chooseFolderAction("Projects", "Delete");
     fireEvent.click(screen.getByRole("button", { name: "Delete folder" }));
 
     await waitFor(() => {
@@ -482,8 +518,7 @@ describe("FilesLibrary", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
     expect(screen.getByRole("button", { name: "inside.pdf" })).toBeTruthy();
 
-    openFolderActions("Temp");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    chooseFolderAction("Temp", "Delete");
     fireEvent.click(screen.getByRole("button", { name: "Delete folder" }));
 
     await waitFor(() => {
@@ -500,14 +535,33 @@ describe("FilesLibrary", () => {
 
     renderLibrary([], [createFolder()]);
 
-    openFolderActions("Projects");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    chooseFolderAction("Projects", "Delete");
 
     const deleteButton = screen.getByRole("button", { name: "Delete folder" });
     fireEvent.click(deleteButton);
     fireEvent.click(deleteButton);
 
     expect(mocks.deleteFolderAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("navigates back to the root view when deleting the current folder succeeds", async () => {
+    mocks.deleteFolderAction.mockResolvedValue({ deletedFiles: 0, deletedFolders: 1 });
+
+    renderLibrary(
+      [createFile({ id: "inside", folderId: "temp", name: "inside.pdf" })],
+      [createFolder({ id: "temp", name: "Temp" })],
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+    chooseFolderAction("Temp", "Delete");
+    fireEvent.click(screen.getByRole("button", { name: "Delete folder" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "All files" })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Temp" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "inside.pdf" })).toBeNull();
+      expect(mocks.toastSuccess).toHaveBeenCalledWith("Folder deleted");
+    });
   });
 
   it("falls back to the root view when the current folder disappears", async () => {
@@ -531,11 +585,11 @@ describe("FilesLibrary", () => {
   it("excludes the moved folder from the folder destination list", () => {
     renderLibrary([], [createFolder()]);
 
-    openFolderActions("Projects");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Move" }));
+    chooseFolderAction("Projects", "Move");
 
     const dialog = screen.getByRole("dialog", { name: "Move folder" });
     expect(within(dialog).queryByRole("button", { name: "Projects" })).toBeNull();
+    expect(within(dialog).getByText("No other folders to move into.")).toBeTruthy();
   });
 
   it("excludes the entire folder subtree from the move destination list", () => {
@@ -548,8 +602,7 @@ describe("FilesLibrary", () => {
       ],
     );
 
-    openFolderActions("Projects");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Move" }));
+    chooseFolderAction("Projects", "Move");
 
     const dialog = screen.getByRole("dialog", { name: "Move folder" });
     expect(within(dialog).queryByRole("button", { name: "Projects" })).toBeNull();
@@ -570,8 +623,7 @@ describe("FilesLibrary", () => {
       ],
     );
 
-    openFolderActions("Projects");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Move" }));
+    chooseFolderAction("Projects", "Move");
     fireEvent.click(
       within(screen.getByRole("dialog", { name: "Move folder" })).getByRole("button", {
         name: "Archive",
@@ -599,8 +651,7 @@ describe("FilesLibrary", () => {
       ],
     );
 
-    openFolderActions("Projects");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Move" }));
+    chooseFolderAction("Projects", "Move");
     fireEvent.click(
       within(screen.getByRole("dialog", { name: "Move folder" })).getByRole("button", {
         name: "Archive",
@@ -609,6 +660,38 @@ describe("FilesLibrary", () => {
     fireEvent.click(screen.getByRole("button", { name: "Move folder" }));
 
     expect(screen.queryByText("Projects")).toBeNull();
+  });
+
+  it("keeps the moved folder available in its new parent after the move succeeds", async () => {
+    mocks.moveFolderAction.mockResolvedValue(
+      createFolder({ id: "projects", name: "Projects", parentId: "archive" }),
+    );
+
+    renderLibrary(
+      [],
+      [
+        createFolder({ id: "projects", name: "Projects" }),
+        createFolder({ id: "archive", name: "Archive" }),
+      ],
+    );
+
+    chooseFolderAction("Projects", "Move");
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Move folder" })).getByRole("button", {
+        name: "Archive",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Move folder" }));
+
+    await waitFor(() => {
+      expect(mocks.toastSuccess).toHaveBeenCalledWith("Folder moved");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Projects" })).toBeTruthy();
+    });
   });
 
   it("rolls back folder moves when the action fails", async () => {
@@ -622,8 +705,7 @@ describe("FilesLibrary", () => {
       ],
     );
 
-    openFolderActions("Projects");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Move" }));
+    chooseFolderAction("Projects", "Move");
     fireEvent.click(
       within(screen.getByRole("dialog", { name: "Move folder" })).getByRole("button", {
         name: "Archive",

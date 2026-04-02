@@ -4,6 +4,7 @@ import {
   compareFolders,
   formatFileSize,
   getFolderDepth,
+  getNearestSurvivingFolderId,
   getFolderPath,
   matchesExplorerFilter,
 } from "@/components/files/file-browser-utils";
@@ -121,6 +122,41 @@ describe("file-browser-utils", () => {
       );
 
       expect(sortedFolders.map((folder) => folder.name)).toEqual(["Alpha", "Zeta"]);
+    });
+
+    it("falls back to creation date for date-based folder sorting", () => {
+      const folders = [
+        createFolder({ id: "newer", name: "Newer", createdAt: "2026-03-21T00:00:00.000Z" }),
+        createFolder({ id: "older", name: "Older", createdAt: "2026-03-19T00:00:00.000Z" }),
+      ];
+
+      const sortedFolders = [...folders].sort((left, right) =>
+        compareFolders(left, right, { direction: "desc", key: "updatedAt" }),
+      );
+
+      expect(sortedFolders.map((folder) => folder.id)).toEqual(["newer", "older"]);
+    });
+  });
+
+  describe("getNearestSurvivingFolderId", () => {
+    it("returns the closest ancestor outside the deleted subtree", () => {
+      const folderMap = new Map<string, FolderListItem>([
+        ["root", createFolder({ id: "root", name: "Root" })],
+        ["child", createFolder({ id: "child", name: "Child", parentId: "root" })],
+        ["leaf", createFolder({ id: "leaf", name: "Leaf", parentId: "child" })],
+      ]);
+
+      expect(
+        getNearestSurvivingFolderId("child", folderMap, new Set(["child", "leaf"])),
+      ).toBe("root");
+    });
+
+    it("falls back to the root when the deleted subtree starts at the top level", () => {
+      const folderMap = new Map<string, FolderListItem>([
+        ["root", createFolder({ id: "root", name: "Root" })],
+      ]);
+
+      expect(getNearestSurvivingFolderId("root", folderMap, new Set(["root"]))).toBeNull();
     });
   });
 });

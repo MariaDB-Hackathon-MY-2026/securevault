@@ -3,12 +3,14 @@ const CONTROL_AND_HIDDEN_CHARS = /[\u0000-\u001F\u007F\u200B-\u200D\uFEFF]/g;
 
 type SanitizeFilenameOptions = {
   fallback?: string;
+  truncate?: boolean;
 };
 
 export function sanitizeFilename(
   name: string,
   options: SanitizeFilenameOptions = {},
 ): string {
+  const shouldTruncate = options.truncate ?? true;
   let sanitized = name.trim();
 
   sanitized = sanitized.replace(CONTROL_AND_HIDDEN_CHARS, "");
@@ -17,7 +19,7 @@ export function sanitizeFilename(
   sanitized = sanitized.replace(/^\.+/, "");
   sanitized = sanitized.replace(/\s+/g, " ").trim();
 
-  if (sanitized.length > 255) {
+  if (shouldTruncate && sanitized.length > 255) {
     sanitized = sanitized.slice(0, 255);
   }
 

@@ -58,18 +58,24 @@ export function MoveFilesDialog({
           </Button>
 
           <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-            {folders.map((folder) => (
-              <Button
-                key={folder.id}
-                className="w-full justify-start"
-                onClick={() => onTargetFolderChange(folder.id)}
-                style={{ paddingLeft: `${getFolderDepth(folder.id, folderMap) * 16 + 12}px` }}
-                type="button"
-                variant={selectedFolderId === folder.id ? "default" : "outline"}
-              >
-                {folder.name}
-              </Button>
-            ))}
+            {folders.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-muted-foreground">
+                No other folders to move into.
+              </p>
+            ) : (
+              folders.map((folder) => (
+                <Button
+                  key={folder.id}
+                  className="w-full justify-start"
+                  onClick={() => onTargetFolderChange(folder.id)}
+                  style={{ paddingLeft: `${getFolderDepth(folder.id, folderMap) * 16 + 12}px` }}
+                  type="button"
+                  variant={selectedFolderId === folder.id ? "default" : "outline"}
+                >
+                  {folder.name}
+                </Button>
+              ))
+            )}
           </div>
         </div>
 

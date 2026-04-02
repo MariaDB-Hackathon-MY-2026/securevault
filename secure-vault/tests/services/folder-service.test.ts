@@ -99,10 +99,7 @@ describe("folder service", () => {
   describe("renameFolder", () => {
     it("sanitizes the folder name before renaming and returns the updated folder", async () => {
       const harness = createDbHarness({
-        selectResults: [
-          [createFolderRow({ name: "Projects" })],
-          [createFolderRow({ name: "My Docs" })],
-        ],
+        selectResults: [[createFolderRow({ name: "Projects" })]],
         updateResults: [{ affectedRows: 1 }],
       });
       vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
@@ -163,24 +160,16 @@ describe("folder service", () => {
       expect(harness.spies.update).not.toHaveBeenCalled();
     });
 
-    it("truncates overly long names before updating the folder", async () => {
+    it("rejects overly long names before looking up the folder", async () => {
       const longName = "a".repeat(256);
-      const truncatedName = "a".repeat(255);
-      const harness = createDbHarness({
-        selectResults: [
-          [createFolderRow({ name: "Projects" })],
-          [createFolderRow({ name: truncatedName })],
-        ],
-        updateResults: [{ affectedRows: 1 }],
-      });
+      const harness = createDbHarness({});
       vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
 
-      const result = await renameFolder("user-a", "folder-1", longName);
-
-      expect(harness.spies.updateSet).toHaveBeenCalledWith(
-        expect.objectContaining({ name: truncatedName }),
+      await expect(renameFolder("user-a", "folder-1", longName)).rejects.toThrow(
+        "Name too long",
       );
-      expect(result.name).toBe(truncatedName);
+      expect(harness.spies.select).not.toHaveBeenCalled();
+      expect(harness.spies.update).not.toHaveBeenCalled();
     });
   });
 
@@ -245,6 +234,24 @@ describe("folder service", () => {
       expect(harness.spies.transaction).toHaveBeenCalledTimes(1);
     });
 
+    it("does not count sibling-folder files in the deleted subtree", async () => {
+      const harness = createDbHarness({
+        selectResults: [[
+          createFolderRow({ id: "projects", name: "Projects" }),
+          createFolderRow({ id: "taxes", name: "Taxes", parentId: "projects" }),
+          createFolderRow({ id: "archive", name: "Archive" }),
+        ]],
+        updateResults: [{ affectedRows: 2 }, { affectedRows: 1 }],
+      });
+      vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+      await expect(softDeleteFolder("user-a", "projects")).resolves.toEqual({
+        deletedFiles: 1,
+        deletedFolders: 2,
+      });
+      expect(harness.spies.update).toHaveBeenCalledTimes(2);
+    });
+
     it("surfaces a failure when the file cascade update fails inside the transaction", async () => {
       const harness = createDbHarness({
         selectResults: [[createFolderRow()]],
@@ -281,6 +288,17 @@ describe("folder service", () => {
       await expect(softDeleteFolder("user-a", "foreign-folder")).rejects.toThrow(
         "Folder not found",
       );
+      expect(harness.spies.update).not.toHaveBeenCalled();
+    });
+
+    it("does not delete another user's folder when ids overlap across users", async () => {
+      const harness = createDbHarness({
+        selectResults: [[]],
+      });
+      vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+      await expect(softDeleteFolder("user-b", "folder-1")).rejects.toThrow("Folder not found");
+      expect(harness.spies.transaction).not.toHaveBeenCalled();
       expect(harness.spies.update).not.toHaveBeenCalled();
     });
   });

@@ -76,6 +76,7 @@ export function FileGrid({
                   folder={folder}
                   onDelete={onFolderDelete}
                   onMove={onFolderMove}
+                  onRename={onFolderRenameStart}
                 />
               </div>
             </div>
@@ -105,7 +106,7 @@ export function FileGrid({
               ) : (
                 <button
                   className="line-clamp-2 text-left text-base font-medium transition-colors hover:text-primary"
-                  onClick={() => onFolderRenameStart(folder)}
+                  onClick={() => onFolderOpen(folder.id)}
                   type="button"
                 >
                   {folder.name}

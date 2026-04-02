@@ -320,7 +320,7 @@ export async function renameFile(userId: string, fileId: string, newName: string
 export async function renameFolder(userId: string, folderId: string, newName: string) {
   const db = MariadbConnection.getConnection();
   const sanitizedName = assertValidSanitizedName(
-    sanitizeFilename(newName, { fallback: "" }),
+    sanitizeFilename(newName, { fallback: "", truncate: false }),
     "Folder name",
   );
   const existingFolder = await getScopedFolderRecord(userId, folderId);
@@ -348,12 +348,10 @@ export async function renameFolder(userId: string, folderId: string, newName: st
     throw new Error("Folder not found");
   }
 
-  const updatedFolder = await getScopedFolderRecord(userId, folderId);
-  if (!updatedFolder) {
-    throw new Error("Folder not found");
-  }
-
-  return mapFolderListItem(updatedFolder);
+  return mapFolderListItem({
+    ...existingFolder,
+    name: sanitizedName,
+  });
 }
 
 export async function moveFile(
@@ -425,6 +423,9 @@ export async function softDeleteFile(userId: string, fileId: string) {
 
 export async function softDeleteFolder(userId: string, folderId: string) {
   const db = MariadbConnection.getConnection();
+  // We include soft-deleted rows so subtree discovery stays correct even when
+  // part of the family tree was deleted earlier. This is a deliberate
+  // read-into-memory trade-off until we move the traversal into SQL.
   const scopedFolders = await listScopedFolderRecords(userId, { includeDeleted: true });
   const folderMap = new Map(scopedFolders.map((folder) => [folder.id, folder]));
   const targetFolder = folderMap.get(folderId);
@@ -585,7 +586,7 @@ export async function createFolder(
 ): Promise<FolderListItem> {
   const db = MariadbConnection.getConnection();
   const sanitizedName = assertValidSanitizedName(
-    sanitizeFilename(name, { fallback: "" }),
+    sanitizeFilename(name, { fallback: "", truncate: false }),
     "Folder name",
   );
   const createdAt = new Date();

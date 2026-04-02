@@ -15,12 +15,14 @@ type FolderActionsMenuProps = {
   folder: FolderListItem;
   onDelete: (folder: FolderListItem) => void;
   onMove: (folder: FolderListItem) => void;
+  onRename: (folder: FolderListItem) => void;
 };
 
 export function FolderActionsMenu({
   folder,
   onDelete,
   onMove,
+  onRename,
 }: FolderActionsMenuProps) {
   return (
     <DropdownMenu>
@@ -38,6 +40,13 @@ export function FolderActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          onSelect={() => {
+            window.setTimeout(() => onRename(folder), 0);
+          }}
+        >
+          Rename
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onMove(folder)}>Move</DropdownMenuItem>
         <DropdownMenuItem
           className="text-destructive focus:text-destructive"

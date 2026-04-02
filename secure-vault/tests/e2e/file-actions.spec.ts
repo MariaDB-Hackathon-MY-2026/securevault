@@ -1,7 +1,11 @@
 import path from "node:path";
 
+import { and, eq } from "drizzle-orm";
 import { expect, test, type Page } from "@playwright/test";
 
+import { moveFolder } from "../../src/app/api/files/service";
+import { MariadbConnection } from "../../src/lib/db";
+import { folders, users } from "../../src/lib/db/schema";
 import {
   cleanupTestUserByEmail,
   markTestUserEmailVerified,
@@ -75,6 +79,38 @@ async function openFileActions(page: Page, fileName: string) {
 
 async function openFolderActions(page: Page, folderName: string) {
   await page.getByRole("button", { name: `Open actions for folder ${folderName}` }).click();
+}
+
+async function chooseFolderAction(page: Page, folderName: string, actionName: "Delete" | "Move" | "Rename") {
+  await openFolderActions(page, folderName);
+  await page.getByRole("menuitem", { name: actionName }).click();
+}
+
+async function getUserIdByEmail(email: string) {
+  const db = MariadbConnection.getConnection();
+  const result = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, email.trim().toLowerCase()))
+    .limit(1);
+
+  return result[0]?.id ?? null;
+}
+
+async function getFolderIdForUser(userId: string, name: string) {
+  const db = MariadbConnection.getConnection();
+  const result = await db
+    .select({ id: folders.id })
+    .from(folders)
+    .where(
+      and(
+        eq(folders.user_id, userId),
+        eq(folders.name, name),
+      ),
+    )
+    .limit(1);
+
+  return result[0]?.id ?? null;
 }
 
 function getGridFolderButton(page: Page, folderName: string) {
@@ -184,7 +220,7 @@ test.describe("file actions", () => {
 
     await createFolder(page, "Projects");
 
-    await page.getByRole("button", { name: "Projects" }).click();
+    await chooseFolderAction(page, "Projects", "Rename");
     const renameInput = page.getByLabel("Rename folder");
     await renameInput.fill("Archives");
     await renameInput.press("Enter");
@@ -212,8 +248,7 @@ test.describe("file actions", () => {
     await uploadFiles(page, ["tiny.pdf"]);
     await page.getByRole("button", { name: "All files" }).click();
 
-    await openFolderActions(page, "Documents");
-    await page.getByRole("menuitem", { name: "Delete" }).click();
+    await chooseFolderAction(page, "Documents", "Delete");
     await expect(page.getByRole("dialog", { name: "Delete folder" })).toContainText(
       "This will permanently delete 1 file and 1 sub-folder.",
     );
@@ -235,8 +270,7 @@ test.describe("file actions", () => {
     await createFolder(page, "Archive");
     await createFolder(page, "Projects");
 
-    await openFolderActions(page, "Projects");
-    await page.getByRole("menuitem", { name: "Move" }).click();
+    await chooseFolderAction(page, "Projects", "Move");
     await page.getByRole("dialog", { name: "Move folder" }).getByRole("button", { name: "Archive" }).click();
     await page.getByRole("button", { name: "Move folder" }).click();
 
@@ -262,8 +296,7 @@ test.describe("file actions", () => {
     await createFolder(page, "Temp");
     await getGridFolderButton(page, "Temp").click();
 
-    await openFolderActions(page, "Temp");
-    await page.getByRole("menuitem", { name: "Delete" }).click();
+    await chooseFolderAction(page, "Temp", "Delete");
     await page.getByRole("button", { name: "Delete folder" }).click();
 
     await expect(page.getByText("Folder deleted")).toBeVisible();
@@ -285,11 +318,22 @@ test.describe("file actions", () => {
     await createFolder(page, "B");
     await page.getByRole("button", { name: "All files" }).click();
 
-    await openFolderActions(page, "A");
-    await page.getByRole("menuitem", { name: "Move" }).click();
+    await chooseFolderAction(page, "A", "Move");
 
     const moveDialog = page.getByRole("dialog", { name: "Move folder" });
     await expect(moveDialog.getByRole("button", { name: "All files (root)" })).toBeVisible();
     await expect(moveDialog.getByRole("button", { name: "B" })).toHaveCount(0);
+
+    const userId = await getUserIdByEmail(credentials.email);
+    expect(userId).not.toBeNull();
+
+    const folderAId = await getFolderIdForUser(userId!, "A");
+    const folderBId = await getFolderIdForUser(userId!, "B");
+    expect(folderAId).not.toBeNull();
+    expect(folderBId).not.toBeNull();
+
+    await expect(moveFolder(userId!, folderAId!, folderBId!)).rejects.toThrow(
+      "Cannot move a folder into itself or one of its descendants",
+    );
   });
 });

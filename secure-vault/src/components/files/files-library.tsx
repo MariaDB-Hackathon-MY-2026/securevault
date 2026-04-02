@@ -20,6 +20,7 @@ import {
   compareFolders,
   type FileSortState,
   type FilesViewMode,
+  getNearestSurvivingFolderId,
   getFolderPath,
   getFolderSubtreeIds,
   matchesExplorerFilter,
@@ -314,7 +315,10 @@ export function FilesLibrary({
       return;
     }
 
-    const sanitizedName = sanitizeFilename(renameDraft, { fallback: "" });
+    const sanitizedName = sanitizeFilename(renameDraft, {
+      fallback: "",
+      truncate: false,
+    });
 
     if (!sanitizedName) {
       cancelRename();
@@ -467,11 +471,15 @@ export function FilesLibrary({
     const previousFolders = folders;
     const previousFiles = queryClient.getQueryData<FileListItem[]>(filesQueryKey) ?? files;
     const previousCurrentFolderId = currentFolderId;
-    const deletedFolderParentId = folderMap.get(deleteDialogState.folderId)?.parentId ?? null;
+    const fallbackFolderId = getNearestSurvivingFolderId(
+      deleteDialogState.folderId,
+      folderMap,
+      subtreeFolderIdSet,
+    );
 
     if (currentFolderId && subtreeFolderIdSet.has(currentFolderId)) {
       React.startTransition(() => {
-        setCurrentFolderId(deletedFolderParentId);
+        setCurrentFolderId(fallbackFolderId);
       });
     }
 
@@ -558,10 +566,22 @@ export function FilesLibrary({
           <FilesBreadcrumbs
             currentFolderPath={currentFolderPath}
             currentFolder={currentFolder}
+            currentFolderActions={
+              currentFolder
+                ? {
+                    onDelete: openFolderDeleteDialog,
+                    onMove: openFolderMoveDialog,
+                    onRename: startFolderRename,
+                  }
+                : undefined
+            }
             isFetching={isFetching}
-            onCurrentFolderDelete={openFolderDeleteDialog}
-            onCurrentFolderMove={openFolderMoveDialog}
             onNavigate={navigateToFolder}
+            onRenameCancel={cancelRename}
+            onRenameChange={setRenameDraft}
+            onRenameCommit={commitFolderRename}
+            renameDraft={renameDraft}
+            renamingFolderId={renamingFolderId}
           />
 
           <Toolbar
