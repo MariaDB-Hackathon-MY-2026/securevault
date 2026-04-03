@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  compareFolders,
   formatFileSize,
+  getFolderDepth,
+  getNearestSurvivingFolderId,
   getFolderPath,
   matchesExplorerFilter,
 } from "@/components/files/file-browser-utils";
@@ -45,6 +48,34 @@ describe("file-browser-utils", () => {
         "Leaf",
       ]);
     });
+
+    it("returns the partial path when an intermediate parent is missing", () => {
+      const folderMap = new Map<string, FolderListItem>([
+        ["leaf", createFolder({ id: "leaf", name: "Leaf", parentId: "missing-parent" })],
+      ]);
+
+      expect(getFolderPath("leaf", folderMap).map((folder) => folder.name)).toEqual(["Leaf"]);
+    });
+  });
+
+  describe("getFolderDepth", () => {
+    it("returns zero for a root folder", () => {
+      const folderMap = new Map<string, FolderListItem>([
+        ["root", createFolder({ id: "root", name: "Root" })],
+      ]);
+
+      expect(getFolderDepth("root", folderMap)).toBe(0);
+    });
+
+    it("returns the nesting depth for a deeply nested folder", () => {
+      const folderMap = new Map<string, FolderListItem>([
+        ["root", createFolder({ id: "root", name: "Root" })],
+        ["child", createFolder({ id: "child", name: "Child", parentId: "root" })],
+        ["leaf", createFolder({ id: "leaf", name: "Leaf", parentId: "child" })],
+      ]);
+
+      expect(getFolderDepth("leaf", folderMap)).toBe(2);
+    });
   });
 
   describe("formatFileSize", () => {
@@ -69,6 +100,63 @@ describe("file-browser-utils", () => {
     it("matches case-insensitively", () => {
       expect(matchesExplorerFilter("Quarterly Report", "quarter")).toBe(true);
       expect(matchesExplorerFilter("Quarterly Report", "REPORT")).toBe(true);
+    });
+
+    it("documents the current unicode matching behaviour", () => {
+      expect(matchesExplorerFilter("Resume", "resume")).toBe(true);
+      expect(matchesExplorerFilter("Resume", "rEsUmE")).toBe(true);
+      expect(matchesExplorerFilter("Resume", "resumé")).toBe(false);
+      expect(matchesExplorerFilter("Résumé", "resume")).toBe(false);
+    });
+  });
+
+  describe("compareFolders", () => {
+    it("sorts folders by name ascending", () => {
+      const folders = [
+        createFolder({ id: "zeta", name: "Zeta" }),
+        createFolder({ id: "alpha", name: "Alpha" }),
+      ];
+
+      const sortedFolders = [...folders].sort((left, right) =>
+        compareFolders(left, right, { direction: "asc", key: "name" }),
+      );
+
+      expect(sortedFolders.map((folder) => folder.name)).toEqual(["Alpha", "Zeta"]);
+    });
+
+    it("falls back to creation date for date-based folder sorting", () => {
+      const folders = [
+        createFolder({ id: "newer", name: "Newer", createdAt: "2026-03-21T00:00:00.000Z" }),
+        createFolder({ id: "older", name: "Older", createdAt: "2026-03-19T00:00:00.000Z" }),
+      ];
+
+      const sortedFolders = [...folders].sort((left, right) =>
+        compareFolders(left, right, { direction: "desc", key: "updatedAt" }),
+      );
+
+      expect(sortedFolders.map((folder) => folder.id)).toEqual(["newer", "older"]);
+    });
+  });
+
+  describe("getNearestSurvivingFolderId", () => {
+    it("returns the closest ancestor outside the deleted subtree", () => {
+      const folderMap = new Map<string, FolderListItem>([
+        ["root", createFolder({ id: "root", name: "Root" })],
+        ["child", createFolder({ id: "child", name: "Child", parentId: "root" })],
+        ["leaf", createFolder({ id: "leaf", name: "Leaf", parentId: "child" })],
+      ]);
+
+      expect(
+        getNearestSurvivingFolderId("child", folderMap, new Set(["child", "leaf"])),
+      ).toBe("root");
+    });
+
+    it("falls back to the root when the deleted subtree starts at the top level", () => {
+      const folderMap = new Map<string, FolderListItem>([
+        ["root", createFolder({ id: "root", name: "Root" })],
+      ]);
+
+      expect(getNearestSurvivingFolderId("root", folderMap, new Set(["root"]))).toBeNull();
     });
   });
 });

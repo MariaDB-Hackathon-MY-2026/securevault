@@ -4,6 +4,7 @@ import * as React from "react";
 import { ArrowUpDown } from "lucide-react";
 
 import { FileActionsMenu } from "@/components/files/file-actions-menu";
+import { FolderActionsMenu } from "@/components/files/folder-actions-menu";
 import {
   type FileSortKey,
   type FileSortState,
@@ -20,7 +21,13 @@ type FileListProps = {
   files: FileListItem[];
   folders: FolderListItem[];
   onDelete: (file: FileListItem) => void;
+  onFolderDelete: (folder: FolderListItem) => void;
+  onFolderMove: (folder: FolderListItem) => void;
   onFolderOpen: (folderId: string) => void;
+  onFolderRenameCancel: () => void;
+  onFolderRenameChange: (value: string) => void;
+  onFolderRenameCommit: (folder: FolderListItem) => void;
+  onFolderRenameStart: (folder: FolderListItem) => void;
   onMove: (file: FileListItem) => void;
   onRenameCancel: () => void;
   onRenameChange: (value: string) => void;
@@ -31,6 +38,7 @@ type FileListProps = {
   onToggleFileSelection: (fileId: string) => void;
   renameDraft: string;
   renamingFileId: string | null;
+  renamingFolderId: string | null;
   selectedFileIds: string[];
   sort: FileSortState;
 };
@@ -68,7 +76,13 @@ export function FileList({
   files,
   folders,
   onDelete,
+  onFolderDelete,
+  onFolderMove,
   onFolderOpen,
+  onFolderRenameCancel,
+  onFolderRenameChange,
+  onFolderRenameCommit,
+  onFolderRenameStart,
   onMove,
   onRenameCancel,
   onRenameChange,
@@ -79,6 +93,7 @@ export function FileList({
   onToggleFileSelection,
   renameDraft,
   renamingFileId,
+  renamingFolderId,
   selectedFileIds,
   sort,
 }: FileListProps) {
@@ -155,23 +170,72 @@ export function FileList({
             <tr
               key={folder.id}
               className="border-b border-border/60 last:border-b-0 hover:bg-muted/20"
+              data-testid={`folder-row-${folder.id}`}
+              data-test-folder-name={folder.name}
             >
               <td className="px-4 py-4" />
               <td className="px-4 py-4">
-                <button
-                  className="flex min-h-11 items-center gap-3 text-left"
-                  onClick={() => onFolderOpen(folder.id)}
-                  type="button"
-                >
+                <div className="flex min-h-11 items-center gap-3">
                   <FileIcon isFolder />
-                  <span className="font-medium">{folder.name}</span>
-                </button>
+                  {renamingFolderId === folder.id ? (
+                    <Input
+                      aria-label="Rename folder"
+                      autoFocus
+                      className="h-10 max-w-md"
+                      data-testid={`rename-folder-${folder.id}`}
+                      data-test-folder-name={folder.name}
+                      onBlur={() => onFolderRenameCommit(folder)}
+                      onChange={(event) => onFolderRenameChange(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          onFolderRenameCommit(folder);
+                        }
+
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          onFolderRenameCancel();
+                        }
+                      }}
+                      value={renameDraft}
+                    />
+                  ) : (
+                    <button
+                      className="truncate text-left font-medium transition-colors hover:text-primary"
+                      data-testid={`folder-name-${folder.id}`}
+                      data-test-folder-name={folder.name}
+                      onClick={() => onFolderOpen(folder.id)}
+                      type="button"
+                    >
+                      {folder.name}
+                    </button>
+                  )}
+                </div>
               </td>
               <td className="px-4 py-4 text-muted-foreground">Folder</td>
               <td className="px-4 py-4 text-muted-foreground">
                 {formatExplorerDate(folder.createdAt)}
               </td>
-              <td className="px-4 py-4 text-right text-muted-foreground">Open</td>
+              <td className="px-4 py-4">
+                <div className="flex items-center justify-end gap-2">
+                  <Button
+                    data-testid={`folder-open-${folder.id}`}
+                    data-test-folder-name={folder.name}
+                    onClick={() => onFolderOpen(folder.id)}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    Open
+                  </Button>
+                  <FolderActionsMenu
+                    folder={folder}
+                    onDelete={onFolderDelete}
+                    onMove={onFolderMove}
+                    onRename={onFolderRenameStart}
+                  />
+                </div>
+              </td>
             </tr>
           ))}
 
@@ -182,6 +246,8 @@ export function FileList({
               <tr
                 key={file.id}
                 className="border-b border-border/60 last:border-b-0 hover:bg-muted/20"
+                data-testid={`file-row-${file.id}`}
+                data-test-file-name={file.name}
                 onClick={(event) => {
                   if (event.ctrlKey || event.metaKey) {
                     event.preventDefault();
@@ -206,6 +272,8 @@ export function FileList({
                         aria-label="Rename file"
                         autoFocus
                         className="h-10 max-w-md"
+                        data-testid={`rename-file-${file.id}`}
+                        data-test-file-name={file.name}
                         onBlur={() => onRenameCommit(file)}
                         onChange={(event) => onRenameChange(event.target.value)}
                         onKeyDown={(event) => {
@@ -224,6 +292,8 @@ export function FileList({
                     ) : (
                       <button
                         className="truncate text-left font-medium transition-colors hover:text-primary"
+                        data-testid={`file-name-${file.id}`}
+                        data-test-file-name={file.name}
                         onClick={() => onRenameStart(file)}
                         type="button"
                       >

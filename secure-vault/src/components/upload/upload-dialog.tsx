@@ -159,7 +159,12 @@ export function UploadDialog({ children }: { children?: React.ReactNode }) {
             <h4 className="text-sm font-medium mb-3">Upload Queue ({uploads.length})</h4>
             <div className="max-h-[350px] overflow-y-auto space-y-3 pr-2">
               {uploads.map((job) => (
-                <div key={job.id} className="flex flex-col gap-2 p-3 border rounded-md text-sm">
+                <div
+                  key={job.id}
+                  className="flex flex-col gap-2 p-3 border rounded-md text-sm"
+                  data-testid={`upload-row-${job.id}`}
+                  data-test-file-name={job.file.name}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 overflow-hidden">
                       <FileIcon className="w-4 h-4 text-muted-foreground shrink-0" />

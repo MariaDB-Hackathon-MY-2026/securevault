@@ -3,24 +3,47 @@
 import * as React from "react";
 import { RefreshCcw } from "lucide-react";
 
+import { FolderActionsMenu } from "@/components/files/folder-actions-menu";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { FolderListItem } from "@/lib/files/types";
 
 type FilesBreadcrumbsProps = {
   currentFolderPath: FolderListItem[];
+  currentFolder?: FolderListItem | null;
+  currentFolderActions?:
+    | {
+        onDelete: (folder: FolderListItem) => void;
+        onMove: (folder: FolderListItem) => void;
+        onRename: (folder: FolderListItem) => void;
+      }
+    | undefined;
   isFetching: boolean;
   onNavigate: (folderId: string | null) => void;
+  onRenameCancel: () => void;
+  onRenameChange: (value: string) => void;
+  onRenameCommit: (folder: FolderListItem) => void;
+  renameDraft: string;
+  renamingFolderId: string | null;
 };
 
 export function FilesBreadcrumbs({
   currentFolderPath,
+  currentFolder = null,
+  currentFolderActions,
   isFetching,
   onNavigate,
+  onRenameCancel,
+  onRenameChange,
+  onRenameCommit,
+  renameDraft,
+  renamingFolderId,
 }: FilesBreadcrumbsProps) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
       <Button
         className="h-auto px-0 text-sm"
+        data-testid="breadcrumb-root"
         onClick={() => onNavigate(null)}
         type="button"
         variant="link"
@@ -30,14 +53,50 @@ export function FilesBreadcrumbs({
       {currentFolderPath.map((folder) => (
         <React.Fragment key={folder.id}>
           <span>/</span>
-          <Button
-            className="h-auto px-0 text-sm"
-            onClick={() => onNavigate(folder.id)}
-            type="button"
-            variant="link"
-          >
-            {folder.name}
-          </Button>
+          <div className="flex items-center gap-1">
+            {currentFolder?.id === folder.id && renamingFolderId === folder.id ? (
+              <Input
+                aria-label="Rename folder"
+                autoFocus
+                className="h-9 w-48"
+                data-testid={`rename-folder-${folder.id}`}
+                data-test-folder-name={folder.name}
+                onBlur={() => onRenameCommit(folder)}
+                onChange={(event) => onRenameChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    onRenameCommit(folder);
+                  }
+
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    onRenameCancel();
+                  }
+                }}
+                value={renameDraft}
+              />
+            ) : (
+              <Button
+                className="h-auto px-0 text-sm"
+                data-testid={`breadcrumb-folder-${folder.id}`}
+                data-test-folder-name={folder.name}
+                onClick={() => onNavigate(folder.id)}
+                type="button"
+                variant="link"
+              >
+                {folder.name}
+              </Button>
+            )}
+            {currentFolder?.id === folder.id && currentFolderActions ? (
+              <FolderActionsMenu
+                folder={folder}
+                onDelete={currentFolderActions.onDelete}
+                onMove={currentFolderActions.onMove}
+                onRename={currentFolderActions.onRename}
+              />
+            ) : null}
+          </div>
         </React.Fragment>
       ))}
       {isFetching ? (

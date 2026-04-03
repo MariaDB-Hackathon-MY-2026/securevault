@@ -15,6 +15,11 @@ export type FolderListItem = {
   parentId: string | null;
 };
 
+export type FilesExplorerData = {
+  files: FileListItem[];
+  folders: FolderListItem[];
+};
+
 export type StorageUsage = {
   fileCount: number;
   totalBytes: number;

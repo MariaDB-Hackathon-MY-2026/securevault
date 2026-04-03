@@ -13,6 +13,8 @@ import { getFolderDepth } from "@/components/files/file-browser-utils";
 import type { FolderListItem } from "@/lib/files/types";
 
 type MoveFilesDialogProps = {
+  confirmLabel?: string;
+  description?: string;
   folderMap: Map<string, FolderListItem>;
   folders: FolderListItem[];
   isOpen: boolean;
@@ -25,6 +27,8 @@ type MoveFilesDialogProps = {
 };
 
 export function MoveFilesDialog({
+  confirmLabel = "Move files",
+  description = "Pick a destination folder. Selecting All files moves the chosen files back to the root.",
   folderMap,
   folders,
   isOpen,
@@ -40,14 +44,14 @@ export function MoveFilesDialog({
       <DialogContent className="gap-5 p-6 sm:max-w-xl">
         <DialogHeader className="space-y-3">
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            Pick a destination folder. Selecting All files moves the chosen files back to the root.
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-1 pt-2">
           <Button
             className="w-full justify-start"
+            data-testid="move-destination-root"
+            data-test-folder-name="All files (root)"
             onClick={() => onTargetFolderChange(null)}
             type="button"
             variant={selectedFolderId === null ? "default" : "outline"}
@@ -56,18 +60,26 @@ export function MoveFilesDialog({
           </Button>
 
           <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-            {folders.map((folder) => (
-              <Button
-                key={folder.id}
-                className="w-full justify-start"
-                onClick={() => onTargetFolderChange(folder.id)}
-                style={{ paddingLeft: `${getFolderDepth(folder.id, folderMap) * 16 + 12}px` }}
-                type="button"
-                variant={selectedFolderId === folder.id ? "default" : "outline"}
-              >
-                {folder.name}
-              </Button>
-            ))}
+            {folders.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-muted-foreground">
+                No other folders to move into.
+              </p>
+            ) : (
+              folders.map((folder) => (
+                <Button
+                  key={folder.id}
+                  className="w-full justify-start"
+                  data-testid={`move-destination-${folder.id}`}
+                  data-test-folder-name={folder.name}
+                  onClick={() => onTargetFolderChange(folder.id)}
+                  style={{ paddingLeft: `${getFolderDepth(folder.id, folderMap) * 16 + 12}px` }}
+                  type="button"
+                  variant={selectedFolderId === folder.id ? "default" : "outline"}
+                >
+                  {folder.name}
+                </Button>
+              ))
+            )}
           </div>
         </div>
 
@@ -75,8 +87,8 @@ export function MoveFilesDialog({
           <Button disabled={isPending} onClick={() => onOpenChange(false)} type="button" variant="ghost">
             Cancel
           </Button>
-          <Button disabled={isPending} onClick={onConfirm} type="button">
-            Move files
+          <Button data-testid={`move-confirm-${confirmLabel.toLowerCase().replace(/\s+/g, "-")}`} disabled={isPending} onClick={onConfirm} type="button">
+            {confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

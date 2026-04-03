@@ -86,24 +86,33 @@ async function signUpAndBypassVerification(page: Page, credentials: TestUserCred
 async function openUploadDialog(page: Page) {
   await page.goto("/files");
   await page.reload();
+  await ensureUploadDialogOpen(page);
+}
+
+async function ensureUploadDialogOpen(page: Page) {
+  const uploadDialog = page.getByRole("dialog", { name: "Upload Files" });
+
+  if (await uploadDialog.isVisible().catch(() => false)) {
+    return;
+  }
 
   await page.getByRole("button", { name: "Upload files" }).click();
-  await expect(page.getByRole("dialog", { name: "Upload Files" })).toBeVisible();
+  await expect(uploadDialog).toBeVisible();
 }
 
 async function setUploadFiles(page: Page) {
+  await ensureUploadDialogOpen(page);
   await page.locator('input[type="file"]').setInputFiles(QUEUE_FILE_PAYLOADS);
 }
 
 async function setUploadFilesFromSampleDirectory(page: Page, fileNames: readonly string[]) {
   const filePaths = fileNames.map((fileName) => path.join(SAMPLE_DIR, fileName));
+  await ensureUploadDialogOpen(page);
   await page.locator('input[type="file"]').setInputFiles(filePaths);
 }
 
 function uploadRow(page: Page, fileName: string) {
-  return page
-    .getByText(fileName, { exact: true })
-    .locator("xpath=ancestor::div[contains(@class,'p-3 border rounded-md text-sm')][1]");
+  return page.locator(`[data-testid^="upload-row-"][data-test-file-name="${fileName}"]`).first();
 }
 
 async function expectUploadDone(

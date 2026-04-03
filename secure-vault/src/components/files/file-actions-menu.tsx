@@ -30,6 +30,8 @@ export function FileActionsMenu({
       <DropdownMenuTrigger asChild>
         <Button
           aria-label={`Open actions for ${file.name}`}
+          data-testid={`file-actions-${file.id}`}
+          data-test-file-name={file.name}
           size="icon-sm"
           type="button"
           variant="ghost"

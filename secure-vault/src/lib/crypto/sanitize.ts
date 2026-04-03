@@ -1,7 +1,16 @@
 const INVALID_FILENAME_CHARS = /[\/\\:*?"<>|]/g;
 const CONTROL_AND_HIDDEN_CHARS = /[\u0000-\u001F\u007F\u200B-\u200D\uFEFF]/g;
 
-export function sanitizeFilename(name: string): string {
+type SanitizeFilenameOptions = {
+  fallback?: string;
+  truncate?: boolean;
+};
+
+export function sanitizeFilename(
+  name: string,
+  options: SanitizeFilenameOptions = {},
+): string {
+  const shouldTruncate = options.truncate ?? true;
   let sanitized = name.trim();
 
   sanitized = sanitized.replace(CONTROL_AND_HIDDEN_CHARS, "");
@@ -10,10 +19,10 @@ export function sanitizeFilename(name: string): string {
   sanitized = sanitized.replace(/^\.+/, "");
   sanitized = sanitized.replace(/\s+/g, " ").trim();
 
-  if (sanitized.length > 255) {
+  if (shouldTruncate && sanitized.length > 255) {
     sanitized = sanitized.slice(0, 255);
   }
 
   // Keep a safe fallback so uploads never end up with an empty filename.
-  return sanitized || "file";
+  return (sanitized || options.fallback) ?? "file";
 }

@@ -9,15 +9,20 @@ import {
   bulkMoveAction,
   createFolderAction,
   deleteFileAction,
+  deleteFolderAction,
   moveFileAction,
+  moveFolderAction,
   renameFileAction,
+  renameFolderAction,
 } from "@/app/(dashboard)/files/actions";
 import {
   compareFiles,
   compareFolders,
   type FileSortState,
   type FilesViewMode,
+  getNearestSurvivingFolderId,
   getFolderPath,
+  getFolderSubtreeIds,
   matchesExplorerFilter,
 } from "@/components/files/file-browser-utils";
 import { CreateFolderDialog } from "@/components/files/create-folder-dialog";
@@ -30,10 +35,14 @@ import { FileList } from "@/components/files/file-list";
 import { MoveFilesDialog } from "@/components/files/move-files-dialog";
 import { Toolbar } from "@/components/files/toolbar";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { useFilesQuery } from "@/hooks/use-files-query";
+import { useFilesExplorerQuery } from "@/hooks/use-files-explorer-query";
 import { sanitizeFilename } from "@/lib/crypto/sanitize";
-import { filesQueryKey } from "@/lib/files/files-query";
-import type { FileListItem, FolderListItem } from "@/lib/files/types";
+import { filesExplorerQueryKey } from "@/lib/files/files-explorer-query";
+import type {
+  FileListItem,
+  FilesExplorerData,
+  FolderListItem,
+} from "@/lib/files/types";
 
 type FilesLibraryProps = {
   canUpload: boolean;
@@ -41,10 +50,29 @@ type FilesLibraryProps = {
   initialFolders: FolderListItem[];
 };
 
+type RenameState =
+  | { id: string; type: "file" }
+  | { id: string; type: "folder" }
+  | null;
+
+type MoveDialogState =
+  | { fileIds: string[]; targetFolderId: string | null; type: "files" }
+  | { folderId: string; targetFolderId: string | null; type: "folder" }
+  | null;
+
+type DeleteDialogState =
+  | { fileIds: string[]; type: "files" }
+  | { folderId: string; type: "folder" }
+  | null;
+
 const defaultSort: FileSortState = {
   direction: "desc",
   key: "updatedAt",
 };
+
+function formatCount(count: number, singularLabel: string, pluralLabel = `${singularLabel}s`) {
+  return `${count} ${count === 1 ? singularLabel : pluralLabel}`;
+}
 
 export function FilesLibrary({
   canUpload,
@@ -52,24 +80,26 @@ export function FilesLibrary({
   initialFolders,
 }: FilesLibraryProps) {
   const queryClient = useQueryClient();
-  const { data: files = initialFiles, isFetching } = useFilesQuery(initialFiles);
+  const initialExplorerData = React.useMemo<FilesExplorerData>(() => ({
+    files: initialFiles,
+    folders: initialFolders,
+  }), [initialFiles, initialFolders]);
+  const { data: explorerData = initialExplorerData, isFetching } =
+    useFilesExplorerQuery(initialExplorerData);
+  const { files, folders } = explorerData;
   const [viewMode, setViewMode] = React.useState<FilesViewMode>("grid");
   const [sort, setSort] = React.useState<FileSortState>(defaultSort);
   const [filterValue, setFilterValue] = React.useState("");
   const deferredFilterValue = React.useDeferredValue(filterValue);
-  const [folders, setFolders] = React.useState(initialFolders);
   const [currentFolderId, setCurrentFolderId] = React.useState<string | null>(null);
   const [selectedFileIds, setSelectedFileIds] = React.useState<string[]>([]);
-  const [renamingFileId, setRenamingFileId] = React.useState<string | null>(null);
+  const [renameState, setRenameState] = React.useState<RenameState>(null);
   const [renameDraft, setRenameDraft] = React.useState("");
   const [createFolderName, setCreateFolderName] = React.useState("");
   const [createFolderParentId, setCreateFolderParentId] = React.useState<string | null>(null);
   const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] = React.useState(false);
-  const [moveDialogFileIds, setMoveDialogFileIds] = React.useState<string[]>([]);
-  const [deleteDialogFileIds, setDeleteDialogFileIds] = React.useState<string[]>([]);
-  const [moveTargetFolderId, setMoveTargetFolderId] = React.useState<string | null>(null);
-  const [isMoveDialogOpen, setIsMoveDialogOpen] = React.useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+  const [moveDialogState, setMoveDialogState] = React.useState<MoveDialogState>(null);
+  const [deleteDialogState, setDeleteDialogState] = React.useState<DeleteDialogState>(null);
   const [isMovePending, setIsMovePending] = React.useState(false);
   const [isDeletePending, setIsDeletePending] = React.useState(false);
   const [isCreateFolderPending, setIsCreateFolderPending] = React.useState(false);
@@ -78,6 +108,8 @@ export function FilesLibrary({
     () => new Map(folders.map((folder) => [folder.id, folder])),
     [folders],
   );
+  const renamingFileId = renameState?.type === "file" ? renameState.id : null;
+  const renamingFolderId = renameState?.type === "folder" ? renameState.id : null;
 
   React.useEffect(() => {
     setSelectedFileIds((currentSelection) =>
@@ -86,11 +118,29 @@ export function FilesLibrary({
   }, [files]);
 
   React.useEffect(() => {
-    if (renamingFileId && !files.some((file) => file.id === renamingFileId)) {
-      setRenamingFileId(null);
+    if (!renameState) {
+      return;
+    }
+
+    if (renameState.type === "file" && !files.some((file) => file.id === renameState.id)) {
+      setRenameState(null);
+      setRenameDraft("");
+      return;
+    }
+
+    if (renameState.type === "folder" && !folderMap.has(renameState.id)) {
+      setRenameState(null);
       setRenameDraft("");
     }
-  }, [files, renamingFileId]);
+  }, [files, folderMap, renameState]);
+
+  React.useEffect(() => {
+    if (currentFolderId && !folderMap.has(currentFolderId)) {
+      React.startTransition(() => {
+        setCurrentFolderId(null);
+      });
+    }
+  }, [currentFolderId, folderMap]);
 
   const filteredFolders = folders.filter(
     (folder) =>
@@ -107,53 +157,140 @@ export function FilesLibrary({
   );
   const visibleFiles = [...filteredFiles].sort((left, right) => compareFiles(left, right, sort));
   const currentFolderPath = getFolderPath(currentFolderId, folderMap);
+  const currentFolder = currentFolderId ? folderMap.get(currentFolderId) ?? null : null;
   const selectedCount = selectedFileIds.length;
-  const moveDialogTitle =
-    moveDialogFileIds.length > 1 ? `Move ${moveDialogFileIds.length} files` : "Move file";
-  const deleteDialogTitle =
-    deleteDialogFileIds.length > 1 ? `Delete ${deleteDialogFileIds.length} files` : "Delete file";
   const createFolderParentLabel = createFolderParentId
     ? folderMap.get(createFolderParentId)?.name ?? "Selected folder"
     : "All files";
+  const moveDialogTitle =
+    moveDialogState?.type === "folder"
+      ? "Move folder"
+      : moveDialogState && moveDialogState.fileIds.length > 1
+        ? `Move ${moveDialogState.fileIds.length} files`
+        : "Move file";
+  const moveDialogDescription =
+    moveDialogState?.type === "folder"
+      ? "Pick a destination folder. The current folder and its descendants are excluded to prevent circular moves. Selecting All files moves the folder back to the root."
+      : "Pick a destination folder. Selecting All files moves the chosen files back to the root.";
+  const moveDialogConfirmLabel = moveDialogState?.type === "folder" ? "Move folder" : "Move files";
+  const moveDialogFolders = React.useMemo(() => {
+    if (moveDialogState?.type !== "folder") {
+      return folders;
+    }
 
-  async function invalidateFiles() {
-    await queryClient.invalidateQueries({ queryKey: filesQueryKey });
+    const excludedFolderIds = new Set(getFolderSubtreeIds(moveDialogState.folderId, folderMap));
+    return folders.filter((folder) => !excludedFolderIds.has(folder.id));
+  }, [folderMap, folders, moveDialogState]);
+  const deleteDialogTitle =
+    deleteDialogState?.type === "folder"
+      ? "Delete folder"
+      : deleteDialogState && deleteDialogState.fileIds.length > 1
+        ? `Delete ${deleteDialogState.fileIds.length} files`
+        : "Delete file";
+  const folderDeleteDetails = React.useMemo(() => {
+    if (deleteDialogState?.type !== "folder") {
+      return null;
+    }
+
+    const subtreeFolderIds = getFolderSubtreeIds(deleteDialogState.folderId, folderMap);
+    const subtreeFolderIdSet = new Set(subtreeFolderIds);
+    const deletedFileCount = files.filter(
+      (file) => file.folderId && subtreeFolderIdSet.has(file.folderId),
+    ).length;
+
+    return {
+      deletedFileCount,
+      descendantFolderCount: Math.max(subtreeFolderIds.length - 1, 0),
+      subtreeFolderIds,
+    };
+  }, [deleteDialogState, files, folderMap]);
+  const deleteDialogDescription =
+    deleteDialogState?.type === "folder"
+      ? `This will permanently delete ${formatCount(
+          folderDeleteDetails?.deletedFileCount ?? 0,
+          "file",
+        )} and ${formatCount(
+          folderDeleteDetails?.descendantFolderCount ?? 0,
+          "sub-folder",
+          "sub-folders",
+        )}.`
+      : undefined;
+  const deleteDialogConfirmLabel = deleteDialogState?.type === "folder" ? "Delete folder" : "Delete";
+
+  function getExplorerDataFromCache() {
+    return queryClient.getQueryData<FilesExplorerData>(filesExplorerQueryKey) ?? explorerData;
+  }
+
+  async function invalidateExplorer() {
+    await queryClient.invalidateQueries({ queryKey: filesExplorerQueryKey });
+  }
+
+  function updateExplorerDataInCache(
+    updater: (currentData: FilesExplorerData) => FilesExplorerData,
+  ) {
+    queryClient.setQueryData<FilesExplorerData>(filesExplorerQueryKey, (currentData) =>
+      updater(currentData ?? explorerData),
+    );
   }
 
   function updateFilesInCache(
     updater: (currentFiles: FileListItem[]) => FileListItem[],
   ) {
-    queryClient.setQueryData<FileListItem[]>(filesQueryKey, (currentFiles = []) =>
-      updater(currentFiles),
-    );
+    updateExplorerDataInCache((currentData) => ({
+      ...currentData,
+      files: updater(currentData.files),
+    }));
+  }
+
+  function updateFoldersInCache(
+    updater: (currentFolders: FolderListItem[]) => FolderListItem[],
+  ) {
+    updateExplorerDataInCache((currentData) => ({
+      ...currentData,
+      folders: updater(currentData.folders),
+    }));
   }
 
   function clearSelection() {
     setSelectedFileIds([]);
   }
 
-  function openMoveDialog(fileIds: string[], targetFolderId: string | null) {
-    setMoveDialogFileIds(fileIds);
-    setMoveTargetFolderId(targetFolderId);
-    setIsMoveDialogOpen(true);
+  function openFileMoveDialog(fileIds: string[], targetFolderId: string | null) {
+    setMoveDialogState({ fileIds, targetFolderId, type: "files" });
   }
 
-  function openDeleteDialog(fileIds: string[]) {
-    setDeleteDialogFileIds(fileIds);
-    setIsDeleteDialogOpen(true);
+  function openFolderMoveDialog(folder: FolderListItem) {
+    setMoveDialogState({
+      folderId: folder.id,
+      targetFolderId: folder.parentId,
+      type: "folder",
+    });
   }
 
-  function startRename(file: FileListItem) {
-    setRenamingFileId(file.id);
+  function openFileDeleteDialog(fileIds: string[]) {
+    setDeleteDialogState({ fileIds, type: "files" });
+  }
+
+  function openFolderDeleteDialog(folder: FolderListItem) {
+    setDeleteDialogState({ folderId: folder.id, type: "folder" });
+  }
+
+  function startFileRename(file: FileListItem) {
+    setRenameState({ id: file.id, type: "file" });
     setRenameDraft(file.name);
   }
 
+  function startFolderRename(folder: FolderListItem) {
+    setRenameState({ id: folder.id, type: "folder" });
+    setRenameDraft(folder.name);
+  }
+
   function cancelRename() {
-    setRenamingFileId(null);
+    setRenameState(null);
     setRenameDraft("");
   }
 
-  async function commitRename(file: FileListItem) {
+  async function commitFileRename(file: FileListItem) {
     if (renameInFlight.current) {
       return;
     }
@@ -165,7 +302,8 @@ export function FilesLibrary({
       return;
     }
 
-    const previousFiles = queryClient.getQueryData<FileListItem[]>(filesQueryKey) ?? files;
+    const previousExplorerData = getExplorerDataFromCache();
+    renameInFlight.current = true;
 
     updateFilesInCache((currentFiles) =>
       currentFiles.map((currentFile) =>
@@ -180,7 +318,6 @@ export function FilesLibrary({
     );
 
     cancelRename();
-    renameInFlight.current = true;
 
     try {
       const updatedFile = await renameFileAction(file.id, renameDraft);
@@ -192,79 +329,208 @@ export function FilesLibrary({
       );
       toast.success("File renamed");
     } catch (error) {
-      queryClient.setQueryData(filesQueryKey, previousFiles);
+      queryClient.setQueryData(filesExplorerQueryKey, previousExplorerData);
       toast.error(error instanceof Error ? error.message : "Failed to rename file");
     } finally {
       renameInFlight.current = false;
-      await invalidateFiles();
+      await invalidateExplorer();
+    }
+  }
+
+  async function commitFolderRename(folder: FolderListItem) {
+    if (renameInFlight.current) {
+      return;
+    }
+
+    const sanitizedName = sanitizeFilename(renameDraft, {
+      fallback: "",
+      truncate: false,
+    });
+
+    if (!sanitizedName) {
+      cancelRename();
+      toast.error("Folder name is required");
+      return;
+    }
+
+    if (sanitizedName === folder.name) {
+      cancelRename();
+      return;
+    }
+
+    const previousExplorerData = getExplorerDataFromCache();
+    renameInFlight.current = true;
+    updateFoldersInCache((currentFolders) =>
+      currentFolders.map((currentFolder) =>
+        currentFolder.id === folder.id
+          ? { ...currentFolder, name: sanitizedName }
+          : currentFolder,
+      ),
+    );
+
+    cancelRename();
+
+    try {
+      const updatedFolder = await renameFolderAction(folder.id, renameDraft);
+      updateFoldersInCache((currentFolders) =>
+        currentFolders.map((currentFolder) =>
+          currentFolder.id === folder.id ? updatedFolder : currentFolder,
+        ),
+      );
+      toast.success("Folder renamed");
+    } catch (error) {
+      queryClient.setQueryData(filesExplorerQueryKey, previousExplorerData);
+      toast.error(error instanceof Error ? error.message : "Failed to rename folder");
+    } finally {
+      renameInFlight.current = false;
+      await invalidateExplorer();
     }
   }
 
   async function confirmMove() {
-    if (moveDialogFileIds.length === 0 || isMovePending) {
+    if (!moveDialogState || isMovePending) {
       return;
     }
 
-    const previousFiles = queryClient.getQueryData<FileListItem[]>(filesQueryKey) ?? files;
     setIsMovePending(true);
 
-    updateFilesInCache((currentFiles) =>
-      currentFiles.map((file) =>
-        moveDialogFileIds.includes(file.id)
-          ? { ...file, folderId: moveTargetFolderId, updatedAt: new Date().toISOString() }
-          : file,
+    if (moveDialogState.type === "files") {
+      const previousExplorerData = getExplorerDataFromCache();
+
+      updateFilesInCache((currentFiles) =>
+        currentFiles.map((file) =>
+          moveDialogState.fileIds.includes(file.id)
+            ? {
+                ...file,
+                folderId: moveDialogState.targetFolderId,
+                updatedAt: new Date().toISOString(),
+              }
+            : file,
+        ),
+      );
+
+      try {
+        if (moveDialogState.fileIds.length === 1) {
+          await moveFileAction(moveDialogState.fileIds[0]!, moveDialogState.targetFolderId);
+        } else {
+          await bulkMoveAction(moveDialogState.fileIds, moveDialogState.targetFolderId);
+        }
+
+        setMoveDialogState(null);
+        clearSelection();
+        toast.success(moveDialogState.fileIds.length > 1 ? "Files moved" : "File moved");
+      } catch (error) {
+        queryClient.setQueryData(filesExplorerQueryKey, previousExplorerData);
+        toast.error(error instanceof Error ? error.message : "Failed to move file");
+      } finally {
+        setIsMovePending(false);
+        await invalidateExplorer();
+      }
+
+      return;
+    }
+
+    const previousExplorerData = getExplorerDataFromCache();
+    updateFoldersInCache((currentFolders) =>
+      currentFolders.map((folder) =>
+        folder.id === moveDialogState.folderId
+          ? { ...folder, parentId: moveDialogState.targetFolderId }
+          : folder,
       ),
     );
 
     try {
-      if (moveDialogFileIds.length === 1) {
-        await moveFileAction(moveDialogFileIds[0]!, moveTargetFolderId);
-      } else {
-        await bulkMoveAction(moveDialogFileIds, moveTargetFolderId);
-      }
-
-      setIsMoveDialogOpen(false);
-      setMoveDialogFileIds([]);
-      clearSelection();
-      toast.success(moveDialogFileIds.length > 1 ? "Files moved" : "File moved");
+      const updatedFolder = await moveFolderAction(
+        moveDialogState.folderId,
+        moveDialogState.targetFolderId,
+      );
+      updateFoldersInCache((currentFolders) =>
+        currentFolders.map((folder) =>
+          folder.id === moveDialogState.folderId ? updatedFolder : folder,
+        ),
+      );
+      setMoveDialogState(null);
+      toast.success("Folder moved");
     } catch (error) {
-      queryClient.setQueryData(filesQueryKey, previousFiles);
-      toast.error(error instanceof Error ? error.message : "Failed to move file");
+      queryClient.setQueryData(filesExplorerQueryKey, previousExplorerData);
+      toast.error(error instanceof Error ? error.message : "Failed to move folder");
     } finally {
       setIsMovePending(false);
-      await invalidateFiles();
+      await invalidateExplorer();
     }
   }
 
   async function confirmDelete() {
-    if (deleteDialogFileIds.length === 0 || isDeletePending) {
+    if (!deleteDialogState || isDeletePending) {
       return;
     }
 
-    const previousFiles = queryClient.getQueryData<FileListItem[]>(filesQueryKey) ?? files;
     setIsDeletePending(true);
 
+    if (deleteDialogState.type === "files") {
+      const previousExplorerData = getExplorerDataFromCache();
+
+      updateFilesInCache((currentFiles) =>
+        currentFiles.filter((file) => !deleteDialogState.fileIds.includes(file.id)),
+      );
+
+      try {
+        if (deleteDialogState.fileIds.length === 1) {
+          await deleteFileAction(deleteDialogState.fileIds[0]!);
+        } else {
+          await bulkDeleteAction(deleteDialogState.fileIds);
+        }
+
+        setDeleteDialogState(null);
+        clearSelection();
+        toast.success(deleteDialogState.fileIds.length > 1 ? "Files deleted" : "File deleted");
+      } catch (error) {
+        queryClient.setQueryData(filesExplorerQueryKey, previousExplorerData);
+        toast.error(error instanceof Error ? error.message : "Failed to delete file");
+      } finally {
+        setIsDeletePending(false);
+        await invalidateExplorer();
+      }
+
+      return;
+    }
+
+    const subtreeFolderIds = folderDeleteDetails?.subtreeFolderIds ?? [deleteDialogState.folderId];
+    const subtreeFolderIdSet = new Set(subtreeFolderIds);
+    const previousExplorerData = getExplorerDataFromCache();
+    const previousCurrentFolderId = currentFolderId;
+    const fallbackFolderId = getNearestSurvivingFolderId(
+      deleteDialogState.folderId,
+      folderMap,
+      subtreeFolderIdSet,
+    );
+
+    if (currentFolderId && subtreeFolderIdSet.has(currentFolderId)) {
+      React.startTransition(() => {
+        setCurrentFolderId(fallbackFolderId);
+      });
+    }
+
+    updateFoldersInCache((currentFolders) =>
+      currentFolders.filter((folder) => !subtreeFolderIdSet.has(folder.id)),
+    );
     updateFilesInCache((currentFiles) =>
-      currentFiles.filter((file) => !deleteDialogFileIds.includes(file.id)),
+      currentFiles.filter((file) => !file.folderId || !subtreeFolderIdSet.has(file.folderId)),
     );
 
     try {
-      if (deleteDialogFileIds.length === 1) {
-        await deleteFileAction(deleteDialogFileIds[0]!);
-      } else {
-        await bulkDeleteAction(deleteDialogFileIds);
-      }
-
-      setIsDeleteDialogOpen(false);
-      setDeleteDialogFileIds([]);
-      clearSelection();
-      toast.success(deleteDialogFileIds.length > 1 ? "Files deleted" : "File deleted");
+      await deleteFolderAction(deleteDialogState.folderId);
+      setDeleteDialogState(null);
+      toast.success("Folder deleted");
     } catch (error) {
-      queryClient.setQueryData(filesQueryKey, previousFiles);
-      toast.error(error instanceof Error ? error.message : "Failed to delete file");
+      queryClient.setQueryData(filesExplorerQueryKey, previousExplorerData);
+      React.startTransition(() => {
+        setCurrentFolderId(previousCurrentFolderId);
+      });
+      toast.error(error instanceof Error ? error.message : "Failed to delete folder");
     } finally {
       setIsDeletePending(false);
-      await invalidateFiles();
+      await invalidateExplorer();
     }
   }
 
@@ -276,7 +542,7 @@ export function FilesLibrary({
     setIsCreateFolderPending(true);
     try {
       const createdFolder = await createFolderAction(createFolderName, createFolderParentId);
-      setFolders((currentFolders) => [...currentFolders, createdFolder]);
+      updateFoldersInCache((currentFolders) => [...currentFolders, createdFolder]);
       setIsCreateFolderDialogOpen(false);
       setCreateFolderName("");
       toast.success("Folder created");
@@ -284,6 +550,7 @@ export function FilesLibrary({
       toast.error(error instanceof Error ? error.message : "Failed to create folder");
     } finally {
       setIsCreateFolderPending(false);
+      await invalidateExplorer();
     }
   }
 
@@ -291,7 +558,7 @@ export function FilesLibrary({
     React.startTransition(() => {
       setCurrentFolderId(folderId);
       setSelectedFileIds([]);
-      setRenamingFileId(null);
+      setRenameState(null);
       setRenameDraft("");
     });
   }
@@ -326,16 +593,31 @@ export function FilesLibrary({
         <div className="space-y-4">
           <FilesBreadcrumbs
             currentFolderPath={currentFolderPath}
+            currentFolder={currentFolder}
+            currentFolderActions={
+              currentFolder
+                ? {
+                    onDelete: openFolderDeleteDialog,
+                    onMove: openFolderMoveDialog,
+                    onRename: startFolderRename,
+                  }
+                : undefined
+            }
             isFetching={isFetching}
             onNavigate={navigateToFolder}
+            onRenameCancel={cancelRename}
+            onRenameChange={setRenameDraft}
+            onRenameCommit={commitFolderRename}
+            renameDraft={renameDraft}
+            renamingFolderId={renamingFolderId}
           />
 
           <Toolbar
             canUpload={canUpload}
             filterValue={filterValue}
             isFetching={isFetching}
-            onBulkDelete={() => openDeleteDialog(selectedFileIds)}
-            onBulkMove={() => openMoveDialog(selectedFileIds, currentFolderId)}
+            onBulkDelete={() => openFileDeleteDialog(selectedFileIds)}
+            onBulkMove={() => openFileMoveDialog(selectedFileIds, currentFolderId)}
             onClearSelection={clearSelection}
             onFilterValueChange={setFilterValue}
             onNewFolderClick={() => {
@@ -356,32 +638,46 @@ export function FilesLibrary({
             <FileGrid
               files={visibleFiles}
               folders={visibleFolders}
-              onDelete={(file) => openDeleteDialog([file.id])}
+              onDelete={(file) => openFileDeleteDialog([file.id])}
+              onFolderDelete={openFolderDeleteDialog}
+              onFolderMove={openFolderMoveDialog}
               onFolderOpen={navigateToFolder}
-              onMove={(file) => openMoveDialog([file.id], file.folderId)}
+              onFolderRenameCancel={cancelRename}
+              onFolderRenameChange={setRenameDraft}
+              onFolderRenameCommit={commitFolderRename}
+              onFolderRenameStart={startFolderRename}
+              onMove={(file) => openFileMoveDialog([file.id], file.folderId)}
               onRenameCancel={cancelRename}
               onRenameChange={setRenameDraft}
-              onRenameCommit={commitRename}
-              onRenameStart={startRename}
+              onRenameCommit={commitFileRename}
+              onRenameStart={startFileRename}
               renameDraft={renameDraft}
               renamingFileId={renamingFileId}
+              renamingFolderId={renamingFolderId}
             />
           ) : (
             <FileList
               files={visibleFiles}
               folders={visibleFolders}
-              onDelete={(file) => openDeleteDialog([file.id])}
+              onDelete={(file) => openFileDeleteDialog([file.id])}
+              onFolderDelete={openFolderDeleteDialog}
+              onFolderMove={openFolderMoveDialog}
               onFolderOpen={navigateToFolder}
-              onMove={(file) => openMoveDialog([file.id], file.folderId)}
+              onFolderRenameCancel={cancelRename}
+              onFolderRenameChange={setRenameDraft}
+              onFolderRenameCommit={commitFolderRename}
+              onFolderRenameStart={startFolderRename}
+              onMove={(file) => openFileMoveDialog([file.id], file.folderId)}
               onRenameCancel={cancelRename}
               onRenameChange={setRenameDraft}
-              onRenameCommit={commitRename}
-              onRenameStart={startRename}
+              onRenameCommit={commitFileRename}
+              onRenameStart={startFileRename}
               onSortChange={setSort}
               onToggleAllFiles={toggleAllVisibleFiles}
               onToggleFileSelection={toggleFileSelection}
               renameDraft={renameDraft}
               renamingFileId={renamingFileId}
+              renamingFolderId={renamingFolderId}
               selectedFileIds={selectedFileIds}
               sort={sort}
             />
@@ -389,19 +685,29 @@ export function FilesLibrary({
         </div>
 
         <MoveFilesDialog
+          confirmLabel={moveDialogConfirmLabel}
+          description={moveDialogDescription}
           folderMap={folderMap}
-          folders={folders}
-          isOpen={isMoveDialogOpen}
+          folders={moveDialogFolders}
+          isOpen={moveDialogState !== null}
           isPending={isMovePending}
           onConfirm={confirmMove}
           onOpenChange={(open) => {
-            setIsMoveDialogOpen(open);
             if (!open) {
-              setMoveDialogFileIds([]);
+              setMoveDialogState(null);
             }
           }}
-          onTargetFolderChange={setMoveTargetFolderId}
-          selectedFolderId={moveTargetFolderId}
+          onTargetFolderChange={(targetFolderId) => {
+            setMoveDialogState((currentState) =>
+              currentState
+                ? {
+                    ...currentState,
+                    targetFolderId,
+                  }
+                : currentState,
+            );
+          }}
+          selectedFolderId={moveDialogState?.targetFolderId ?? null}
           title={moveDialogTitle}
         />
 
@@ -416,13 +722,14 @@ export function FilesLibrary({
         />
 
         <DeleteFilesDialog
-          isOpen={isDeleteDialogOpen}
+          confirmLabel={deleteDialogConfirmLabel}
+          description={deleteDialogDescription}
+          isOpen={deleteDialogState !== null}
           isPending={isDeletePending}
           onConfirm={confirmDelete}
           onOpenChange={(open) => {
-            setIsDeleteDialogOpen(open);
             if (!open) {
-              setDeleteDialogFileIds([]);
+              setDeleteDialogState(null);
             }
           }}
           title={deleteDialogTitle}

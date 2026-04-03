@@ -39,13 +39,33 @@ async function signUpAndBypassVerification(page: Page, credentials: TestUserCred
 async function openUploadDialog(page: Page) {
   await page.goto("/files");
   await page.reload();
+  await ensureUploadDialogOpen(page);
+}
+
+async function ensureUploadDialogOpen(page: Page) {
+  const uploadDialog = page.getByRole("dialog", { name: "Upload Files" });
+
+  if (await uploadDialog.isVisible().catch(() => false)) {
+    return;
+  }
+
   await page.getByRole("button", { name: "Upload files" }).click();
-  await expect(page.getByRole("dialog", { name: "Upload Files" })).toBeVisible();
+  await expect(uploadDialog).toBeVisible();
+}
+
+async function closeUploadDialogIfOpen(page: Page) {
+  const uploadDialog = page.getByRole("dialog", { name: "Upload Files" });
+
+  if (await uploadDialog.isVisible().catch(() => false)) {
+    await page.keyboard.press("Escape");
+    await expect(uploadDialog).toBeHidden();
+  }
 }
 
 async function uploadFiles(page: Page, fileNames: readonly string[]) {
   const filePaths = fileNames.map((fileName) => path.join(SAMPLE_DIR, fileName));
 
+  await ensureUploadDialogOpen(page);
   await page.locator('input[type="file"]').setInputFiles(filePaths);
 
   for (const fileName of fileNames) {
@@ -63,21 +83,19 @@ async function uploadFiles(page: Page, fileNames: readonly string[]) {
 }
 
 async function createFolder(page: Page, name: string) {
+  await closeUploadDialogIfOpen(page);
   await page.getByRole("button", { name: "New folder" }).click();
   await page.getByLabel("Folder name").fill(name);
   await page.getByRole("button", { name: "Create folder" }).click();
-  await expect(page.getByText("Folder created")).toBeVisible();
+  await expect(getGridFolderButton(page, name)).toBeVisible();
 }
 
 function getGridFolderButton(page: Page, folderName: string) {
-  return page
-    .locator("button")
-    .filter({
-      has: page.getByText(folderName, { exact: true }),
-    })
-    .filter({
-      has: page.getByText("Open folder", { exact: false }),
-    });
+  return page.locator(`[data-testid^="folder-name-"][data-test-folder-name="${folderName}"]`).first();
+}
+
+function getFileNameButton(page: Page, fileName: string) {
+  return page.locator(`[data-testid^="file-name-"][data-test-file-name="${fileName}"]`).first();
 }
 
 async function setFilter(page: Page, value: string) {
@@ -131,10 +149,10 @@ test.describe("file browser controls", () => {
 
     await setFilter(page, "Alpha");
     await expect(getGridFolderButton(page, "Alpha Folder")).toBeVisible();
-    await expect(page.getByRole("button", { name: "tiny.pdf", exact: true })).toHaveCount(0);
+    await expect(getFileNameButton(page, "tiny.pdf")).toHaveCount(0);
 
     await setFilter(page, "tiny");
-    await expect(page.getByRole("button", { name: "tiny.pdf", exact: true })).toBeVisible();
+    await expect(getFileNameButton(page, "tiny.pdf")).toBeVisible();
     await expect(getGridFolderButton(page, "Alpha Folder")).toHaveCount(0);
 
     await setFilter(page, "");
