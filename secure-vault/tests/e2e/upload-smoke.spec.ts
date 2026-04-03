@@ -55,16 +55,32 @@ async function signUpAndBypassVerification(page: Page, credentials: TestUserCred
 async function openUploadDialog(page: Page) {
   await page.goto("/files");
   await page.reload();
+  await ensureUploadDialogOpen(page);
+  await expect(page.getByText("Supported file types: PDF, JPG, PNG, WebP, GIF, AVIF")).toBeVisible();
+}
+
+async function ensureUploadDialogOpen(page: Page) {
+  const uploadDialog = page.getByRole("dialog", { name: "Upload Files" });
+
+  if (await uploadDialog.isVisible().catch(() => false)) {
+    return;
+  }
 
   await expect(page.getByRole("button", { name: "Upload files" })).toBeVisible();
   await page.getByRole("button", { name: "Upload files" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.getByText("Supported file types: PDF, JPG, PNG, WebP, GIF, AVIF")).toBeVisible();
+  await expect(uploadDialog).toBeVisible();
+}
+
+async function closeUploadDialog(page: Page) {
+  const uploadDialog = page.getByRole("dialog", { name: "Upload Files" });
+  await page.keyboard.press("Escape");
+  await expect(uploadDialog).toBeHidden();
 }
 
 async function setUploadFiles(page: Page, fileNames: readonly string[]) {
   const filePaths = fileNames.map((fileName) => path.join(SAMPLE_DIR, fileName));
 
+  await ensureUploadDialogOpen(page);
   await page.locator('input[type="file"]').setInputFiles(filePaths);
 }
 
@@ -75,15 +91,11 @@ async function waitForQueueCount(page: Page, count: number) {
 }
 
 function uploadRow(page: Page, fileName: string) {
-  return page
-    .getByText(fileName, { exact: true })
-    .locator("xpath=ancestor::div[contains(@class,'p-3 border rounded-md text-sm')][1]");
+  return page.locator(`[data-testid^="upload-row-"][data-test-file-name="${fileName}"]`).first();
 }
 
 function libraryRow(page: Page, fileName: string) {
-  return page
-    .getByText(fileName, { exact: true })
-    .locator("xpath=ancestor::div[contains(@class,'rounded-lg border border-border p-4')][1]");
+  return page.locator(`[data-testid^="file-card-"][data-test-file-name="${fileName}"]`).first();
 }
 
 test.describe("upload smoke", () => {
@@ -130,8 +142,7 @@ test.describe("upload smoke", () => {
       timeout: 120_000,
     });
 
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: "Upload Files" })).toBeHidden();
+    await closeUploadDialog(page);
     await expect(page.getByText("Track progress of your file uploads here.")).toBeVisible();
 
     const pdfRow = libraryRow(page, "tiny.pdf");

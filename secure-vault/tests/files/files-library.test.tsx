@@ -4,6 +4,7 @@ import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FilesLibrary } from "@/components/files/files-library";
+import { filesExplorerQueryKey } from "@/lib/files/files-explorer-query";
 import type { FileListItem, FolderListItem } from "@/lib/files/types";
 
 const mocks = vi.hoisted(() => ({
@@ -570,11 +571,10 @@ describe("FilesLibrary", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
     expect(screen.getByRole("button", { name: "Temp" })).toBeTruthy();
 
-    rendered.rerender(
-      <QueryClientProvider client={rendered.queryClient}>
-        <FilesLibrary canUpload={false} initialFiles={[]} initialFolders={[]} />
-      </QueryClientProvider>,
-    );
+    rendered.queryClient.setQueryData(filesExplorerQueryKey, {
+      files: [],
+      folders: [],
+    });
 
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: "Temp" })).toBeNull();

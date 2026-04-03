@@ -35,10 +35,14 @@ import { FileList } from "@/components/files/file-list";
 import { MoveFilesDialog } from "@/components/files/move-files-dialog";
 import { Toolbar } from "@/components/files/toolbar";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { useFilesQuery } from "@/hooks/use-files-query";
+import { useFilesExplorerQuery } from "@/hooks/use-files-explorer-query";
 import { sanitizeFilename } from "@/lib/crypto/sanitize";
-import { filesQueryKey } from "@/lib/files/files-query";
-import type { FileListItem, FolderListItem } from "@/lib/files/types";
+import { filesExplorerQueryKey } from "@/lib/files/files-explorer-query";
+import type {
+  FileListItem,
+  FilesExplorerData,
+  FolderListItem,
+} from "@/lib/files/types";
 
 type FilesLibraryProps = {
   canUpload: boolean;
@@ -76,12 +80,17 @@ export function FilesLibrary({
   initialFolders,
 }: FilesLibraryProps) {
   const queryClient = useQueryClient();
-  const { data: files = initialFiles, isFetching } = useFilesQuery(initialFiles);
+  const initialExplorerData = React.useMemo<FilesExplorerData>(() => ({
+    files: initialFiles,
+    folders: initialFolders,
+  }), [initialFiles, initialFolders]);
+  const { data: explorerData = initialExplorerData, isFetching } =
+    useFilesExplorerQuery(initialExplorerData);
+  const { files, folders } = explorerData;
   const [viewMode, setViewMode] = React.useState<FilesViewMode>("grid");
   const [sort, setSort] = React.useState<FileSortState>(defaultSort);
   const [filterValue, setFilterValue] = React.useState("");
   const deferredFilterValue = React.useDeferredValue(filterValue);
-  const [folders, setFolders] = React.useState(initialFolders);
   const [currentFolderId, setCurrentFolderId] = React.useState<string | null>(null);
   const [selectedFileIds, setSelectedFileIds] = React.useState<string[]>([]);
   const [renameState, setRenameState] = React.useState<RenameState>(null);
@@ -101,10 +110,6 @@ export function FilesLibrary({
   );
   const renamingFileId = renameState?.type === "file" ? renameState.id : null;
   const renamingFolderId = renameState?.type === "folder" ? renameState.id : null;
-
-  React.useEffect(() => {
-    setFolders(initialFolders);
-  }, [initialFolders]);
 
   React.useEffect(() => {
     setSelectedFileIds((currentSelection) =>
@@ -212,16 +217,38 @@ export function FilesLibrary({
       : undefined;
   const deleteDialogConfirmLabel = deleteDialogState?.type === "folder" ? "Delete folder" : "Delete";
 
-  async function invalidateFiles() {
-    await queryClient.invalidateQueries({ queryKey: filesQueryKey });
+  function getExplorerDataFromCache() {
+    return queryClient.getQueryData<FilesExplorerData>(filesExplorerQueryKey) ?? explorerData;
+  }
+
+  async function invalidateExplorer() {
+    await queryClient.invalidateQueries({ queryKey: filesExplorerQueryKey });
+  }
+
+  function updateExplorerDataInCache(
+    updater: (currentData: FilesExplorerData) => FilesExplorerData,
+  ) {
+    queryClient.setQueryData<FilesExplorerData>(filesExplorerQueryKey, (currentData) =>
+      updater(currentData ?? explorerData),
+    );
   }
 
   function updateFilesInCache(
     updater: (currentFiles: FileListItem[]) => FileListItem[],
   ) {
-    queryClient.setQueryData<FileListItem[]>(filesQueryKey, (currentFiles = []) =>
-      updater(currentFiles),
-    );
+    updateExplorerDataInCache((currentData) => ({
+      ...currentData,
+      files: updater(currentData.files),
+    }));
+  }
+
+  function updateFoldersInCache(
+    updater: (currentFolders: FolderListItem[]) => FolderListItem[],
+  ) {
+    updateExplorerDataInCache((currentData) => ({
+      ...currentData,
+      folders: updater(currentData.folders),
+    }));
   }
 
   function clearSelection() {
@@ -275,7 +302,8 @@ export function FilesLibrary({
       return;
     }
 
-    const previousFiles = queryClient.getQueryData<FileListItem[]>(filesQueryKey) ?? files;
+    const previousExplorerData = getExplorerDataFromCache();
+    renameInFlight.current = true;
 
     updateFilesInCache((currentFiles) =>
       currentFiles.map((currentFile) =>
@@ -290,7 +318,6 @@ export function FilesLibrary({
     );
 
     cancelRename();
-    renameInFlight.current = true;
 
     try {
       const updatedFile = await renameFileAction(file.id, renameDraft);
@@ -302,11 +329,11 @@ export function FilesLibrary({
       );
       toast.success("File renamed");
     } catch (error) {
-      queryClient.setQueryData(filesQueryKey, previousFiles);
+      queryClient.setQueryData(filesExplorerQueryKey, previousExplorerData);
       toast.error(error instanceof Error ? error.message : "Failed to rename file");
     } finally {
       renameInFlight.current = false;
-      await invalidateFiles();
+      await invalidateExplorer();
     }
   }
 
@@ -331,8 +358,9 @@ export function FilesLibrary({
       return;
     }
 
-    const previousFolders = folders;
-    setFolders((currentFolders) =>
+    const previousExplorerData = getExplorerDataFromCache();
+    renameInFlight.current = true;
+    updateFoldersInCache((currentFolders) =>
       currentFolders.map((currentFolder) =>
         currentFolder.id === folder.id
           ? { ...currentFolder, name: sanitizedName }
@@ -341,21 +369,21 @@ export function FilesLibrary({
     );
 
     cancelRename();
-    renameInFlight.current = true;
 
     try {
       const updatedFolder = await renameFolderAction(folder.id, renameDraft);
-      setFolders((currentFolders) =>
+      updateFoldersInCache((currentFolders) =>
         currentFolders.map((currentFolder) =>
           currentFolder.id === folder.id ? updatedFolder : currentFolder,
         ),
       );
       toast.success("Folder renamed");
     } catch (error) {
-      setFolders(previousFolders);
+      queryClient.setQueryData(filesExplorerQueryKey, previousExplorerData);
       toast.error(error instanceof Error ? error.message : "Failed to rename folder");
     } finally {
       renameInFlight.current = false;
+      await invalidateExplorer();
     }
   }
 
@@ -367,7 +395,7 @@ export function FilesLibrary({
     setIsMovePending(true);
 
     if (moveDialogState.type === "files") {
-      const previousFiles = queryClient.getQueryData<FileListItem[]>(filesQueryKey) ?? files;
+      const previousExplorerData = getExplorerDataFromCache();
 
       updateFilesInCache((currentFiles) =>
         currentFiles.map((file) =>
@@ -392,18 +420,18 @@ export function FilesLibrary({
         clearSelection();
         toast.success(moveDialogState.fileIds.length > 1 ? "Files moved" : "File moved");
       } catch (error) {
-        queryClient.setQueryData(filesQueryKey, previousFiles);
+        queryClient.setQueryData(filesExplorerQueryKey, previousExplorerData);
         toast.error(error instanceof Error ? error.message : "Failed to move file");
       } finally {
         setIsMovePending(false);
-        await invalidateFiles();
+        await invalidateExplorer();
       }
 
       return;
     }
 
-    const previousFolders = folders;
-    setFolders((currentFolders) =>
+    const previousExplorerData = getExplorerDataFromCache();
+    updateFoldersInCache((currentFolders) =>
       currentFolders.map((folder) =>
         folder.id === moveDialogState.folderId
           ? { ...folder, parentId: moveDialogState.targetFolderId }
@@ -416,7 +444,7 @@ export function FilesLibrary({
         moveDialogState.folderId,
         moveDialogState.targetFolderId,
       );
-      setFolders((currentFolders) =>
+      updateFoldersInCache((currentFolders) =>
         currentFolders.map((folder) =>
           folder.id === moveDialogState.folderId ? updatedFolder : folder,
         ),
@@ -424,10 +452,11 @@ export function FilesLibrary({
       setMoveDialogState(null);
       toast.success("Folder moved");
     } catch (error) {
-      setFolders(previousFolders);
+      queryClient.setQueryData(filesExplorerQueryKey, previousExplorerData);
       toast.error(error instanceof Error ? error.message : "Failed to move folder");
     } finally {
       setIsMovePending(false);
+      await invalidateExplorer();
     }
   }
 
@@ -439,7 +468,7 @@ export function FilesLibrary({
     setIsDeletePending(true);
 
     if (deleteDialogState.type === "files") {
-      const previousFiles = queryClient.getQueryData<FileListItem[]>(filesQueryKey) ?? files;
+      const previousExplorerData = getExplorerDataFromCache();
 
       updateFilesInCache((currentFiles) =>
         currentFiles.filter((file) => !deleteDialogState.fileIds.includes(file.id)),
@@ -456,11 +485,11 @@ export function FilesLibrary({
         clearSelection();
         toast.success(deleteDialogState.fileIds.length > 1 ? "Files deleted" : "File deleted");
       } catch (error) {
-        queryClient.setQueryData(filesQueryKey, previousFiles);
+        queryClient.setQueryData(filesExplorerQueryKey, previousExplorerData);
         toast.error(error instanceof Error ? error.message : "Failed to delete file");
       } finally {
         setIsDeletePending(false);
-        await invalidateFiles();
+        await invalidateExplorer();
       }
 
       return;
@@ -468,8 +497,7 @@ export function FilesLibrary({
 
     const subtreeFolderIds = folderDeleteDetails?.subtreeFolderIds ?? [deleteDialogState.folderId];
     const subtreeFolderIdSet = new Set(subtreeFolderIds);
-    const previousFolders = folders;
-    const previousFiles = queryClient.getQueryData<FileListItem[]>(filesQueryKey) ?? files;
+    const previousExplorerData = getExplorerDataFromCache();
     const previousCurrentFolderId = currentFolderId;
     const fallbackFolderId = getNearestSurvivingFolderId(
       deleteDialogState.folderId,
@@ -483,7 +511,7 @@ export function FilesLibrary({
       });
     }
 
-    setFolders((currentFolders) =>
+    updateFoldersInCache((currentFolders) =>
       currentFolders.filter((folder) => !subtreeFolderIdSet.has(folder.id)),
     );
     updateFilesInCache((currentFiles) =>
@@ -495,15 +523,14 @@ export function FilesLibrary({
       setDeleteDialogState(null);
       toast.success("Folder deleted");
     } catch (error) {
-      setFolders(previousFolders);
-      queryClient.setQueryData(filesQueryKey, previousFiles);
+      queryClient.setQueryData(filesExplorerQueryKey, previousExplorerData);
       React.startTransition(() => {
         setCurrentFolderId(previousCurrentFolderId);
       });
       toast.error(error instanceof Error ? error.message : "Failed to delete folder");
     } finally {
       setIsDeletePending(false);
-      await invalidateFiles();
+      await invalidateExplorer();
     }
   }
 
@@ -515,7 +542,7 @@ export function FilesLibrary({
     setIsCreateFolderPending(true);
     try {
       const createdFolder = await createFolderAction(createFolderName, createFolderParentId);
-      setFolders((currentFolders) => [...currentFolders, createdFolder]);
+      updateFoldersInCache((currentFolders) => [...currentFolders, createdFolder]);
       setIsCreateFolderDialogOpen(false);
       setCreateFolderName("");
       toast.success("Folder created");
@@ -523,6 +550,7 @@ export function FilesLibrary({
       toast.error(error instanceof Error ? error.message : "Failed to create folder");
     } finally {
       setIsCreateFolderPending(false);
+      await invalidateExplorer();
     }
   }
 

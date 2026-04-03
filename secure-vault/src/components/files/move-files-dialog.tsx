@@ -50,6 +50,8 @@ export function MoveFilesDialog({
         <div className="space-y-1 pt-2">
           <Button
             className="w-full justify-start"
+            data-testid="move-destination-root"
+            data-test-folder-name="All files (root)"
             onClick={() => onTargetFolderChange(null)}
             type="button"
             variant={selectedFolderId === null ? "default" : "outline"}
@@ -67,6 +69,8 @@ export function MoveFilesDialog({
                 <Button
                   key={folder.id}
                   className="w-full justify-start"
+                  data-testid={`move-destination-${folder.id}`}
+                  data-test-folder-name={folder.name}
                   onClick={() => onTargetFolderChange(folder.id)}
                   style={{ paddingLeft: `${getFolderDepth(folder.id, folderMap) * 16 + 12}px` }}
                   type="button"
@@ -83,7 +87,7 @@ export function MoveFilesDialog({
           <Button disabled={isPending} onClick={() => onOpenChange(false)} type="button" variant="ghost">
             Cancel
           </Button>
-          <Button disabled={isPending} onClick={onConfirm} type="button">
+          <Button data-testid={`move-confirm-${confirmLabel.toLowerCase().replace(/\s+/g, "-")}`} disabled={isPending} onClick={onConfirm} type="button">
             {confirmLabel}
           </Button>
         </DialogFooter>

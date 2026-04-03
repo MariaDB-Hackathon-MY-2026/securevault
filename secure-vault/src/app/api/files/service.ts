@@ -341,17 +341,21 @@ export async function renameFolder(userId: string, folderId: string, newName: st
     );
 
   if (getAffectedCount(result) === 0) {
-    if (existingFolder.name === sanitizedName) {
-      return mapFolderListItem(existingFolder);
+    const updatedFolder = await getScopedFolderRecord(userId, folderId);
+
+    if (updatedFolder?.name === sanitizedName) {
+      return mapFolderListItem(updatedFolder);
     }
 
     throw new Error("Folder not found");
   }
 
-  return mapFolderListItem({
-    ...existingFolder,
-    name: sanitizedName,
-  });
+  const updatedFolder = await getScopedFolderRecord(userId, folderId);
+  if (!updatedFolder) {
+    throw new Error("Folder not found");
+  }
+
+  return mapFolderListItem(updatedFolder);
 }
 
 export async function moveFile(

@@ -45,12 +45,29 @@ async function signUpAndBypassVerification(page: Page, credentials: TestUserCred
 async function openUploadDialog(page: Page) {
   await page.goto("/files");
   await page.reload();
+  await ensureUploadDialogOpen(page);
+}
+
+async function ensureUploadDialogOpen(page: Page) {
+  const uploadDialog = page.getByRole("dialog", { name: "Upload Files" });
+
+  if (await uploadDialog.isVisible().catch(() => false)) {
+    return;
+  }
+
   await page.getByRole("button", { name: "Upload files" }).click();
-  await expect(page.getByRole("dialog", { name: "Upload Files" })).toBeVisible();
+  await expect(uploadDialog).toBeVisible();
+}
+
+async function closeUploadDialog(page: Page) {
+  const uploadDialog = page.getByRole("dialog", { name: "Upload Files" });
+  await page.keyboard.press("Escape");
+  await expect(uploadDialog).toBeHidden();
 }
 
 async function setUploadFiles(page: Page, fileNames: readonly string[]) {
   const filePaths = fileNames.map((fileName) => path.join(SAMPLE_DIR, fileName));
+  await ensureUploadDialogOpen(page);
   await page.locator('input[type="file"]').setInputFiles(filePaths);
 }
 
@@ -132,8 +149,7 @@ test.describe("file access", () => {
         timeout: 180_000,
       });
 
-      await page.keyboard.press("Escape");
-      await expect(page.getByRole("dialog", { name: "Upload Files" })).toBeHidden();
+      await closeUploadDialog(page);
 
       const fileId = await getFileIdByName(page, "chunked.pdf");
       const downloadedHash = await downloadFileHash(page, fileId);
@@ -167,7 +183,7 @@ test.describe("file access", () => {
           timeout: 120_000,
         },
       );
-      await ownerSession.page.keyboard.press("Escape");
+      await closeUploadDialog(ownerSession.page);
 
       const fileId = await getFileIdByName(ownerSession.page, "tiny.pdf");
 

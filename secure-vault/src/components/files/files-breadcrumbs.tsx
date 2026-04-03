@@ -43,6 +43,7 @@ export function FilesBreadcrumbs({
     <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
       <Button
         className="h-auto px-0 text-sm"
+        data-testid="breadcrumb-root"
         onClick={() => onNavigate(null)}
         type="button"
         variant="link"
@@ -58,6 +59,8 @@ export function FilesBreadcrumbs({
                 aria-label="Rename folder"
                 autoFocus
                 className="h-9 w-48"
+                data-testid={`rename-folder-${folder.id}`}
+                data-test-folder-name={folder.name}
                 onBlur={() => onRenameCommit(folder)}
                 onChange={(event) => onRenameChange(event.target.value)}
                 onKeyDown={(event) => {
@@ -76,6 +79,8 @@ export function FilesBreadcrumbs({
             ) : (
               <Button
                 className="h-auto px-0 text-sm"
+                data-testid={`breadcrumb-folder-${folder.id}`}
+                data-test-folder-name={folder.name}
                 onClick={() => onNavigate(folder.id)}
                 type="button"
                 variant="link"

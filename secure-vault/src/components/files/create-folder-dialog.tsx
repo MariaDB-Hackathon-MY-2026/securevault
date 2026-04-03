@@ -40,7 +40,7 @@ export function CreateFolderDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="space-y-3 mt-4">
           <Input
             aria-label="Folder name"
             autoFocus

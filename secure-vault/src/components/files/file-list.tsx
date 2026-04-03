@@ -170,6 +170,8 @@ export function FileList({
             <tr
               key={folder.id}
               className="border-b border-border/60 last:border-b-0 hover:bg-muted/20"
+              data-testid={`folder-row-${folder.id}`}
+              data-test-folder-name={folder.name}
             >
               <td className="px-4 py-4" />
               <td className="px-4 py-4">
@@ -180,6 +182,8 @@ export function FileList({
                       aria-label="Rename folder"
                       autoFocus
                       className="h-10 max-w-md"
+                      data-testid={`rename-folder-${folder.id}`}
+                      data-test-folder-name={folder.name}
                       onBlur={() => onFolderRenameCommit(folder)}
                       onChange={(event) => onFolderRenameChange(event.target.value)}
                       onKeyDown={(event) => {
@@ -198,6 +202,8 @@ export function FileList({
                   ) : (
                     <button
                       className="truncate text-left font-medium transition-colors hover:text-primary"
+                      data-testid={`folder-name-${folder.id}`}
+                      data-test-folder-name={folder.name}
                       onClick={() => onFolderOpen(folder.id)}
                       type="button"
                     >
@@ -212,7 +218,14 @@ export function FileList({
               </td>
               <td className="px-4 py-4">
                 <div className="flex items-center justify-end gap-2">
-                  <Button onClick={() => onFolderOpen(folder.id)} size="sm" type="button" variant="ghost">
+                  <Button
+                    data-testid={`folder-open-${folder.id}`}
+                    data-test-folder-name={folder.name}
+                    onClick={() => onFolderOpen(folder.id)}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
                     Open
                   </Button>
                   <FolderActionsMenu
@@ -233,6 +246,8 @@ export function FileList({
               <tr
                 key={file.id}
                 className="border-b border-border/60 last:border-b-0 hover:bg-muted/20"
+                data-testid={`file-row-${file.id}`}
+                data-test-file-name={file.name}
                 onClick={(event) => {
                   if (event.ctrlKey || event.metaKey) {
                     event.preventDefault();
@@ -257,6 +272,8 @@ export function FileList({
                         aria-label="Rename file"
                         autoFocus
                         className="h-10 max-w-md"
+                        data-testid={`rename-file-${file.id}`}
+                        data-test-file-name={file.name}
                         onBlur={() => onRenameCommit(file)}
                         onChange={(event) => onRenameChange(event.target.value)}
                         onKeyDown={(event) => {
@@ -275,6 +292,8 @@ export function FileList({
                     ) : (
                       <button
                         className="truncate text-left font-medium transition-colors hover:text-primary"
+                        data-testid={`file-name-${file.id}`}
+                        data-test-file-name={file.name}
                         onClick={() => onRenameStart(file)}
                         type="button"
                       >

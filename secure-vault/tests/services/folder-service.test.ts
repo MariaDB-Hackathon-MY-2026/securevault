@@ -99,7 +99,10 @@ describe("folder service", () => {
   describe("renameFolder", () => {
     it("sanitizes the folder name before renaming and returns the updated folder", async () => {
       const harness = createDbHarness({
-        selectResults: [[createFolderRow({ name: "Projects" })]],
+        selectResults: [
+          [createFolderRow({ name: "Projects" })],
+          [createFolderRow({ name: "My Docs" })],
+        ],
         updateResults: [{ affectedRows: 1 }],
       });
       vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
@@ -114,7 +117,10 @@ describe("folder service", () => {
 
     it("treats a no-op rename as success when the folder already has that name", async () => {
       const harness = createDbHarness({
-        selectResults: [[createFolderRow({ name: "Projects" })]],
+        selectResults: [
+          [createFolderRow({ name: "Projects" })],
+          [createFolderRow({ name: "Projects" })],
+        ],
         updateResults: [{ affectedRows: 0 }],
       });
       vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
@@ -123,6 +129,21 @@ describe("folder service", () => {
         expect.objectContaining({ id: "folder-1", name: "Projects" }),
       );
       expect(harness.spies.update).toHaveBeenCalledTimes(1);
+    });
+
+    it("treats a repeated rename as success when another request already applied it", async () => {
+      const harness = createDbHarness({
+        selectResults: [
+          [createFolderRow({ name: "Projects" })],
+          [createFolderRow({ name: "Archives" })],
+        ],
+        updateResults: [{ affectedRows: 0 }],
+      });
+      vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+      await expect(renameFolder("user-a", "folder-1", "Archives")).resolves.toEqual(
+        expect.objectContaining({ id: "folder-1", name: "Archives" }),
+      );
     });
 
     it("rejects rename when the folder is outside the caller scope", async () => {

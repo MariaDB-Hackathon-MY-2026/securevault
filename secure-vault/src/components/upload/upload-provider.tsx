@@ -8,7 +8,7 @@ import {
   UploadManager,
   type UploadManagerSnapshot,
 } from "@/lib/upload/upload-manager";
-import { filesQueryKey } from "@/lib/files/files-query";
+import { filesExplorerQueryKey } from "@/lib/files/files-explorer-query";
 
 export type UploadQueueContextValue = {
   uploads: UploadJobSnapshot[];
@@ -60,7 +60,7 @@ export function UploadQueueProvider({ children }: React.PropsWithChildren) {
     successfulUploadIdsRef.current = nextSuccessfulIds;
 
     if (shouldInvalidateFiles && queryClient) {
-      void queryClient.invalidateQueries({ queryKey: filesQueryKey });
+      void queryClient.invalidateQueries({ queryKey: filesExplorerQueryKey });
     }
   }, [queryClient, snapshot.uploads]);
 

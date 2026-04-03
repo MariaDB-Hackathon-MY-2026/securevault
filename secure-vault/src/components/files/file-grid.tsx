@@ -62,6 +62,8 @@ export function FileGrid({
         <div
           key={folder.id}
           className="flex min-h-44 flex-col justify-between rounded-lg border border-border/70 bg-background p-4"
+          data-testid={`folder-card-${folder.id}`}
+          data-test-folder-name={folder.name}
         >
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-3">
@@ -88,6 +90,8 @@ export function FileGrid({
                   aria-label="Rename folder"
                   autoFocus
                   className="h-10"
+                  data-testid={`rename-folder-${folder.id}`}
+                  data-test-folder-name={folder.name}
                   onBlur={() => onFolderRenameCommit(folder)}
                   onChange={(event) => onFolderRenameChange(event.target.value)}
                   onKeyDown={(event) => {
@@ -106,6 +110,8 @@ export function FileGrid({
               ) : (
                 <button
                   className="line-clamp-2 text-left text-base font-medium transition-colors hover:text-primary"
+                  data-testid={`folder-name-${folder.id}`}
+                  data-test-folder-name={folder.name}
                   onClick={() => onFolderOpen(folder.id)}
                   type="button"
                 >
@@ -118,6 +124,8 @@ export function FileGrid({
             </div>
             <button
               className="mt-4 flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-primary"
+              data-testid={`folder-open-${folder.id}`}
+              data-test-folder-name={folder.name}
               onClick={() => onFolderOpen(folder.id)}
               type="button"
             >
@@ -133,6 +141,8 @@ export function FileGrid({
         <div
           key={file.id}
           className="flex min-h-44 flex-col justify-between rounded-lg border border-border/70 bg-background p-4"
+          data-testid={`file-card-${file.id}`}
+          data-test-file-name={file.name}
         >
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-3">
@@ -165,6 +175,8 @@ export function FileGrid({
                   aria-label="Rename file"
                   autoFocus
                   className="h-10"
+                  data-testid={`rename-file-${file.id}`}
+                  data-test-file-name={file.name}
                   onBlur={() => onRenameCommit(file)}
                   onChange={(event) => onRenameChange(event.target.value)}
                   onKeyDown={(event) => {
@@ -183,6 +195,8 @@ export function FileGrid({
               ) : (
                 <button
                   className="line-clamp-2 text-left text-base font-medium transition-colors hover:text-primary"
+                  data-testid={`file-name-${file.id}`}
+                  data-test-file-name={file.name}
                   onClick={() => onRenameStart(file)}
                   type="button"
                 >

@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { EllipsisVertical } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -24,11 +25,34 @@ export function FolderActionsMenu({
   onMove,
   onRename,
 }: FolderActionsMenuProps) {
+  const [open, setOpen] = React.useState(false);
+  const pendingRenameRef = React.useRef<FolderListItem | null>(null);
+  const skipCloseAutoFocusRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (open || !pendingRenameRef.current) {
+      return;
+    }
+
+    const pendingFolder = pendingRenameRef.current;
+    pendingRenameRef.current = null;
+
+    const timeoutId = window.setTimeout(() => {
+      onRename(pendingFolder);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [onRename, open]);
+
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={setOpen} open={open}>
       <DropdownMenuTrigger asChild>
         <Button
           aria-label={`Open actions for folder ${folder.name}`}
+          data-testid={`folder-actions-${folder.id}`}
+          data-test-folder-name={folder.name}
           onClick={(event) => {
             event.stopPropagation();
           }}
@@ -39,10 +63,22 @@ export function FolderActionsMenu({
           <EllipsisVertical className="size-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent
+        align="end"
+        onCloseAutoFocus={(event) => {
+          if (!skipCloseAutoFocusRef.current) {
+            return;
+          }
+
+          event.preventDefault();
+          skipCloseAutoFocusRef.current = false;
+        }}
+      >
         <DropdownMenuItem
           onSelect={() => {
-            window.setTimeout(() => onRename(folder), 0);
+            skipCloseAutoFocusRef.current = true;
+            pendingRenameRef.current = folder;
+            setOpen(false);
           }}
         >
           Rename
