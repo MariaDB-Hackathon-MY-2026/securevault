@@ -207,7 +207,9 @@ describe("FilesLibrary", () => {
     await waitFor(() => {
       expect(mocks.createFolderAction).toHaveBeenCalledWith("Projects", null);
     });
-    expect(screen.getByText("Projects")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Projects" })).toBeTruthy();
+    });
   });
 
   it("submits create folder only once when the action is triggered repeatedly", async () => {
