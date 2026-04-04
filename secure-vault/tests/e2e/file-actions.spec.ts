@@ -73,12 +73,12 @@ async function uploadFiles(page: Page, fileNames: readonly string[]) {
   await page.locator('input[type="file"]').setInputFiles(filePaths);
 
   for (const fileName of fileNames) {
-    await expect(page.getByRole("dialog", { name: "Upload Files" })).toContainText(fileName, {
-      timeout: 120_000,
-    });
-    await expect(page.getByRole("dialog", { name: "Upload Files" })).toContainText("Done", {
-      timeout: 180_000,
-    });
+    const uploadRow = page
+      .locator(`[data-testid^="upload-row-"][data-test-file-name="${fileName}"]`)
+      .first();
+
+    await expect(uploadRow).toBeVisible({ timeout: 120_000 });
+    await expect(uploadRow).toContainText("Done", { timeout: 180_000 });
   }
 
   await page.keyboard.press("Escape");
@@ -87,10 +87,21 @@ async function uploadFiles(page: Page, fileNames: readonly string[]) {
 
 async function createFolder(page: Page, name: string) {
   await closeUploadDialogIfOpen(page);
+  const createFolderDialog = page.getByRole("dialog", { name: "Create folder" });
   await page.getByRole("button", { name: "New folder" }).click();
+  await expect(createFolderDialog).toBeVisible();
   await page.getByLabel("Folder name").fill(name);
-  await page.getByRole("button", { name: "Create folder" }).click();
+  const confirmButton = createFolderDialog.getByRole("button", { name: "Create folder", exact: true });
+  await expect(confirmButton).toBeEnabled();
+  await confirmButton.click();
+  await expect(createFolderDialog).toBeHidden();
+  await expect.poll(() => getGridFolderButton(page, name).count()).toBe(1);
   await expect(getGridFolderButton(page, name)).toBeVisible();
+}
+
+async function openGridFolder(page: Page, folderName: string) {
+  await getGridFolderButton(page, folderName).click();
+  await expect(getBreadcrumbFolderButton(page, folderName)).toBeVisible();
 }
 
 async function openFileActions(page: Page, fileName: string) {
@@ -235,7 +246,7 @@ test.describe("file actions", () => {
     await expect(page.getByText("File not found")).toHaveCount(0);
     await expect(getFileNameButton(page, "renamed-tiny.pdf")).toHaveCount(0);
 
-    await getGridFolderButton(page, "Projects").click();
+    await openGridFolder(page, "Projects");
     await expect(getFileNameButton(page, "renamed-tiny.pdf")).toBeVisible();
 
     await openFileActions(page, "renamed-tiny.pdf");
@@ -272,7 +283,7 @@ test.describe("file actions", () => {
     await expect(page.getByText("tiny.pdf", { exact: true })).toHaveCount(0);
     await expect(page.getByText("photo.png", { exact: true })).toHaveCount(0);
 
-    await getGridFolderButton(page, "Bulk Folder").click();
+    await openGridFolder(page, "Bulk Folder");
     await expect(page.getByText("tiny.pdf", { exact: true })).toBeVisible();
     await expect(page.getByText("photo.png", { exact: true })).toBeVisible();
 
@@ -308,7 +319,7 @@ test.describe("file actions", () => {
     await expect(getGridFolderButton(page, "Archives")).toBeVisible();
     await expect(getGridFolderButton(page, "Projects")).toHaveCount(0);
 
-    await getGridFolderButton(page, "Archives").click();
+    await openGridFolder(page, "Archives");
     await expect(page.getByRole("button", { name: "All files" })).toBeVisible();
     await expect(getGridFolderButton(page, "Archives")).toBeVisible();
     await expect(page.getByText("File not found")).toHaveCount(0);
@@ -322,9 +333,9 @@ test.describe("file actions", () => {
     await openUploadDialog(page);
 
     await createFolder(page, "Documents");
-    await getGridFolderButton(page, "Documents").click();
+    await openGridFolder(page, "Documents");
     await createFolder(page, "Taxes");
-    await getGridFolderButton(page, "Taxes").click();
+    await openGridFolder(page, "Taxes");
     await uploadFiles(page, ["tiny.pdf"]);
     await page.getByRole("button", { name: "All files" }).click();
     await openFileActions(page, "tiny.pdf");
@@ -365,9 +376,9 @@ test.describe("file actions", () => {
 
     await expect(getGridFolderButton(page, "Projects")).toHaveCount(0);
 
-    await getGridFolderButton(page, "Archive").click();
+    await openGridFolder(page, "Archive");
     await expect(getGridFolderButton(page, "Projects")).toBeVisible();
-    await getGridFolderButton(page, "Projects").click();
+    await openGridFolder(page, "Projects");
     await expect(page.getByRole("button", { name: "All files" })).toBeVisible();
     await expect(getBreadcrumbFolderButton(page, "Archive")).toBeVisible();
     await expect(getBreadcrumbFolderButton(page, "Projects")).toBeVisible();
@@ -382,7 +393,7 @@ test.describe("file actions", () => {
     await page.reload();
 
     await createFolder(page, "Temp");
-    await getGridFolderButton(page, "Temp").click();
+    await openGridFolder(page, "Temp");
 
     await chooseFolderAction(page, "Temp", "Delete");
     await page.getByRole("button", { name: "Delete folder" }).click();
@@ -401,7 +412,7 @@ test.describe("file actions", () => {
     await page.reload();
 
     await createFolder(page, "A");
-    await getGridFolderButton(page, "A").click();
+    await openGridFolder(page, "A");
     await createFolder(page, "B");
     await page.getByRole("button", { name: "All files" }).click();
 

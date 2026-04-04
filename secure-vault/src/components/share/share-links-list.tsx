@@ -42,6 +42,7 @@ export function ShareLinksList({
 
   const [editingLinkId, setEditingLinkId] = React.useState<string | null>(null);
   const [emailDraft, setEmailDraft] = React.useState("");
+  const [formError, setFormError] = React.useState<string | null>(null);
   const [maxDownloadsDraft, setMaxDownloadsDraft] = React.useState("");
   const [savingLinkId, setSavingLinkId] = React.useState<string | null>(null);
 
@@ -82,6 +83,7 @@ export function ShareLinksList({
   }
 
   async function handleSaveSettings(link: ShareLinksListItem) {
+    setFormError(null);
     setSavingLinkId(link.id);
 
     try {
@@ -107,7 +109,10 @@ export function ShareLinksList({
       setMaxDownloadsDraft("");
       onRevoke();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update link settings");
+      const message =
+        error instanceof Error ? error.message : "Failed to update link settings";
+      setFormError(message);
+      toast.error(message);
     } finally {
       setSavingLinkId(null);
     }
@@ -116,7 +121,12 @@ export function ShareLinksList({
   return (
     <div className="max-h-60 space-y-3 overflow-y-auto">
       {links.map((link) => (
-        <div className="rounded-md border p-3 text-sm" key={link.id}>
+        <div
+          className="rounded-md border p-3 text-sm"
+          data-testid={`share-link-row-${link.id}`}
+          data-test-share-token={link.token}
+          key={link.id}
+        >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1 overflow-hidden">
             <div className="flex items-center space-x-2">
@@ -146,6 +156,7 @@ export function ShareLinksList({
           <div className="flex shrink-0 space-x-1">
             <Button
               className="hover:text-foreground"
+              data-testid={`share-link-copy-${link.id}`}
               onClick={() => void handleCopy(link.token)}
               size="icon-sm"
               title="Copy Link"
@@ -155,9 +166,11 @@ export function ShareLinksList({
             </Button>
             <Button
               className="hover:text-foreground"
+              data-testid={`share-link-edit-${link.id}`}
               onClick={() => {
                 setEditingLinkId(link.id);
                 setEmailDraft(link.allowedEmails.join(", "));
+                setFormError(null);
                 setMaxDownloadsDraft(link.max_downloads?.toString() ?? "");
               }}
               size="icon-sm"
@@ -168,6 +181,7 @@ export function ShareLinksList({
             </Button>
             <Button
               className="text-destructive hover:text-destructive"
+              data-testid={`share-link-revoke-${link.id}`}
               onClick={() => void handleRevoke(link.id)}
               size="icon-sm"
               title="Revoke Link"
@@ -184,7 +198,12 @@ export function ShareLinksList({
               </label>
               <Input
                 id={`emails-${link.id}`}
-                onChange={(event) => setEmailDraft(event.target.value)}
+                onChange={(event) => {
+                  setEmailDraft(event.target.value);
+                  if (formError) {
+                    setFormError(null);
+                  }
+                }}
                 placeholder="comma separated emails, leave empty to make public"
                 value={emailDraft}
               />
@@ -194,11 +213,25 @@ export function ShareLinksList({
               <Input
                 id={`downloads-${link.id}`}
                 min="1"
-                onChange={(event) => setMaxDownloadsDraft(event.target.value)}
+                onChange={(event) => {
+                  setMaxDownloadsDraft(event.target.value);
+                  if (formError) {
+                    setFormError(null);
+                  }
+                }}
                 placeholder="Leave empty for unlimited"
                 type="number"
                 value={maxDownloadsDraft}
               />
+              {formError ? (
+                <p
+                  className="text-xs text-destructive"
+                  data-testid={`share-link-error-${link.id}`}
+                  role="alert"
+                >
+                  {formError}
+                </p>
+              ) : null}
               <p className="text-xs text-muted-foreground">
                 Expiry cannot be changed after creation. Leave max downloads empty for unlimited.
                 The download limit applies to the whole link, not per visitor or per email. You also cannot set it below the number of downloads already used.
@@ -208,6 +241,7 @@ export function ShareLinksList({
                   onClick={() => {
                     setEditingLinkId(null);
                     setEmailDraft("");
+                    setFormError(null);
                     setMaxDownloadsDraft("");
                   }}
                   size="sm"
@@ -217,6 +251,7 @@ export function ShareLinksList({
                   Cancel
                 </Button>
                 <Button
+                  data-testid={`share-link-save-${link.id}`}
                   disabled={savingLinkId === link.id}
                   onClick={() => void handleSaveSettings(link)}
                   size="sm"

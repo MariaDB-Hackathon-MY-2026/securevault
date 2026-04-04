@@ -60,7 +60,7 @@ function getAffectedCount(result: unknown) {
 }
 
 function normalizeEmails(emails: string[]) {
-  return [...new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean))];
+  return [...new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean))].sort();
 }
 
 export class ShareServiceError extends Error {
@@ -213,7 +213,7 @@ export async function getShareLinkByToken(token: string): Promise<ShareLinkRecor
 
   return {
     ...link,
-    allowedEmails: emails.map((item) => item.email),
+    allowedEmails: emails.map((item) => item.email).sort(),
     targetId: link.file_id ?? link.folder_id ?? "",
     targetType: link.file_id ? "file" : "folder",
   };
@@ -293,7 +293,7 @@ export async function listShareLinksForOwner(input: {
 
   return links.map((link) => ({
     ...link,
-    allowedEmails: emailsByLinkId.get(link.id) ?? [],
+    allowedEmails: [...(emailsByLinkId.get(link.id) ?? [])].sort(),
     targetId: link.file_id ?? link.folder_id,
     targetType: link.file_id ? ("file" as const) : ("folder" as const),
   }));
@@ -380,7 +380,7 @@ export async function updateShareLinkSettings(input: {
 
   return {
     ...link,
-    allowedEmails: emails.map((entry) => entry.email),
+    allowedEmails: emails.map((entry) => entry.email).sort(),
     targetId: link.file_id ?? link.folder_id,
     targetType: link.file_id ? ("file" as const) : ("folder" as const),
   };

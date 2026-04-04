@@ -29,6 +29,7 @@ export function SharedFileView({
 
   return (
     <div
+      data-testid="shared-file-view"
       className={`flex w-full flex-col bg-muted/20 ${
         embedded ? "min-h-0 flex-1 overflow-hidden" : "h-dvh overflow-hidden"
       }`}
@@ -67,12 +68,14 @@ export function SharedFileView({
               <img
                 alt={fileName ?? "Shared file preview"}
                 className="block h-auto max-h-full w-auto max-w-full object-contain"
+                data-testid="shared-preview-image"
                 src={previewUrl}
               />
             </div>
           ) : (
             <iframe
               className="h-full w-full border-0"
+              data-testid="shared-preview-frame"
               src={previewUrl}
               title="File Preview"
             />

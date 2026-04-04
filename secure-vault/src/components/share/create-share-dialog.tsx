@@ -92,7 +92,7 @@ export function CreateShareDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px]" data-testid="share-dialog">
         <DialogHeader>
           <DialogTitle>Share {targetType === "file" ? "File" : "Folder"}</DialogTitle>
           <DialogDescription>

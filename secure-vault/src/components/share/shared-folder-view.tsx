@@ -94,6 +94,7 @@ export function SharedFolderView({
             <React.Fragment key={item.id}>
               <button
                 className="transition-colors hover:text-foreground"
+                data-testid={`shared-breadcrumb-${item.id}`}
                 onClick={() => setCurrentFolderId(item.id)}
                 type="button"
               >
@@ -121,6 +122,7 @@ export function SharedFolderView({
                 {data?.folders.map((folder) => (
                   <tr
                     className="cursor-pointer border-b hover:bg-muted/20"
+                    data-testid={`shared-folder-row-${folder.id}`}
                     key={folder.id}
                     onClick={() => setCurrentFolderId(folder.id)}
                   >
@@ -140,6 +142,7 @@ export function SharedFolderView({
                   <tr className="border-b hover:bg-muted/20" key={file.id}>
                     <td
                       className="cursor-pointer px-4 py-3"
+                      data-testid={`shared-file-row-${file.id}`}
                       onClick={() => setViewingFile(file)}
                     >
                       <div className="flex items-center gap-2">

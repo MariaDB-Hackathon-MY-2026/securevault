@@ -11,10 +11,12 @@ export function ShareAuthView({ token }: { token: string }) {
   const [step, setStep] = React.useState<"email" | "otp">("email");
   const [email, setEmail] = React.useState("");
   const [code, setCode] = React.useState("");
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [isPending, setIsPending] = React.useState(false);
 
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage(null);
     setIsPending(true);
     try {
       const res = await fetch(`/api/share/${token}/request-otp`, {
@@ -33,7 +35,9 @@ export function ShareAuthView({ token }: { token: string }) {
       );
       setStep("otp");
     } catch (err: any) {
-      toast.error(err.message);
+      const message = err instanceof Error ? err.message : "Failed to request OTP";
+      setErrorMessage(message);
+      toast.error(message);
     } finally {
       setIsPending(false);
     }
@@ -41,6 +45,7 @@ export function ShareAuthView({ token }: { token: string }) {
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage(null);
     setIsPending(true);
     try {
       const res = await fetch(`/api/share/${token}/verify-otp`, {
@@ -55,7 +60,9 @@ export function ShareAuthView({ token }: { token: string }) {
       toast.success("Access granted");
       window.location.assign(`/s/${token}`);
     } catch (err: any) {
-      toast.error(err.message);
+      const message = err instanceof Error ? err.message : "Failed to verify OTP";
+      setErrorMessage(message);
+      toast.error(message);
     } finally {
       setIsPending(false);
     }
@@ -83,10 +90,20 @@ export function ShareAuthView({ token }: { token: string }) {
                 type="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (errorMessage) {
+                    setErrorMessage(null);
+                  }
+                }}
                 placeholder="Enter your email"
               />
             </div>
+            {errorMessage ? (
+              <p className="text-sm text-destructive" data-testid="share-auth-error" role="alert">
+                {errorMessage}
+              </p>
+            ) : null}
             <Button type="submit" className="w-full" disabled={isPending}>
               {isPending ? "Sending..." : "Send Verification Code"}
             </Button>
@@ -100,19 +117,33 @@ export function ShareAuthView({ token }: { token: string }) {
                 type="text"
                 required
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={(e) => {
+                  setCode(e.target.value);
+                  if (errorMessage) {
+                    setErrorMessage(null);
+                  }
+                }}
                 placeholder="Enter 6-digit code"
                 maxLength={6}
                 autoComplete="one-time-code"
               />
             </div>
+            {errorMessage ? (
+              <p className="text-sm text-destructive" data-testid="share-auth-error" role="alert">
+                {errorMessage}
+              </p>
+            ) : null}
             <Button type="submit" className="w-full" disabled={isPending}>
               {isPending ? "Verifying..." : "Verify and Access"}
             </Button>
             <div className="text-center mt-2">
               <button 
                 type="button" 
-                onClick={() => setStep("email")} 
+                onClick={() => {
+                  setStep("email");
+                  setCode("");
+                  setErrorMessage(null);
+                }} 
                 className="text-sm text-muted-foreground hover:text-foreground"
               >
                 Use a different email

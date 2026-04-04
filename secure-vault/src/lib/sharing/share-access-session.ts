@@ -41,7 +41,6 @@ export async function createShareAccessSession(input: {
 
   cookieStore.set({
     expires: input.expiresAt,
-    httpOnly: true,
     name: getCookieName(input.linkId),
     ...getShareAccessCookieOptions(),
     value: encrypt(Buffer.from(JSON.stringify(session), "utf-8"), getMasterKey()).toString("hex"),

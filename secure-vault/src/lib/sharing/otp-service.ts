@@ -139,10 +139,20 @@ export async function verifyOtp(input: { code: string; email: string; token: str
   }
 
   if (otpRow.otp_hash !== hashOtp(input.code)) {
+    const nextAttemptCount = otpRow.attempt_count + 1;
+
     await db
       .update(shareLinkOtps)
-      .set({ attempt_count: otpRow.attempt_count + 1 })
+      .set({ attempt_count: nextAttemptCount })
       .where(eq(shareLinkOtps.id, otpRow.id));
+
+    if (nextAttemptCount >= MAX_OTP_ATTEMPTS) {
+      throw new OtpServiceError(
+        "OTP_LOCKED",
+        "Too many attempts. Please request a new verification code",
+        403,
+      );
+    }
 
     throw new OtpServiceError("OTP_INVALID", "Invalid verification code", 403);
   }
