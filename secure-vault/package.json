@@ -35,6 +35,7 @@
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "resend": "^6.10.0",
     "shadcn": "^4.0.2",
     "sharp": "^0.34.5",
     "sonner": "^2.0.7",
@@ -45,8 +46,8 @@
     "zxcvbn": "^4.4.2"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
     "@playwright/test": "^1.54.2",
+    "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^20.19.37",

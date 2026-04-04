@@ -8,6 +8,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { FolderListItem } from "@/lib/files/types";
@@ -17,6 +18,7 @@ type FolderActionsMenuProps = {
   onDelete: (folder: FolderListItem) => void;
   onMove: (folder: FolderListItem) => void;
   onRename: (folder: FolderListItem) => void;
+  onShare: (folder: FolderListItem) => void;
 };
 
 export function FolderActionsMenu({
@@ -24,6 +26,7 @@ export function FolderActionsMenu({
   onDelete,
   onMove,
   onRename,
+  onShare,
 }: FolderActionsMenuProps) {
   const [open, setOpen] = React.useState(false);
   const pendingRenameRef = React.useRef<FolderListItem | null>(null);
@@ -74,6 +77,7 @@ export function FolderActionsMenu({
           skipCloseAutoFocusRef.current = false;
         }}
       >
+        <DropdownMenuItem onSelect={() => onShare(folder)}>Share</DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => {
             skipCloseAutoFocusRef.current = true;
@@ -84,6 +88,7 @@ export function FolderActionsMenu({
           Rename
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onMove(folder)}>Move</DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-destructive focus:text-destructive"
           onSelect={() => onDelete(folder)}

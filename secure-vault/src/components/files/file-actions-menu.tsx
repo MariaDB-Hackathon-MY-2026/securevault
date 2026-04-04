@@ -17,6 +17,7 @@ type FileActionsMenuProps = {
   onDelete: (file: FileListItem) => void;
   onMove: (file: FileListItem) => void;
   onRename: (file: FileListItem) => void;
+  onShare: (file: FileListItem) => void;
 };
 
 export function FileActionsMenu({
@@ -24,6 +25,7 @@ export function FileActionsMenu({
   onDelete,
   onMove,
   onRename,
+  onShare,
 }: FileActionsMenuProps) {
   return (
     <DropdownMenu>
@@ -40,6 +42,7 @@ export function FileActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={() => onShare(file)}>Share</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onRename(file)}>Rename</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onMove(file)}>Move</DropdownMenuItem>
         <DropdownMenuItem

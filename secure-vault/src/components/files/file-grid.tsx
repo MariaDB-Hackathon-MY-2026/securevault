@@ -19,7 +19,9 @@ type FileGridProps = {
   files: FileListItem[];
   folders: FolderListItem[];
   onDelete: (file: FileListItem) => void;
+  onShare: (file: FileListItem) => void;
   onFolderDelete: (folder: FolderListItem) => void;
+  onFolderShare: (folder: FolderListItem) => void;
   onFolderMove: (folder: FolderListItem) => void;
   onFolderOpen: (folderId: string) => void;
   onFolderRenameCancel: () => void;
@@ -40,7 +42,9 @@ export function FileGrid({
   files,
   folders,
   onDelete,
+  onShare,
   onFolderDelete,
+  onFolderShare,
   onFolderMove,
   onFolderOpen,
   onFolderRenameCancel,
@@ -79,6 +83,7 @@ export function FileGrid({
                   onDelete={onFolderDelete}
                   onMove={onFolderMove}
                   onRename={onFolderRenameStart}
+                  onShare={onFolderShare}
                 />
               </div>
             </div>
@@ -166,7 +171,8 @@ export function FileGrid({
                 onDelete={onDelete}
                 onMove={onMove}
                 onRename={onRenameStart}
-              />
+                  onShare={onShare}
+                />
             </div>
 
             <div className="space-y-2">

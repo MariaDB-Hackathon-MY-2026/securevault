@@ -21,7 +21,9 @@ type FileListProps = {
   files: FileListItem[];
   folders: FolderListItem[];
   onDelete: (file: FileListItem) => void;
+  onShare: (file: FileListItem) => void;
   onFolderDelete: (folder: FolderListItem) => void;
+  onFolderShare: (folder: FolderListItem) => void;
   onFolderMove: (folder: FolderListItem) => void;
   onFolderOpen: (folderId: string) => void;
   onFolderRenameCancel: () => void;
@@ -76,7 +78,9 @@ export function FileList({
   files,
   folders,
   onDelete,
+  onShare,
   onFolderDelete,
+  onFolderShare,
   onFolderMove,
   onFolderOpen,
   onFolderRenameCancel,
@@ -233,7 +237,8 @@ export function FileList({
                     onDelete={onFolderDelete}
                     onMove={onFolderMove}
                     onRename={onFolderRenameStart}
-                  />
+                  onShare={onFolderShare}
+                />
                 </div>
               </td>
             </tr>
@@ -314,7 +319,8 @@ export function FileList({
                       onDelete={onDelete}
                       onMove={onMove}
                       onRename={onRenameStart}
-                    />
+                  onShare={onShare}
+                />
                   </div>
                 </td>
               </tr>

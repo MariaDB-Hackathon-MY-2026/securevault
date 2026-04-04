@@ -366,6 +366,46 @@ describe("folder service", () => {
       );
     });
 
+    it("treats a zero-row update as success when the folder already reflects the target parent", async () => {
+      const harness = createDbHarness({
+        selectResults: [
+          [createFolderRow({ id: "folder-a", parentId: null })],
+          [createFolderRow({ id: "folder-b", parentId: null })],
+          [
+            createFolderRow({ id: "folder-a", parentId: null }),
+            createFolderRow({ id: "folder-b", parentId: null }),
+          ],
+          [createFolderRow({ id: "folder-a", parentId: "folder-b" })],
+        ],
+        updateResults: [{ affectedRows: 0 }],
+      });
+      vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+      await expect(moveFolder("user-a", "folder-a", "folder-b")).resolves.toEqual(
+        expect.objectContaining({ id: "folder-a", parentId: "folder-b" }),
+      );
+    });
+
+    it("returns the moved folder when the update succeeds but the follow-up read misses", async () => {
+      const harness = createDbHarness({
+        selectResults: [
+          [createFolderRow({ id: "folder-a", name: "Projects", parentId: null })],
+          [createFolderRow({ id: "folder-b", name: "Archive", parentId: null })],
+          [
+            createFolderRow({ id: "folder-a", name: "Projects", parentId: null }),
+            createFolderRow({ id: "folder-b", name: "Archive", parentId: null }),
+          ],
+          [],
+        ],
+        updateResults: [{ affectedRows: 1 }],
+      });
+      vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+      await expect(moveFolder("user-a", "folder-a", "folder-b")).resolves.toEqual(
+        expect.objectContaining({ id: "folder-a", name: "Projects", parentId: "folder-b" }),
+      );
+    });
+
     it("rejects direct self-moves", async () => {
       const harness = createDbHarness({
         selectResults: [
