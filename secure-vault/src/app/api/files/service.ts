@@ -561,6 +561,12 @@ export async function moveFolder(
     );
 
   if (getAffectedCount(result) === 0) {
+    const currentFolder = await getScopedFolderRecord(userId, folderId);
+
+    if (currentFolder?.parentId === targetParentId) {
+      return mapFolderListItem(currentFolder);
+    }
+
     if (existingFolder.parentId === targetParentId) {
       return mapFolderListItem(existingFolder);
     }
@@ -570,7 +576,10 @@ export async function moveFolder(
 
   const updatedFolder = await getScopedFolderRecord(userId, folderId);
   if (!updatedFolder) {
-    throw new Error("Folder not found");
+    return mapFolderListItem({
+      ...existingFolder,
+      parentId: targetParentId,
+    });
   }
 
   return mapFolderListItem(updatedFolder);

@@ -20,7 +20,7 @@ export const shareLinks = mysqlTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
     token: varchar("token", { length: 255 }).notNull(),
-    expires_at: timestamp().notNull(),
+    expires_at: timestamp(),
     max_downloads: int(),
     download_count: int().default(0).notNull(),
     is_public: boolean().default(false).notNull(),
@@ -30,6 +30,7 @@ export const shareLinks = mysqlTable(
   (table) => [
     uniqueIndex("idx_share_links_token").on(table.token),
     index("idx_share_links_file_id").on(table.file_id),
+    index("idx_share_links_folder_id").on(table.folder_id),
   ],
 );
 
@@ -47,7 +48,9 @@ export const shareLinkOtps = mysqlTable("share_link_otps", {
   link_id: varchar("link_id", { length: 21 })
     .notNull()
     .references(() => shareLinks.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  email: varchar("email", { length: 255 }).notNull(),
   otp_hash: varchar("otp_hash", { length: 255 }).notNull(),
+  attempt_count: int().default(0).notNull(),
   expires_at: timestamp().notNull(),
   used_at: timestamp(),
   created_at: timestamp().defaultNow().notNull(),
@@ -62,6 +65,7 @@ export const shareLinkAccessLogs = mysqlTable(
       .references(() => shareLinks.id, { onDelete: "cascade", onUpdate: "cascade" }),
     ip_address: varchar("ip_address", { length: 50 }).notNull(),
     user_agent: varchar("user_agent", { length: 255 }),
+    email: varchar("email", { length: 255 }),
     accessed_at: timestamp().defaultNow().notNull(),
   },
   (table) => [index("idx_access_logs_link_id").on(table.link_id)],

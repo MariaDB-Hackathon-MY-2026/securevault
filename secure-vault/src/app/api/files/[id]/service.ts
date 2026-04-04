@@ -1,5 +1,8 @@
 import { asc, and, eq, isNull } from "drizzle-orm";
 
+import { decryptUEK } from "@/lib/crypto";
+import { users } from "@/lib/db/schema";
+
 import type { CurrentUser } from "@/lib/auth/get-current-user";
 import { createDecryptStream, decryptFEK, sanitizeFilename } from "@/lib/crypto";
 import { MariadbConnection } from "@/lib/db";
@@ -58,6 +61,51 @@ export async function streamOwnedFile(options: {
   validateChunkMetadata(file.chunks, file.totalChunks);
 
   const fek = decryptFEK(file.encryptedFek, options.user.uek);
+  const body = createDecryptedFileStream(file.chunks, fek, options.signal);
+
+  return new Response(body, {
+    headers: {
+      "Cache-Control": "private, no-store",
+      "Content-Disposition": buildContentDisposition(file.name, options.disposition),
+      "Content-Length": String(file.size),
+      "Content-Type": file.mimeType || "application/octet-stream",
+      "X-Content-Type-Options": "nosniff",
+    },
+    status: 200,
+  });
+}
+
+export async function streamSharedFile(options: {
+  disposition: DownloadDisposition;
+  fileId: string;
+  ownerId: string;
+  signal?: AbortSignal;
+}): Promise<Response> {
+  const db = MariadbConnection.getConnection();
+  const [owner] = await db
+    .select({ encrypted_uek: users.encrypted_uek })
+    .from(users)
+    .where(eq(users.id, options.ownerId))
+    .limit(1);
+
+  if (!owner) {
+    throw new FileDownloadServiceError("Owner not found", 404);
+  }
+
+  const uek = decryptUEK(owner.encrypted_uek);
+  const file = await findDownloadableFile(options.ownerId, options.fileId);
+
+  if (!file) {
+    throw new FileDownloadServiceError("File not found", 404);
+  }
+
+  if (options.disposition === "inline" && !canPreviewMime(file.mimeType)) {
+    throw new FileDownloadServiceError("Preview is not supported for this file type", 415);
+  }
+
+  validateChunkMetadata(file.chunks, file.totalChunks);
+
+  const fek = decryptFEK(file.encryptedFek, uek);
   const body = createDecryptedFileStream(file.chunks, fek, options.signal);
 
   return new Response(body, {

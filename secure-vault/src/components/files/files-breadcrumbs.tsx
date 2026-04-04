@@ -16,6 +16,7 @@ type FilesBreadcrumbsProps = {
         onDelete: (folder: FolderListItem) => void;
         onMove: (folder: FolderListItem) => void;
         onRename: (folder: FolderListItem) => void;
+        onShare: (folder: FolderListItem) => void;
       }
     | undefined;
   isFetching: boolean;
@@ -94,6 +95,7 @@ export function FilesBreadcrumbs({
                 onDelete={currentFolderActions.onDelete}
                 onMove={currentFolderActions.onMove}
                 onRename={currentFolderActions.onRename}
+                onShare={currentFolderActions.onShare}
               />
             ) : null}
           </div>

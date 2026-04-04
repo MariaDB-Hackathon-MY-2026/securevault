@@ -63,10 +63,10 @@ export const config = {
     "/settings/:path*",
     "/trash/:path*",
     "/chat/:path*",
-    "/shared/:path*",
+
     "/api/upload/:path*",
     "/api/files/:path*",
-    "/api/share/:path*",
+
     "/api/chat/:path*",
   ],
 };

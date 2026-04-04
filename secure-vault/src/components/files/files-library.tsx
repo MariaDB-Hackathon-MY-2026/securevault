@@ -34,6 +34,7 @@ import { FileGrid } from "@/components/files/file-grid";
 import { FileList } from "@/components/files/file-list";
 import { MoveFilesDialog } from "@/components/files/move-files-dialog";
 import { Toolbar } from "@/components/files/toolbar";
+import { CreateShareDialog } from "@/components/share/create-share-dialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useFilesExplorerQuery } from "@/hooks/use-files-explorer-query";
 import { sanitizeFilename } from "@/lib/crypto/sanitize";
@@ -63,6 +64,10 @@ type MoveDialogState =
 type DeleteDialogState =
   | { fileIds: string[]; type: "files" }
   | { folderId: string; type: "folder" }
+  | null;
+
+type ShareDialogState =
+  | { id: string; name: string; type: "file" | "folder" }
   | null;
 
 const defaultSort: FileSortState = {
@@ -100,6 +105,7 @@ export function FilesLibrary({
   const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] = React.useState(false);
   const [moveDialogState, setMoveDialogState] = React.useState<MoveDialogState>(null);
   const [deleteDialogState, setDeleteDialogState] = React.useState<DeleteDialogState>(null);
+  const [shareDialogState, setShareDialogState] = React.useState<ShareDialogState>(null);
   const [isMovePending, setIsMovePending] = React.useState(false);
   const [isDeletePending, setIsDeletePending] = React.useState(false);
   const [isCreateFolderPending, setIsCreateFolderPending] = React.useState(false);
@@ -273,6 +279,14 @@ export function FilesLibrary({
 
   function openFolderDeleteDialog(folder: FolderListItem) {
     setDeleteDialogState({ folderId: folder.id, type: "folder" });
+  }
+
+  function openFileShareDialog(file: FileListItem) {
+    setShareDialogState({ id: file.id, name: file.name, type: "file" });
+  }
+
+  function openFolderShareDialog(folder: FolderListItem) {
+    setShareDialogState({ id: folder.id, name: folder.name, type: "folder" });
   }
 
   function startFileRename(file: FileListItem) {
@@ -600,6 +614,7 @@ export function FilesLibrary({
                     onDelete: openFolderDeleteDialog,
                     onMove: openFolderMoveDialog,
                     onRename: startFolderRename,
+                    onShare: openFolderShareDialog,
                   }
                 : undefined
             }
@@ -642,6 +657,8 @@ export function FilesLibrary({
               onFolderDelete={openFolderDeleteDialog}
               onFolderMove={openFolderMoveDialog}
               onFolderOpen={navigateToFolder}
+              onFolderShare={openFolderShareDialog}
+              onShare={openFileShareDialog}
               onFolderRenameCancel={cancelRename}
               onFolderRenameChange={setRenameDraft}
               onFolderRenameCommit={commitFolderRename}
@@ -663,6 +680,8 @@ export function FilesLibrary({
               onFolderDelete={openFolderDeleteDialog}
               onFolderMove={openFolderMoveDialog}
               onFolderOpen={navigateToFolder}
+              onFolderShare={openFolderShareDialog}
+              onShare={openFileShareDialog}
               onFolderRenameCancel={cancelRename}
               onFolderRenameChange={setRenameDraft}
               onFolderRenameCommit={commitFolderRename}
@@ -734,6 +753,20 @@ export function FilesLibrary({
           }}
           title={deleteDialogTitle}
         />
+
+        {shareDialogState && (
+          <CreateShareDialog
+            isOpen={true}
+            onOpenChange={(open) => {
+              if (!open) {
+                setShareDialogState(null);
+              }
+            }}
+            targetType={shareDialogState.type}
+            targetId={shareDialogState.id}
+            targetName={shareDialogState.name}
+          />
+        )}
       </CardContent>
     </Card>
   );
