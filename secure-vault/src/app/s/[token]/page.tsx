@@ -30,41 +30,42 @@ export default async function SharedLinkPage(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
+  let sessionEmail: string | null = null;
+  let view:
+    | { kind: "auth" }
+    | { kind: "expired" }
+    | { kind: "file"; fileId: string; fileName: string; mimeType: string }
+    | { kind: "folder"; rootFolderId: string };
 
   try {
     const link = await requireShareLinkByToken(token);
     assertShareLinkAccessible(link);
 
-    let sessionEmail: string | null = null;
-
     if (!link.is_public && link.allowedEmails.length > 0) {
       const session = await requireValidShareAccessSession({ linkId: link.id, token });
 
       if (!session) {
-        return <ShareAuthView token={token} />;
+        view = { kind: "auth" };
+      } else {
+        sessionEmail = session.email;
       }
-
-      sessionEmail = session.email;
     }
 
-    if (link.targetType === "file") {
+    if (!view && link.targetType === "file") {
       const file = await requireSharedFileSummary({
         fileId: link.targetId,
         ownerId: link.created_by,
       });
 
-      return (
-        <SharedFileView
-          email={sessionEmail}
-          fileId={file.id}
-          fileName={file.name}
-          mimeType={file.mimeType}
-          token={token}
-        />
-      );
+      view = {
+        kind: "file",
+        fileId: file.id,
+        fileName: file.name,
+        mimeType: file.mimeType,
+      };
+    } else if (!view) {
+      view = { kind: "folder", rootFolderId: link.targetId };
     }
-
-    return <SharedFolderView token={token} email={sessionEmail} rootFolderId={link.targetId} />;
   } catch (error) {
     if (error instanceof ShareServiceError) {
       if (error.code === "NOT_FOUND") {
@@ -72,10 +73,34 @@ export default async function SharedLinkPage(
       }
 
       if (error.code === "EXPIRED") {
-        return <ExpiredState />;
+        view = { kind: "expired" };
+      } else {
+        throw error;
       }
+    } else {
+      throw error;
     }
-
-    throw error;
   }
+
+  if (!view || view.kind === "auth") {
+    return <ShareAuthView token={token} />;
+  }
+
+  if (view.kind === "expired") {
+    return <ExpiredState />;
+  }
+
+  if (view.kind === "file") {
+    return (
+      <SharedFileView
+        email={sessionEmail}
+        fileId={view.fileId}
+        fileName={view.fileName}
+        mimeType={view.mimeType}
+        token={token}
+      />
+    );
+  }
+
+  return <SharedFolderView token={token} email={sessionEmail} rootFolderId={view.rootFolderId} />;
 }

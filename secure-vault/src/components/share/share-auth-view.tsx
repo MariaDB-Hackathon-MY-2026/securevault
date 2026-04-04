@@ -7,6 +7,11 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { LockIcon } from "lucide-react";
 
+type ShareApiResponse = {
+  error?: string;
+  message?: string;
+};
+
 export function ShareAuthView({ token }: { token: string }) {
   const [step, setStep] = React.useState<"email" | "otp">("email");
   const [email, setEmail] = React.useState("");
@@ -24,7 +29,7 @@ export function ShareAuthView({ token }: { token: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const data = await res.json();
+      const data: ShareApiResponse = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Failed to request OTP");
       }
@@ -34,8 +39,8 @@ export function ShareAuthView({ token }: { token: string }) {
           : (data.message || "OTP sent if email is allowed"),
       );
       setStep("otp");
-    } catch (err: any) {
-      const message = err instanceof Error ? err.message : "Failed to request OTP";
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to request OTP";
       setErrorMessage(message);
       toast.error(message);
     } finally {
@@ -54,13 +59,13 @@ export function ShareAuthView({ token }: { token: string }) {
         body: JSON.stringify({ email, code }),
       });
       if (!res.ok) {
-        const data = await res.json();
+        const data: ShareApiResponse = await res.json();
         throw new Error(data.error || "Failed to verify OTP");
       }
       toast.success("Access granted");
       window.location.assign(`/s/${token}`);
-    } catch (err: any) {
-      const message = err instanceof Error ? err.message : "Failed to verify OTP";
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to verify OTP";
       setErrorMessage(message);
       toast.error(message);
     } finally {
@@ -137,13 +142,13 @@ export function ShareAuthView({ token }: { token: string }) {
               {isPending ? "Verifying..." : "Verify and Access"}
             </Button>
             <div className="text-center mt-2">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => {
                   setStep("email");
                   setCode("");
                   setErrorMessage(null);
-                }} 
+                }}
                 className="text-sm text-muted-foreground hover:text-foreground"
               >
                 Use a different email

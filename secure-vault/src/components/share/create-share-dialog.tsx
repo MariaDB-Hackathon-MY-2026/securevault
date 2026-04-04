@@ -85,8 +85,8 @@ export function CreateShareDialog({
       setMaxDownloads("");
       setAllowedEmails("");
     },
-    onError: (err: any) => {
-      toast.error(err.message);
+    onError: (error: unknown) => {
+      toast.error(error instanceof Error ? error.message : "Failed to create share link");
     },
   });
 
@@ -96,7 +96,7 @@ export function CreateShareDialog({
         <DialogHeader>
           <DialogTitle>Share {targetType === "file" ? "File" : "Folder"}</DialogTitle>
           <DialogDescription>
-            Share "{targetName}" with others.
+            Share &quot;{targetName}&quot; with others.
           </DialogDescription>
         </DialogHeader>
 

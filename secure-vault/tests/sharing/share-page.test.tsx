@@ -32,6 +32,8 @@ vi.mock("@/lib/sharing/share-service", async () => {
 import SharedLinkPage from "@/app/s/[token]/page";
 import { ShareServiceError } from "@/lib/sharing/share-service";
 
+type ComponentLike = (...args: never[]) => unknown;
+
 describe("shared link page", () => {
   it("renders the auth view for restricted links without a session", async () => {
     mocks.requireShareLinkByToken.mockResolvedValue({
@@ -51,8 +53,9 @@ describe("shared link page", () => {
 
     expect(element).toMatchObject({
       props: { token: "share-token" },
-      type: expect.any(Function),
+      type: expect.anything(),
     });
+    expect(element.type).toEqual(expect.any(Function as unknown as ComponentLike));
   });
 
   it("passes file metadata to the shared file view for direct file links", async () => {
@@ -83,8 +86,9 @@ describe("shared link page", () => {
         mimeType: "image/png",
         token: "share-token",
       }),
-      type: expect.any(Function),
+      type: expect.anything(),
     });
+    expect(element.type).toEqual(expect.any(Function as unknown as ComponentLike));
   });
 
   it("renders the expired state for expired links", async () => {
@@ -98,9 +102,10 @@ describe("shared link page", () => {
 
     expect(element).toMatchObject({
       props: {},
-      type: expect.any(Function),
+      type: expect.anything(),
     });
-    expect((element.type as Function).name).toBe("ExpiredState");
+    expect(element.type).toEqual(expect.any(Function as unknown as ComponentLike));
+    expect((element.type as { name?: string }).name).toBe("ExpiredState");
   });
 
   it("uses notFound for revoked or missing links", async () => {

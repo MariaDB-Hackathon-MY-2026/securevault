@@ -27,7 +27,8 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(links);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to list share links";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

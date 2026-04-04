@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import { FileIcon } from "lucide-react";
 
 import { SharedDownloadButton } from "@/components/share/shared-download-button";

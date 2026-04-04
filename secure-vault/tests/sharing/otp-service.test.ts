@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MariadbConnection } from "@/lib/db";
-import { OtpServiceError, createAndSendOtp } from "@/lib/sharing/otp-service";
+import { createAndSendOtp } from "@/lib/sharing/otp-service";
 
 const mocks = vi.hoisted(() => ({
   assertShareLinkAccessible: vi.fn(),

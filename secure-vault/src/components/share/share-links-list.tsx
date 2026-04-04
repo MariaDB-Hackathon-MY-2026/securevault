@@ -32,6 +32,12 @@ export function ShareLinksList({
   links: ShareLinksListItem[];
   onRevoke: () => void;
 }) {
+  const [editingLinkId, setEditingLinkId] = React.useState<string | null>(null);
+  const [emailDraft, setEmailDraft] = React.useState("");
+  const [formError, setFormError] = React.useState<string | null>(null);
+  const [maxDownloadsDraft, setMaxDownloadsDraft] = React.useState("");
+  const [savingLinkId, setSavingLinkId] = React.useState<string | null>(null);
+
   if (isLoading) {
     return <div className="text-sm text-muted-foreground">Loading...</div>;
   }
@@ -39,12 +45,6 @@ export function ShareLinksList({
   if (links.length === 0) {
     return <div className="text-sm text-muted-foreground">No active share links.</div>;
   }
-
-  const [editingLinkId, setEditingLinkId] = React.useState<string | null>(null);
-  const [emailDraft, setEmailDraft] = React.useState("");
-  const [formError, setFormError] = React.useState<string | null>(null);
-  const [maxDownloadsDraft, setMaxDownloadsDraft] = React.useState("");
-  const [savingLinkId, setSavingLinkId] = React.useState<string | null>(null);
 
   function renderDownloadSummary(link: ShareLinksListItem) {
     if (link.max_downloads === null) {
@@ -129,68 +129,68 @@ export function ShareLinksList({
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1 overflow-hidden">
-            <div className="flex items-center space-x-2">
-              <span className="truncate font-medium">/s/{link.token}</span>
-              <span
-                className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                  link.is_public
-                    ? "bg-green-100 text-green-800"
-                    : "bg-blue-100 text-blue-800"
-                }`}
+              <div className="flex items-center space-x-2">
+                <span className="truncate font-medium">/s/{link.token}</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                    link.is_public
+                      ? "bg-green-100 text-green-800"
+                      : "bg-blue-100 text-blue-800"
+                  }`}
+                >
+                  {link.is_public ? "Public" : "Restricted"}
+                </span>
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Created: {formatExplorerDate(link.created_at)}
+                <br />
+                Expires: {link.expires_at ? formatExplorerDate(link.expires_at) : "Never"}
+                <span> &bull; {renderDownloadSummary(link)}</span>
+              </div>
+              <div className="mt-2 text-xs text-muted-foreground">
+                {link.allowedEmails.length > 0
+                  ? `Allowed emails: ${link.allowedEmails.join(", ")}`
+                  : "Allowed emails: Public link"}
+              </div>
+            </div>
+            <div className="flex shrink-0 space-x-1">
+              <Button
+                className="hover:text-foreground"
+                data-testid={`share-link-copy-${link.id}`}
+                onClick={() => void handleCopy(link.token)}
+                size="icon-sm"
+                title="Copy Link"
+                variant="ghost"
               >
-                {link.is_public ? "Public" : "Restricted"}
-              </span>
-            </div>
-            <div className="mt-1 text-xs text-muted-foreground">
-              Created: {formatExplorerDate(link.created_at)}
-              <br />
-              Expires: {link.expires_at ? formatExplorerDate(link.expires_at) : "Never"}
-              <span> &bull; {renderDownloadSummary(link)}</span>
-            </div>
-            <div className="mt-2 text-xs text-muted-foreground">
-              {link.allowedEmails.length > 0
-                ? `Allowed emails: ${link.allowedEmails.join(", ")}`
-                : "Allowed emails: Public link"}
+                <Copy className="size-4" />
+              </Button>
+              <Button
+                className="hover:text-foreground"
+                data-testid={`share-link-edit-${link.id}`}
+                onClick={() => {
+                  setEditingLinkId(link.id);
+                  setEmailDraft(link.allowedEmails.join(", "));
+                  setFormError(null);
+                  setMaxDownloadsDraft(link.max_downloads?.toString() ?? "");
+                }}
+                size="icon-sm"
+                title="Edit Link Settings"
+                variant="ghost"
+              >
+                <Pencil className="size-4" />
+              </Button>
+              <Button
+                className="text-destructive hover:text-destructive"
+                data-testid={`share-link-revoke-${link.id}`}
+                onClick={() => void handleRevoke(link.id)}
+                size="icon-sm"
+                title="Revoke Link"
+                variant="ghost"
+              >
+                <Trash2 className="size-4" />
+              </Button>
             </div>
           </div>
-          <div className="flex shrink-0 space-x-1">
-            <Button
-              className="hover:text-foreground"
-              data-testid={`share-link-copy-${link.id}`}
-              onClick={() => void handleCopy(link.token)}
-              size="icon-sm"
-              title="Copy Link"
-              variant="ghost"
-            >
-              <Copy className="size-4" />
-            </Button>
-            <Button
-              className="hover:text-foreground"
-              data-testid={`share-link-edit-${link.id}`}
-              onClick={() => {
-                setEditingLinkId(link.id);
-                setEmailDraft(link.allowedEmails.join(", "));
-                setFormError(null);
-                setMaxDownloadsDraft(link.max_downloads?.toString() ?? "");
-              }}
-              size="icon-sm"
-              title="Edit Link Settings"
-              variant="ghost"
-            >
-              <Pencil className="size-4" />
-            </Button>
-            <Button
-              className="text-destructive hover:text-destructive"
-              data-testid={`share-link-revoke-${link.id}`}
-              onClick={() => void handleRevoke(link.id)}
-              size="icon-sm"
-              title="Revoke Link"
-              variant="ghost"
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          </div>
-        </div>
           {editingLinkId === link.id ? (
             <div className="mt-3 space-y-2 border-t pt-3">
               <label className="text-xs font-medium text-foreground" htmlFor={`emails-${link.id}`}>
