@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FilesLibrary } from "@/components/files/files-library";
 import { filesExplorerQueryKey } from "@/lib/files/files-explorer-query";
 import type { FileListItem, FolderListItem } from "@/lib/files/types";
+import { trashQueryKey, trashSummaryQueryKey } from "@/lib/trash/trash-query";
 
 const mocks = vi.hoisted(() => ({
   bulkDeleteAction: vi.fn(),
@@ -325,6 +326,25 @@ describe("FilesLibrary", () => {
     expect(mocks.toastError).not.toHaveBeenCalled();
   });
 
+  it("invalidates the trash queries after deleting a file", async () => {
+    mocks.deleteFileAction.mockResolvedValue({
+      deletedAt: "2026-03-21T00:00:00.000Z",
+      fileId: "file-1",
+    });
+    const rendered = renderLibrary([createFile()]);
+    const invalidateSpy = vi.spyOn(rendered.queryClient, "invalidateQueries");
+
+    fireEvent.click(screen.getByRole("button", { name: "List" }));
+    fireEvent.click(screen.getByLabelText("Select report.pdf"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: trashQueryKey });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: trashSummaryQueryKey });
+    });
+  });
+
   it("opens a folder when its name is clicked", async () => {
     renderLibrary(
       [createFile({ id: "inside", folderId: "folder-1", name: "inside.pdf" })],
@@ -494,6 +514,20 @@ describe("FilesLibrary", () => {
 
     expect(mocks.deleteFolderAction).toHaveBeenCalledWith("folder-1");
     expect(screen.queryByText("Projects")).toBeNull();
+  });
+
+  it("invalidates the trash queries after deleting a folder", async () => {
+    mocks.deleteFolderAction.mockResolvedValue({ deletedFiles: 0, deletedFolders: 1 });
+    const rendered = renderLibrary([], [createFolder()]);
+    const invalidateSpy = vi.spyOn(rendered.queryClient, "invalidateQueries");
+
+    chooseFolderAction("Projects", "Delete");
+    fireEvent.click(screen.getByRole("button", { name: "Delete folder" }));
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: trashQueryKey });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: trashSummaryQueryKey });
+    });
   });
 
   it("restores a deleted folder when the server action fails", async () => {

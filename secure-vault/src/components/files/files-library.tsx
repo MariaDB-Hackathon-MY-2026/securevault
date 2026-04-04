@@ -43,6 +43,7 @@ import type {
   FilesExplorerData,
   FolderListItem,
 } from "@/lib/files/types";
+import { trashQueryKey, trashSummaryQueryKey } from "@/lib/trash/trash-query";
 
 type FilesLibraryProps = {
   canUpload: boolean;
@@ -223,6 +224,13 @@ export function FilesLibrary({
 
   async function invalidateExplorer() {
     await queryClient.invalidateQueries({ queryKey: filesExplorerQueryKey });
+  }
+
+  async function invalidateTrash() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: trashQueryKey }),
+      queryClient.invalidateQueries({ queryKey: trashSummaryQueryKey }),
+    ]);
   }
 
   function updateExplorerDataInCache(
@@ -483,6 +491,7 @@ export function FilesLibrary({
 
         setDeleteDialogState(null);
         clearSelection();
+        await invalidateTrash();
         toast.success(deleteDialogState.fileIds.length > 1 ? "Files deleted" : "File deleted");
       } catch (error) {
         queryClient.setQueryData(filesExplorerQueryKey, previousExplorerData);
@@ -521,6 +530,7 @@ export function FilesLibrary({
     try {
       await deleteFolderAction(deleteDialogState.folderId);
       setDeleteDialogState(null);
+      await invalidateTrash();
       toast.success("Folder deleted");
     } catch (error) {
       queryClient.setQueryData(filesExplorerQueryKey, previousExplorerData);

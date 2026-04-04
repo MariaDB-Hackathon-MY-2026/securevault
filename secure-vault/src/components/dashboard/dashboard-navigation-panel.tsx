@@ -5,7 +5,9 @@ import Link from "next/link";
 import { logoutAction } from "@/app/(dashboard)/actions";
 import { EmailVerificationStatus } from "@/components/auth/email-verification-status";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { useTrashSummaryQuery } from "@/hooks/use-trash-summary-query";
 import type { CurrentUserClient } from "@/lib/auth/current-user-client";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +30,7 @@ export function DashboardNavigationPanel({
     100,
     Math.round((user.storage_used / Math.max(user.storage_quota, 1)) * 100),
   );
+  const { data: trashSummary } = useTrashSummaryQuery();
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
@@ -63,6 +66,11 @@ export function DashboardNavigationPanel({
             >
               <Icon className="size-4" />
               <span>{label}</span>
+              {label === "Trash" && (trashSummary?.totalRootItemCount ?? 0) > 0 ? (
+                <Badge className="ml-auto min-w-6 justify-center px-1.5" variant="secondary">
+                  {trashSummary?.totalRootItemCount}
+                </Badge>
+              ) : null}
             </Link>
           );
         })}
@@ -80,6 +88,9 @@ export function DashboardNavigationPanel({
         />
         <p className="mt-3 text-xs text-muted-foreground">
           {user.storage_used.toLocaleString()} of {user.storage_quota.toLocaleString()} bytes used
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Trashed files still count toward quota until they are permanently deleted.
         </p>
       </div>
     </div>
