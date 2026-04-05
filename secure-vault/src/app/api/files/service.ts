@@ -5,6 +5,24 @@ import { MariadbConnection } from "@/lib/db";
 import { files, folders } from "@/lib/db/schema";
 import { sanitizeFilename } from "@/lib/crypto";
 import type { FileListItem, FolderListItem, StorageUsage } from "@/lib/files/types";
+import type {
+  ExpiredUploadCleanupResult,
+  TrashPageData,
+  TrashPurgeResult,
+  TrashSummary,
+} from "@/lib/trash/types";
+import { collectFolderSubtreeIds } from "@/lib/trash/trash-utils";
+import {
+  cleanupExpiredUploads as cleanupExpiredUploadsInternal,
+  emptyTrash as emptyTrashInternal,
+  getTrashSummary as getTrashSummaryInternal,
+  listTrashForUser as listTrashForUserInternal,
+  permanentlyDeleteFile as permanentlyDeleteFileInternal,
+  permanentlyDeleteFolder as permanentlyDeleteFolderInternal,
+  purgeExpiredTrash as purgeExpiredTrashInternal,
+  restoreFile as restoreFileInternal,
+  restoreFolder as restoreFolderInternal,
+} from "@/app/api/files/trash-service";
 
 export const MAX_BULK_FILE_IDS = 500;
 const MAX_NAME_LENGTH = 255;
@@ -188,44 +206,6 @@ function assertValidSanitizedName(name: string, label: string) {
   }
 
   return name;
-}
-
-function collectFolderSubtreeIds(
-  rootFolderId: string,
-  folderRecords: Array<Pick<ScopedFolderRecord, "id" | "parentId">>,
-) {
-  const childFolderIdsByParentId = new Map<string, string[]>();
-
-  for (const folder of folderRecords) {
-    if (!folder.parentId) {
-      continue;
-    }
-
-    const childFolderIds = childFolderIdsByParentId.get(folder.parentId) ?? [];
-    childFolderIds.push(folder.id);
-    childFolderIdsByParentId.set(folder.parentId, childFolderIds);
-  }
-
-  const seenFolderIds = new Set<string>();
-  const folderIdsToVisit = [rootFolderId];
-  const subtreeFolderIds: string[] = [];
-
-  while (folderIdsToVisit.length > 0) {
-    const currentFolderId = folderIdsToVisit.pop();
-
-    if (!currentFolderId || seenFolderIds.has(currentFolderId)) {
-      continue;
-    }
-
-    seenFolderIds.add(currentFolderId);
-    subtreeFolderIds.push(currentFolderId);
-
-    for (const childFolderId of childFolderIdsByParentId.get(currentFolderId) ?? []) {
-      folderIdsToVisit.push(childFolderId);
-    }
-  }
-
-  return subtreeFolderIds;
 }
 
 function assertNoCircularFolderMove(
@@ -645,4 +625,48 @@ export async function getStorageUsage(userId: string): Promise<StorageUsage> {
     fileCount: result[0]?.fileCount ?? 0,
     totalBytes: result[0]?.totalBytes ?? 0,
   };
+}
+
+export async function listTrashForUser(userId: string): Promise<TrashPageData> {
+  return listTrashForUserInternal(userId);
+}
+
+export async function getTrashSummary(userId: string): Promise<TrashSummary> {
+  return getTrashSummaryInternal(userId);
+}
+
+export async function restoreFile(userId: string, fileId: string): Promise<FileListItem> {
+  return restoreFileInternal(userId, fileId);
+}
+
+export async function restoreFolder(userId: string, folderId: string) {
+  return restoreFolderInternal(userId, folderId);
+}
+
+export async function permanentlyDeleteFile(
+  userId: string,
+  fileId: string,
+): Promise<TrashPurgeResult> {
+  return permanentlyDeleteFileInternal(userId, fileId);
+}
+
+export async function permanentlyDeleteFolder(
+  userId: string,
+  folderId: string,
+): Promise<TrashPurgeResult> {
+  return permanentlyDeleteFolderInternal(userId, folderId);
+}
+
+export async function emptyTrash(userId: string): Promise<TrashPurgeResult> {
+  return emptyTrashInternal(userId);
+}
+
+export async function purgeExpiredTrash(now = new Date()): Promise<TrashPurgeResult> {
+  return purgeExpiredTrashInternal(now);
+}
+
+export async function cleanupExpiredUploads(
+  now = new Date(),
+): Promise<ExpiredUploadCleanupResult> {
+  return cleanupExpiredUploadsInternal(now);
 }

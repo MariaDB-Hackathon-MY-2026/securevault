@@ -37,11 +37,12 @@ export function FilesPageContent({
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle>Storage quota</CardTitle>
-            <CardDescription>Current account storage allocation</CardDescription>
+            <CardTitle>Active library size</CardTitle>
+            <CardDescription>Ready files currently visible in your library</CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            {storageUsage.totalBytes.toLocaleString()} / {user?.storage_quota.toLocaleString()} bytes used
+            {storageUsage.totalBytes.toLocaleString()} bytes in active files. Trashed items still count toward the{" "}
+            {user?.storage_quota.toLocaleString()} byte account quota until permanently deleted.
           </CardContent>
         </Card>
         <Card>
