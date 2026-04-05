@@ -14,6 +14,7 @@ import { MariadbConnection } from "@/lib/db";
 import {
   cleanupExpiredUploads,
   emptyTrash,
+  getTrashSummary,
   listTrashForUser,
   permanentlyDeleteFile,
   restoreFile,
@@ -166,6 +167,31 @@ describe("trash service", () => {
         totalBytes: 512,
       }),
     );
+  });
+
+  it("builds the trash summary from lightweight root-detection data", async () => {
+    const deletedAt = new Date("2026-04-02T00:00:00.000Z");
+    const harness = createDbHarness({
+      selectResults: [[
+        { deletedAt, id: "deleted-root", parentId: null },
+        { deletedAt, id: "nested-deleted", parentId: "deleted-root" },
+        { deletedAt: null, id: "active-parent", parentId: null },
+      ], [
+        { deletedAt, folderId: null },
+        { deletedAt, folderId: "deleted-root" },
+        { deletedAt, folderId: "active-parent" },
+      ], [
+        { deletedAt, id: "deleted-root", parentId: null },
+        { deletedAt, id: "nested-deleted", parentId: "deleted-root" },
+      ]],
+    });
+    vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+    await expect(getTrashSummary("user-a")).resolves.toEqual({
+      rootFileCount: 2,
+      rootFolderCount: 1,
+      totalRootItemCount: 3,
+    });
   });
 
   it("rejects file restore when the parent folder is still deleted", async () => {

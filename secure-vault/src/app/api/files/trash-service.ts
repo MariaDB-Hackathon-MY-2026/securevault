@@ -51,6 +51,9 @@ type ScopedFolderRecord = {
   userId: string;
 };
 
+type TrashSummaryFolderRecord = Pick<ScopedFolderRecord, "deletedAt" | "id" | "parentId">;
+type TrashSummaryFileRecord = Pick<ScopedFileRecord, "deletedAt" | "folderId">;
+
 type PurgeManifestFile = {
   chunkKeys: string[];
   fileId: string;
@@ -225,7 +228,54 @@ async function listDeletedFoldersForUser(userId: string) {
     .where(and(eq(folders.user_id, userId), sql`${folders.deleted_at} is not null`));
 }
 
-function buildTrashSummary(items: Array<TrashFileItem | TrashFolderItem>): TrashSummary {
+async function listTrashSummaryFolderRecords(
+  userId: string,
+  options?: { includeDeleted?: boolean },
+) {
+  const db = MariadbConnection.getConnection();
+  const includeDeleted = options?.includeDeleted ?? false;
+
+  return db
+    .select({
+      deletedAt: folders.deleted_at,
+      id: folders.id,
+      parentId: folders.parent_id,
+    })
+    .from(folders)
+    .where(
+      and(
+        eq(folders.user_id, userId),
+        ...(includeDeleted ? [] : [isNull(folders.deleted_at)]),
+      ),
+    );
+}
+
+async function listTrashSummaryFilesForUser(userId: string) {
+  const db = MariadbConnection.getConnection();
+
+  return db
+    .select({
+      deletedAt: files.deleted_at,
+      folderId: files.folder_id,
+    })
+    .from(files)
+    .where(and(eq(files.user_id, userId), sql`${files.deleted_at} is not null`));
+}
+
+async function listTrashSummaryDeletedFoldersForUser(userId: string) {
+  const db = MariadbConnection.getConnection();
+
+  return db
+    .select({
+      deletedAt: folders.deleted_at,
+      id: folders.id,
+      parentId: folders.parent_id,
+    })
+    .from(folders)
+    .where(and(eq(folders.user_id, userId), sql`${folders.deleted_at} is not null`));
+}
+
+function buildTrashSummaryFromItems(items: Array<TrashFileItem | TrashFolderItem>): TrashSummary {
   const rootFolderCount = items.filter((item) => item.kind === "folder").length;
   const rootFileCount = items.length - rootFolderCount;
 
@@ -233,6 +283,26 @@ function buildTrashSummary(items: Array<TrashFileItem | TrashFolderItem>): Trash
     rootFileCount,
     rootFolderCount,
     totalRootItemCount: items.length,
+  };
+}
+
+function buildTrashSummaryFromRows(options: {
+  deletedFiles: TrashSummaryFileRecord[];
+  deletedFolders: TrashSummaryFolderRecord[];
+  folderRecords: TrashSummaryFolderRecord[];
+}): TrashSummary {
+  const folderMap = new Map(options.folderRecords.map((folder) => [folder.id, folder]));
+  const rootFolderCount = options.deletedFolders.filter((folder) =>
+    isRootDeletedFolder(folder, folderMap),
+  ).length;
+  const rootFileCount = options.deletedFiles.filter((file) =>
+    isRootDeletedFile(file, folderMap),
+  ).length;
+
+  return {
+    rootFileCount,
+    rootFolderCount,
+    totalRootItemCount: rootFileCount + rootFolderCount,
   };
 }
 
@@ -275,8 +345,22 @@ async function buildTrashPageData(userId: string): Promise<TrashPageData> {
 
   return {
     items,
-    summary: buildTrashSummary(items),
+    summary: buildTrashSummaryFromItems(items),
   };
+}
+
+async function buildTrashSummaryData(userId: string): Promise<TrashSummary> {
+  const [folderRecords, deletedFiles, deletedFolders] = await Promise.all([
+    listTrashSummaryFolderRecords(userId, { includeDeleted: true }),
+    listTrashSummaryFilesForUser(userId),
+    listTrashSummaryDeletedFoldersForUser(userId),
+  ]);
+
+  return buildTrashSummaryFromRows({
+    deletedFiles,
+    deletedFolders,
+    folderRecords,
+  });
 }
 
 async function loadFilesForPurge(
@@ -460,7 +544,7 @@ async function deleteR2ObjectsFromManifest(manifest: PurgeManifest) {
           });
         }
       }
-    } catch (error) {
+    } catch {
       console.error("Unexpected R2 list failure during trash purge", {
         fileId: file.fileId,
         prefix,
@@ -563,8 +647,7 @@ export async function listTrashForUser(userId: string): Promise<TrashPageData> {
 }
 
 export async function getTrashSummary(userId: string): Promise<TrashSummary> {
-  const trash = await buildTrashPageData(userId);
-  return trash.summary;
+  return buildTrashSummaryData(userId);
 }
 
 export async function restoreFile(userId: string, fileId: string): Promise<FileListItem> {

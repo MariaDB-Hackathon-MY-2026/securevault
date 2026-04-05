@@ -11,7 +11,7 @@ import {
   restoreFileAction,
   restoreFolderAction,
 } from "@/app/(dashboard)/trash/actions";
-import { formatExplorerDate, formatFileSize } from "@/components/files/file-browser-utils";
+import { TrashItemCard } from "@/components/trash/trash-item-card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,9 +22,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTrashQuery } from "@/hooks/use-trash-query";
 import { filesExplorerQueryKey } from "@/lib/files/files-explorer-query";
 import { trashQueryKey, trashSummaryQueryKey } from "@/lib/trash/trash-query";
@@ -61,44 +60,6 @@ function removeTrashItem(data: TrashPageData, itemId: string): TrashPageData {
       totalRootItemCount: items.length,
     },
   };
-}
-
-function formatRemainingDays(purgeAt: string) {
-  const remainingMs = new Date(purgeAt).getTime() - Date.now();
-  const remainingDays = Math.max(Math.ceil(remainingMs / (24 * 60 * 60 * 1000)), 0);
-
-  if (remainingDays === 1) {
-    return "1 day remaining";
-  }
-
-  return `${remainingDays} days remaining`;
-}
-
-function formatCount(count: number, singularLabel: string, pluralLabel = `${singularLabel}s`) {
-  return `${count} ${count === 1 ? singularLabel : pluralLabel}`;
-}
-
-function TrashItemDetails({ item }: { item: TrashItem }) {
-  if (item.kind === "file") {
-    return (
-      <>
-        <p className="text-sm text-muted-foreground">{item.mimeType}</p>
-        <p className="text-sm text-muted-foreground">Size: {formatFileSize(item.size)}</p>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <p className="text-sm text-muted-foreground">
-        {formatCount(item.descendantFileCount, "file")} and{" "}
-        {formatCount(item.descendantFolderCount, "folder")} in this deleted subtree
-      </p>
-      <p className="text-sm text-muted-foreground">
-        Total size: {formatFileSize(item.totalBytes)}
-      </p>
-    </>
-  );
 }
 
 export function TrashPageContent({ initialData }: TrashPageContentProps) {
@@ -215,6 +176,7 @@ export function TrashPageContent({ initialData }: TrashPageContentProps) {
         </div>
 
         <Button
+          data-testid="empty-trash-button"
           disabled={items.length === 0 || isEmptyPending}
           onClick={() => setConfirmState({ type: "empty-trash" })}
           variant="destructive"
@@ -238,7 +200,7 @@ export function TrashPageContent({ initialData }: TrashPageContentProps) {
       </div>
 
       {items.length === 0 ? (
-        <Card>
+        <Card data-testid="trash-empty-state">
           <CardHeader>
             <CardTitle>Nothing in trash</CardTitle>
             <CardDescription>
@@ -254,48 +216,22 @@ export function TrashPageContent({ initialData }: TrashPageContentProps) {
             const isPending = isRestorePending || isDeletePending || isEmptyPending;
 
             return (
-              <Card key={`${item.kind}-${item.id}`}>
-                <CardContent className="flex flex-col gap-4 p-6 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary">{item.kind === "folder" ? "Folder" : "File"}</Badge>
-                      <h3 className="text-lg font-semibold break-all">{item.name}</h3>
-                    </div>
-
-                    <TrashItemDetails item={item} />
-
-                    <div className="text-sm text-muted-foreground">
-                      <p>Deleted: {formatExplorerDate(item.deletedAt)}</p>
-                      <p>Purge date: {formatExplorerDate(item.purgeAt)}</p>
-                      <p>{formatRemainingDays(item.purgeAt)}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
-                    <Button
-                      disabled={isPending}
-                      onClick={() => void handleRestore(item)}
-                      variant="outline"
-                    >
-                      {isRestorePending ? "Restoring..." : "Restore"}
-                    </Button>
-                    <Button
-                      disabled={isPending}
-                      onClick={() => setConfirmState({ item, type: "delete-item" })}
-                      variant="destructive"
-                    >
-                      {isDeletePending ? "Deleting..." : "Delete permanently"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <TrashItemCard
+                isDeletePending={isDeletePending}
+                isPending={isPending}
+                isRestorePending={isRestorePending}
+                item={item}
+                key={`${item.kind}-${item.id}`}
+                onDelete={(selectedItem) => setConfirmState({ item: selectedItem, type: "delete-item" })}
+                onRestore={handleRestore}
+              />
             );
           })}
         </div>
       )}
 
       <AlertDialog open={confirmState !== null} onOpenChange={(open) => !open && setConfirmState(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent data-testid="trash-confirm-dialog">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {confirmState?.type === "empty-trash" ? "Empty trash?" : "Delete permanently?"}
@@ -307,11 +243,15 @@ export function TrashPageContent({ initialData }: TrashPageContentProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isEmptyPending || pendingDeleteId !== null}>
+            <AlertDialogCancel
+              data-testid="trash-confirm-cancel"
+              disabled={isEmptyPending || pendingDeleteId !== null}
+            >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="trash-confirm-submit"
               disabled={isEmptyPending || pendingDeleteId !== null}
               onClick={(event) => {
                 event.preventDefault();

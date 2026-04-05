@@ -67,7 +67,11 @@ export function DashboardNavigationPanel({
               <Icon className="size-4" />
               <span>{label}</span>
               {label === "Trash" && (trashSummary?.totalRootItemCount ?? 0) > 0 ? (
-                <Badge className="ml-auto min-w-6 justify-center px-1.5" variant="secondary">
+                <Badge
+                  className="ml-auto min-w-6 justify-center px-1.5"
+                  data-testid="trash-nav-badge"
+                  variant="secondary"
+                >
                   {trashSummary?.totalRootItemCount}
                 </Badge>
               ) : null}

@@ -1,125 +1,263 @@
-import path from "node:path";
-
 import { expect, test, type Page } from "@playwright/test";
 
-import {
-  cleanupTestUserByEmail,
-  markTestUserEmailVerified,
-} from "./helpers/test-user-cleanup";
 import { buildTestUserCredentials, type TestUserCredentials } from "./helpers/test-user";
+import {
+  clearBrowserStorage,
+  confirmAlertDialog,
+  createFolder,
+  getFileNameButton,
+  getFolderIdForUser,
+  getGridFolderButton,
+  getTrashBadge,
+  getTrashItemCard,
+  getUserIdByEmail,
+  gotoFiles,
+  gotoTrash,
+  moveFileByNameForUser,
+  openFileActions,
+  openFolderActions,
+  signUpAndBypassVerification,
+  softDeleteFileByNameForUser,
+  softDeleteFolderByNameForUser,
+  uploadFiles,
+} from "./helpers/trash-helpers";
+import { cleanupTestUserByEmail } from "./helpers/test-user-cleanup";
 
-const SAMPLE_DIR = path.resolve(process.cwd(), "sample_upload_test_file");
+async function deleteFileFromFiles(page: Page, fileName: string) {
+  await openFileActions(page, fileName);
+  await page.getByRole("menuitem", { name: "Delete" }).click();
 
-async function signUpAndBypassVerification(page: Page, credentials: TestUserCredentials) {
-  await cleanupTestUserByEmail(credentials.email);
-
-  await page.goto("/signup");
-  await page.getByLabel("Name").fill(credentials.name);
-  await page.getByLabel("Email").fill(credentials.email);
-  await page.getByLabel("Password").fill(credentials.password);
-  await page.getByRole("button", { name: "Create an account" }).click();
-  await page.waitForURL("**/activity");
-
-  await markTestUserEmailVerified(credentials.email);
+  const deleteDialog = page
+    .getByRole("alertdialog")
+    .filter({ has: page.getByRole("button", { exact: true, name: "Delete" }) });
+  await expect(deleteDialog).toBeVisible();
+  await confirmAlertDialog(deleteDialog, "Delete");
+  await expect(deleteDialog).toBeHidden();
+  await expect(getFileNameButton(page, fileName)).toHaveCount(0);
 }
 
-async function ensureUploadDialogOpen(page: Page) {
-  const uploadDialog = page.getByRole("dialog", { name: "Upload Files" });
+async function deleteFolderFromFiles(page: Page, folderName: string) {
+  await openFolderActions(page, folderName);
+  await page.getByRole("menuitem", { name: "Delete" }).click();
 
-  if (await uploadDialog.isVisible().catch(() => false)) {
-    return;
-  }
-
-  await page.goto("/files");
-  await page.reload();
-  await page.getByRole("button", { name: "Upload files" }).click();
-  await expect(uploadDialog).toBeVisible();
+  const deleteDialog = page.getByRole("alertdialog", { name: "Delete folder" });
+  await expect(deleteDialog).toBeVisible();
+  await confirmAlertDialog(deleteDialog, "Delete folder");
+  await expect(deleteDialog).toBeHidden();
+  await expect(getGridFolderButton(page, folderName)).toHaveCount(0);
 }
 
-async function uploadFiles(page: Page, fileNames: readonly string[]) {
-  const filePaths = fileNames.map((fileName) => path.join(SAMPLE_DIR, fileName));
-
-  await ensureUploadDialogOpen(page);
-  await page.locator('input[type="file"]').setInputFiles(filePaths);
-
-  for (const fileName of fileNames) {
-    await expect(page.getByRole("dialog", { name: "Upload Files" })).toContainText(fileName, {
-      timeout: 120_000,
-    });
-    await expect(page.getByRole("dialog", { name: "Upload Files" })).toContainText("Done", {
-      timeout: 180_000,
-    });
-  }
-
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "Upload Files" })).toBeHidden();
+async function confirmTrashPermanentDelete(page: Page) {
+  const confirmDialog = page.getByTestId("trash-confirm-dialog");
+  await expect(confirmDialog).toBeVisible();
+  await confirmAlertDialog(confirmDialog, "Delete permanently");
+  await expect(confirmDialog).toBeHidden();
 }
 
-async function createFolder(page: Page, name: string) {
-  await page.goto("/files");
-  await page.getByRole("button", { name: "New folder" }).click();
-  await page.getByLabel("Folder name").fill(name);
-  await page.getByRole("button", { name: "Create folder" }).click();
-  await expect(page.getByRole("button", { name })).toBeVisible();
+async function confirmEmptyTrash(page: Page) {
+  const confirmDialog = page.getByTestId("trash-confirm-dialog");
+  await expect(confirmDialog).toBeVisible();
+  await confirmAlertDialog(confirmDialog, "Empty Trash");
+  await expect(confirmDialog).toBeHidden();
 }
 
-async function openFileActions(page: Page, fileName: string) {
-  await page.locator(`[data-testid^="file-actions-"][data-test-file-name="${fileName}"]`).first().click();
+async function setUpUserWithUploads(
+  page: Page,
+  credentials: TestUserCredentials,
+  fileNames: readonly string[],
+) {
+  await signUpAndBypassVerification(page, credentials);
+  await gotoFiles(page);
+  await uploadFiles(page, fileNames);
 }
 
-async function openFolderActions(page: Page, folderName: string) {
-  await page.locator(`[data-testid^="folder-actions-"][data-test-folder-name="${folderName}"]`).first().click();
+async function setUpDeletedFolderSubtree(page: Page, credentials: TestUserCredentials) {
+  await setUpUserWithUploads(page, credentials, ["tiny.pdf"]);
+  await createFolder(page, "Projects");
+  await getGridFolderButton(page, "Projects").click();
+  await createFolder(page, "Taxes");
+
+  const userId = await getUserIdByEmail(credentials.email);
+  expect(userId).not.toBeNull();
+  await moveFileByNameForUser(userId!, "tiny.pdf", "Taxes");
+
+  await gotoFiles(page);
+  await deleteFolderFromFiles(page, "Projects");
+  await gotoTrash(page);
+
+  return { userId: userId! };
 }
 
 test.describe("trash flows", () => {
   test.afterEach(async ({ page }, testInfo) => {
     const { email } = buildTestUserCredentials(testInfo);
 
-    await page.context().clearCookies();
+    await clearBrowserStorage(page);
     await cleanupTestUserByEmail(email);
   });
 
-  test("deletes and restores a standalone file through trash", async ({ page }, testInfo) => {
+  test("deletes a standalone file from files and shows it in trash with badge state", async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     const credentials = buildTestUserCredentials(testInfo);
 
-    await signUpAndBypassVerification(page, credentials);
-    await uploadFiles(page, ["tiny.pdf"]);
+    await setUpUserWithUploads(page, credentials, ["tiny.pdf"]);
+    await deleteFileFromFiles(page, "tiny.pdf");
 
-    await openFileActions(page, "tiny.pdf");
-    await page.getByRole("menuitem", { name: "Delete" }).click();
-    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(getTrashBadge(page)).toHaveText("1");
+    await gotoTrash(page);
+    await expect(getTrashItemCard(page, "tiny.pdf")).toBeVisible();
 
-    await expect(page.getByRole("button", { name: "tiny.pdf" })).toHaveCount(0);
-    await page.getByRole("link", { name: "Trash" }).click();
-    await expect(page).toHaveURL(/\/trash$/);
-    await expect(page.getByText("tiny.pdf")).toBeVisible();
+    await page.reload();
+    await expect(getTrashBadge(page)).toHaveText("1");
+    await expect(getTrashItemCard(page, "tiny.pdf")).toBeVisible();
+  });
 
-    await page.getByRole("button", { name: "Restore" }).click();
-    await expect(page.getByText("tiny.pdf")).toHaveCount(0);
+  test("restores a standalone file from trash back to files", async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    const credentials = buildTestUserCredentials(testInfo);
 
-    await page.getByRole("link", { name: "Files" }).click();
-    await expect(page.getByRole("button", { name: "tiny.pdf" })).toBeVisible();
+    await setUpUserWithUploads(page, credentials, ["tiny.pdf"]);
+    await deleteFileFromFiles(page, "tiny.pdf");
+    await gotoTrash(page);
+
+    const trashItem = getTrashItemCard(page, "tiny.pdf");
+    await trashItem.getByRole("button", { name: "Restore" }).click();
+    await expect(trashItem).toHaveCount(0);
+    await expect(getTrashBadge(page)).toHaveCount(0);
+
+    await gotoFiles(page);
+    await expect(getFileNameButton(page, "tiny.pdf")).toBeVisible();
   });
 
   test("shows a deleted folder subtree once in trash instead of listing descendants separately", async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     const credentials = buildTestUserCredentials(testInfo);
 
-    await signUpAndBypassVerification(page, credentials);
-    await createFolder(page, "Projects");
-    await page.getByRole("button", { name: "Projects" }).click();
-    await createFolder(page, "Taxes");
-    await uploadFiles(page, ["tiny.pdf"]);
+    await setUpDeletedFolderSubtree(page, credentials);
 
-    await page.getByRole("button", { name: "All files" }).click();
-    await openFolderActions(page, "Projects");
-    await page.getByRole("menuitem", { name: "Delete" }).click();
-    await page.getByRole("button", { name: "Delete folder" }).click();
-
-    await page.getByRole("link", { name: "Trash" }).click();
-    await expect(page.getByText("Projects")).toBeVisible();
-    await expect(page.getByText("tiny.pdf")).toHaveCount(0);
+    await expect(getTrashItemCard(page, "Projects")).toBeVisible();
+    await expect(getTrashItemCard(page, "tiny.pdf")).toHaveCount(0);
     await expect(page.getByText("1 file and 1 folder in this deleted subtree")).toBeVisible();
+    await expect(getTrashBadge(page)).toHaveText("1");
+  });
+
+  test("restores a deleted folder subtree to its original hierarchy", async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    const credentials = buildTestUserCredentials(testInfo);
+
+    await setUpDeletedFolderSubtree(page, credentials);
+
+    const trashItem = getTrashItemCard(page, "Projects");
+    await trashItem.getByRole("button", { name: "Restore" }).click();
+    await expect(trashItem).toHaveCount(0);
+    await expect(getTrashBadge(page)).toHaveCount(0);
+
+    await gotoFiles(page);
+    await expect(getGridFolderButton(page, "Projects")).toBeVisible();
+    await getGridFolderButton(page, "Projects").click();
+    await expect(getGridFolderButton(page, "Taxes")).toBeVisible();
+    await getGridFolderButton(page, "Taxes").click();
+    await expect(getFileNameButton(page, "tiny.pdf")).toBeVisible();
+  });
+
+  test("permanently deletes a trashed file and keeps it unrecoverable", async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    const credentials = buildTestUserCredentials(testInfo);
+
+    await setUpUserWithUploads(page, credentials, ["tiny.pdf"]);
+    await deleteFileFromFiles(page, "tiny.pdf");
+    await gotoTrash(page);
+
+    const trashItem = getTrashItemCard(page, "tiny.pdf");
+    await trashItem.getByRole("button", { name: "Delete permanently" }).click();
+    await confirmTrashPermanentDelete(page);
+    await expect(trashItem).toHaveCount(0);
+    await expect(getTrashBadge(page)).toHaveCount(0);
+
+    await gotoFiles(page);
+    await expect(getFileNameButton(page, "tiny.pdf")).toHaveCount(0);
+    await gotoTrash(page);
+    await expect(getTrashItemCard(page, "tiny.pdf")).toHaveCount(0);
+  });
+
+  test("permanently deletes a trashed folder subtree and removes all descendants", async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    const credentials = buildTestUserCredentials(testInfo);
+
+    await setUpDeletedFolderSubtree(page, credentials);
+
+    const trashItem = getTrashItemCard(page, "Projects");
+    await trashItem.getByRole("button", { name: "Delete permanently" }).click();
+    await confirmTrashPermanentDelete(page);
+    await expect(trashItem).toHaveCount(0);
+    await expect(page.getByTestId("trash-empty-state")).toBeVisible();
+
+    await gotoFiles(page);
+    await expect(getGridFolderButton(page, "Projects")).toHaveCount(0);
+    await expect(getFileNameButton(page, "tiny.pdf")).toHaveCount(0);
+  });
+
+  test("empties trash with mixed standalone files and deleted folders", async ({ page }, testInfo) => {
+    test.setTimeout(240_000);
+    const credentials = buildTestUserCredentials(testInfo);
+
+    await setUpUserWithUploads(page, credentials, ["tiny.pdf", "photo.png"]);
+    await createFolder(page, "Projects");
+    await getGridFolderButton(page, "Projects").click();
+    await createFolder(page, "Taxes");
+
+    const userId = await getUserIdByEmail(credentials.email);
+    expect(userId).not.toBeNull();
+    await moveFileByNameForUser(userId!, "tiny.pdf", "Taxes");
+
+    await softDeleteFileByNameForUser(userId!, "photo.png");
+    await softDeleteFolderByNameForUser(userId!, "Projects");
+    await gotoTrash(page);
+
+    await expect(getTrashItemCard(page, "photo.png")).toBeVisible();
+    await expect(getTrashItemCard(page, "Projects")).toBeVisible();
+
+    await page.getByTestId("empty-trash-button").click();
+    await confirmEmptyTrash(page);
+
+    await expect(page.getByTestId("trash-empty-state")).toBeVisible();
+    await expect(getTrashBadge(page)).toHaveCount(0);
+
+    await page.reload();
+    await expect(page.getByTestId("trash-empty-state")).toBeVisible();
+    await expect(getTrashBadge(page)).toHaveCount(0);
+  });
+
+  test("surfaces a restore conflict when the parent folder is deleted after trash loads", async ({ page }, testInfo) => {
+    test.setTimeout(240_000);
+    const credentials = buildTestUserCredentials(testInfo);
+
+    await setUpUserWithUploads(page, credentials, ["tiny.pdf"]);
+    await createFolder(page, "Projects");
+
+    const userId = await getUserIdByEmail(credentials.email);
+    expect(userId).not.toBeNull();
+    await moveFileByNameForUser(userId!, "tiny.pdf", "Projects");
+    await softDeleteFileByNameForUser(userId!, "tiny.pdf");
+
+    await gotoTrash(page);
+    const trashItem = getTrashItemCard(page, "tiny.pdf");
+    await expect(trashItem).toBeVisible();
+
+    await softDeleteFolderByNameForUser(userId!, "Projects");
+
+    await trashItem.getByRole("button", { name: "Restore" }).click();
+    await expect(getTrashItemCard(page, "Projects")).toBeVisible();
+    await expect(getTrashItemCard(page, "tiny.pdf")).toHaveCount(0);
+    await expect(getTrashBadge(page)).toHaveText("1");
+
+    await gotoFiles(page);
+    await expect(getFileNameButton(page, "tiny.pdf")).toHaveCount(0);
+
+    await gotoTrash(page);
+    await expect(getTrashItemCard(page, "Projects")).toBeVisible();
+
+    const deletedFolderId = await getFolderIdForUser(userId!, "Projects");
+    expect(deletedFolderId).not.toBeNull();
   });
 });
