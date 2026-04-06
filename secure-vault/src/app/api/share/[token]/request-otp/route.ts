@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getClientIpFromHeaders } from "@/lib/auth/request-metadata";
+import {
+  createRateLimitResponse,
+  enforceRateLimit,
+  otpRequestLimiter,
+} from "@/lib/rate-limit";
 import { createAndSendOtp, isShareOrOtpError } from "@/lib/sharing/otp-service";
 
 export async function POST(
@@ -8,6 +14,15 @@ export async function POST(
 ) {
   try {
     const { token } = await context.params;
+    const rateLimit = await enforceRateLimit(
+      otpRequestLimiter,
+      `${getClientIpFromHeaders(request.headers)}:${token}`,
+    );
+
+    if (!rateLimit.success) {
+      return createRateLimitResponse(rateLimit, otpRequestLimiter.message);
+    }
+
     const payload = (await request.json().catch(() => null)) as { email?: unknown } | null;
     const email = typeof payload?.email === "string" ? payload.email : "";
 

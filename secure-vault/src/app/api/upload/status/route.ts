@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/get-current-user";
+import {
+  createRateLimitResponse,
+  enforceRateLimit,
+  uploadLimiter,
+} from "@/lib/rate-limit";
 
 import {
   getUploadStatus,
@@ -14,6 +19,12 @@ export async function GET(req: NextRequest) {
 
     if (!user) {
       return createErrorResponse("Invalid credentials", 401);
+    }
+
+    const rateLimit = await enforceRateLimit(uploadLimiter, user.id);
+
+    if (!rateLimit.success) {
+      return createRateLimitResponse(rateLimit, uploadLimiter.message);
     }
 
     const input = validateUploadStatusSearchParams(req.nextUrl.searchParams);

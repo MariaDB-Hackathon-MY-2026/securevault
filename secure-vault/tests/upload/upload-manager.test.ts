@@ -4,6 +4,7 @@ const jobState = vi.hoisted(() => {
   type Status =
     | "queued"
     | "uploading"
+    | "waiting_for_slot"
     | "pausing"
     | "paused"
     | "cancelling"
@@ -257,6 +258,26 @@ describe("UploadManager", () => {
     manager.removeUpload(jobId);
     expect(manager.getSnapshot().uploads).toHaveLength(1);
     expect(job?.listenerCount()).toBe(1);
+  });
+
+  it("counts waiting_for_slot jobs as active so the queue does not over-schedule", () => {
+    const manager = UploadManager.getInstance();
+
+    manager.addFiles([
+      createFile("one.pdf"),
+      createFile("two.pdf"),
+      createFile("three.pdf"),
+      createFile("four.pdf"),
+    ]);
+
+    const jobs = jobState.MockUploadJob.getInstances();
+    jobs[0]?.setStatus("waiting_for_slot");
+
+    expect(jobs[3]?.start).not.toHaveBeenCalled();
+
+    jobs[0]?.setStatus("failed");
+
+    expect(jobs[3]?.start).toHaveBeenCalledTimes(1);
   });
 
   it("does not start a resumed job until a concurrency slot is free", () => {

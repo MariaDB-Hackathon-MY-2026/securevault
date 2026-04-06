@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getUserByEmail: vi.fn(),
   verifyPassword: vi.fn(),
   getRequestMetaData: vi.fn(),
+  enforceRateLimit: vi.fn(),
   createSession: vi.fn(),
   setAuthCookies: vi.fn(),
   redirect: vi.fn(),
@@ -22,6 +23,15 @@ vi.mock("@/lib/auth/password", () => ({
 vi.mock("@/lib/auth/request-metadata", () => ({
   getRequestMetaData: mocks.getRequestMetaData,
 }));
+
+vi.mock("@/lib/rate-limit", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/rate-limit")>("@/lib/rate-limit");
+
+  return {
+    ...actual,
+    enforceRateLimit: mocks.enforceRateLimit,
+  };
+});
 
 vi.mock("@/lib/auth/session", () => ({
   createSession: mocks.createSession,
@@ -66,6 +76,9 @@ describe("loginAction", () => {
     mocks.getRequestMetaData.mockResolvedValue({
       device_name: "Chrome on Windows",
       ip_address: "203.0.113.10",
+    });
+    mocks.enforceRateLimit.mockResolvedValue({
+      success: true,
     });
     mocks.createSession.mockResolvedValue({
       sessionToken: "session-token",
@@ -156,6 +169,7 @@ describe("loginAction", () => {
       error: "Invalid login email or password",
     });
 
+    expect(mocks.getRequestMetaData).toHaveBeenCalledTimes(1);
     expect(mocks.verifyPassword).not.toHaveBeenCalled();
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
@@ -169,7 +183,7 @@ describe("loginAction", () => {
       error: "Invalid login email or password",
     });
 
-    expect(mocks.getRequestMetaData).not.toHaveBeenCalled();
+    expect(mocks.getRequestMetaData).toHaveBeenCalledTimes(1);
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
@@ -182,8 +196,23 @@ describe("loginAction", () => {
       error: "Invalid login email or password",
     });
 
-    expect(mocks.getRequestMetaData).not.toHaveBeenCalled();
+    expect(mocks.getRequestMetaData).toHaveBeenCalledTimes(1);
     expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("returns a rate-limit error before database lookup when the limiter blocks the request", async () => {
+    const formData = buildLoginFormData();
+
+    mocks.enforceRateLimit.mockResolvedValueOnce({
+      success: false,
+    });
+
+    await expect(loginAction(undefined, formData)).resolves.toEqual({
+      error: "Too many attempts. Please try again later.",
+    });
+
+    expect(mocks.getUserByEmail).not.toHaveBeenCalled();
+    expect(mocks.verifyPassword).not.toHaveBeenCalled();
   });
 
   it("returns a generic error when session creation fails", async () => {

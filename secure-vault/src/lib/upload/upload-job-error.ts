@@ -1,8 +1,9 @@
-export type UploadJobStage = "init" | "status" | "chunk" | "complete" | "unknown";
+export type UploadJobStage = "init" | "status" | "start" | "chunk" | "complete" | "unknown";
 
 export type UploadJobErrorCode =
     | "INIT_FAILED"
     | "STATUS_FAILED"
+    | "START_FAILED"
     | "CHUNK_FAILED"
     | "COMPLETE_FAILED"
     | "PAUSED"
@@ -60,6 +61,7 @@ export function createUploadJobErrorFromHttp(options: {
     else if (status >= 500) code = "SERVER_ERROR";
     else if (stage === "init") code = "INIT_FAILED";
     else if (stage === "status") code = "STATUS_FAILED";
+    else if (stage === "start") code = "START_FAILED";
     else if (stage === "chunk") code = "CHUNK_FAILED";
     else if (stage === "complete") code = "COMPLETE_FAILED";
 

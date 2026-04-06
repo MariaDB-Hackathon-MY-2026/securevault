@@ -1,5 +1,3 @@
-"use server";
-
 import { headers } from "next/headers";
 
 import type { DeviceInfo } from "@/lib/auth/session";
@@ -7,18 +5,30 @@ import { DEVICE_NAME_MAX_LENGTH, IP_ADDRESS_MAX_LENGTH } from "@/lib/constants";
 
 export async function getRequestMetaData(): Promise<DeviceInfo> {
   const requestHeaders = await headers();
-  const ipAddress = truncateValue(
-    requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-      requestHeaders.get("x-real-ip") ??
-      "unknown",
-    IP_ADDRESS_MAX_LENGTH,
-  );
+  const ipAddress = getClientIpFromHeaders(requestHeaders);
   const userAgent = requestHeaders.get("user-agent") ?? "unknown";
 
   return {
     device_name: getDeviceName(userAgent),
     ip_address: ipAddress,
   };
+}
+
+export async function getRequestClientIp() {
+  const requestHeaders = await headers();
+
+  return getClientIpFromHeaders(requestHeaders);
+}
+
+export function getClientIpFromHeaders(
+  requestHeaders: Pick<Headers, "get"> | { get(name: string): string | null | undefined },
+) {
+  return truncateValue(
+    requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+      requestHeaders.get("x-real-ip") ??
+      "unknown",
+    IP_ADDRESS_MAX_LENGTH,
+  );
 }
 
 function getDeviceName(userAgent: string): string {

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { FileDownloadServiceError, streamSharedFile } from "@/app/api/files/[id]/service";
+import { getClientIpFromHeaders } from "@/lib/auth/request-metadata";
+import {
+  createRateLimitResponse,
+  downloadLimiter,
+  enforceRateLimit,
+} from "@/lib/rate-limit";
 import { requireValidShareAccessSession } from "@/lib/sharing/share-access-session";
 import {
   assertShareLinkAccessible,
@@ -16,6 +22,15 @@ export async function GET(
 ) {
   try {
     const { token } = await context.params;
+    const rateLimit = await enforceRateLimit(
+      downloadLimiter,
+      `${getClientIpFromHeaders(request.headers)}:${token}`,
+    );
+
+    if (!rateLimit.success) {
+      return createRateLimitResponse(rateLimit, downloadLimiter.message);
+    }
+
     const link = await requireShareLinkByToken(token);
     assertShareLinkAccessible(link);
 

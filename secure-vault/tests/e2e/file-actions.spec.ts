@@ -1,7 +1,7 @@
 import path from "node:path";
 
 import { and, eq } from "drizzle-orm";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./helpers/e2e-test";
 
 import { moveFolder } from "../../src/app/api/files/service";
 import { MariadbConnection } from "../../src/lib/db";
@@ -321,7 +321,8 @@ test.describe("file actions", () => {
 
     await openGridFolder(page, "Archives");
     await expect(page.getByRole("button", { name: "All files" })).toBeVisible();
-    await expect(getGridFolderButton(page, "Archives")).toBeVisible();
+    await expect(getBreadcrumbFolderButton(page, "Archives")).toBeVisible();
+    await expect(getGridFolderButton(page, "Archives")).toHaveCount(0);
     await expect(page.getByText("File not found")).toHaveCount(0);
   });
 

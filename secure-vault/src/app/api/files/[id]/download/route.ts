@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/get-current-user";
+import {
+  createRateLimitResponse,
+  downloadLimiter,
+  enforceRateLimit,
+} from "@/lib/rate-limit";
 import { FileDownloadServiceError, streamOwnedFile } from "@/app/api/files/[id]/service";
 
 export const runtime = "nodejs";
@@ -14,6 +19,12 @@ export async function GET(
 
     if (!user) {
       return createErrorResponse("Invalid credentials", 401);
+    }
+
+    const rateLimit = await enforceRateLimit(downloadLimiter, user.id);
+
+    if (!rateLimit.success) {
+      return createRateLimitResponse(rateLimit, downloadLimiter.message);
     }
 
     const { id } = await context.params;

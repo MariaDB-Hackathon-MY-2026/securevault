@@ -17,7 +17,9 @@ describe("next config headers", () => {
 
     expect(filePreviewRule?.headers).toEqual(
       expect.arrayContaining([
+        { key: "X-Content-Type-Options", value: "nosniff" },
         { key: "X-Frame-Options", value: "SAMEORIGIN" },
+        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         expect.objectContaining({
           key: "Content-Security-Policy",
           value: expect.stringContaining("frame-ancestors 'self'"),
@@ -27,7 +29,9 @@ describe("next config headers", () => {
 
     expect(sharePreviewRule?.headers).toEqual(
       expect.arrayContaining([
+        { key: "X-Content-Type-Options", value: "nosniff" },
         { key: "X-Frame-Options", value: "SAMEORIGIN" },
+        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         expect.objectContaining({
           key: "Content-Security-Policy",
           value: expect.stringContaining("frame-ancestors 'self'"),
@@ -37,7 +41,9 @@ describe("next config headers", () => {
 
     expect(globalRule?.headers).toEqual(
       expect.arrayContaining([
+        { key: "X-Content-Type-Options", value: "nosniff" },
         { key: "X-Frame-Options", value: "DENY" },
+        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         expect.objectContaining({
           key: "Content-Security-Policy",
           value: expect.stringContaining("frame-ancestors 'none'"),

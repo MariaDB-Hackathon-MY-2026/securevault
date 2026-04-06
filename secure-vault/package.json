@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:redis": "docker compose --file ../compose.yaml up redis",
+    "dev:redis:stop": "docker compose --file ../compose.yaml stop redis",
     "dev:host": "next dev --hostname 127.0.0.1 --port 3000",
     "build": "next build",
     "start": "next start",
@@ -11,15 +13,13 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:e2e": "playwright test --ui",
-    "test:e2e:managed": "cross-env PLAYWRIGHT_USE_MANAGED_SERVER=1 playwright test"
+    "test:e2e:managed": "playwright test"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.893.0",
     "@aws-sdk/lib-storage": "^3.1017.0",
     "@remixicon/react": "^4.9.0",
     "@tanstack/react-query": "^5.90.21",
-    "@upstash/ratelimit": "^2.0.8",
-    "@upstash/redis": "^1.36.4",
     "@zxcvbn-ts/core": "^3.0.4",
     "argon2": "^0.44.0",
     "class-variance-authority": "^0.7.1",
@@ -35,6 +35,7 @@
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "redis": "^5.11.0",
     "resend": "^6.10.0",
     "shadcn": "^4.0.2",
     "sharp": "^0.34.5",
@@ -54,7 +55,6 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
-    "cross-env": "^10.1.0",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",

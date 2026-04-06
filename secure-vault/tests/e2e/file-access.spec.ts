@@ -2,7 +2,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
-import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type Browser, type BrowserContext, type Page } from "./helpers/e2e-test";
 
 import {
   cleanupTestUserByEmail,

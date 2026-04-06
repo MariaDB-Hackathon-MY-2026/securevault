@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./helpers/e2e-test";
 
 import {
   cleanupTestUserByEmail,
@@ -158,6 +158,33 @@ async function waitForUploadId(
   return uploadId;
 }
 
+async function mockUploadSlotRoutes(page: Page) {
+  await page.route("**/api/upload/start", async (route) => {
+    const body = route.request().postDataJSON() as { uploadId?: string };
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        activeCount: 1,
+        maxActiveUploads: 3,
+        uploadId: body.uploadId ?? "upload-unknown",
+      }),
+    });
+  });
+
+  await page.route("**/api/upload/release", async (route) => {
+    const body = route.request().postDataJSON() as { uploadId?: string };
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        released: true,
+        uploadId: body.uploadId ?? "upload-unknown",
+      }),
+    });
+  });
+}
+
 test.describe("upload queue controls", () => {
   test.afterEach(async ({ page }, testInfo) => {
     const { email } = buildTestUserCredentials(testInfo);
@@ -221,6 +248,8 @@ test.describe("upload queue controls", () => {
         }),
       });
     });
+
+    await mockUploadSlotRoutes(page);
 
     await page.route("**/api/upload/chunk", async (route) => {
       const uploadId = route.request().headers()["x-upload-id"];
@@ -344,6 +373,8 @@ test.describe("upload queue controls", () => {
       });
     });
 
+    await mockUploadSlotRoutes(page);
+
     await page.route("**/api/upload/chunk", async (route) => {
       uploadedChunkIndexes.push(Number(route.request().headers()["x-chunk-index"] ?? "-1"));
 
@@ -420,6 +451,8 @@ test.describe("upload queue controls", () => {
         }),
       });
     });
+
+    await mockUploadSlotRoutes(page);
 
     await page.route("**/api/upload/chunk", async (route) => {
       const chunkIndex = Number(route.request().headers()["x-chunk-index"] ?? "-1");

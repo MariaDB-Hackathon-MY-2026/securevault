@@ -16,7 +16,11 @@ export function UploadQueueSummary() {
 
   const { uploads } = context;
   const activeCount = uploads.filter(
-    (u) => u.status === "uploading" || u.status === "queued" || u.status === "pausing"
+    (u) =>
+      u.status === "uploading"
+      || u.status === "queued"
+      || u.status === "waiting_for_slot"
+      || u.status === "pausing"
   ).length;
   const failedCount = uploads.filter((u) => u.status === "failed").length;
 

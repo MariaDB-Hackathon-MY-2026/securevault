@@ -80,7 +80,19 @@ function mockFetchSequence(
   const fetchMock = getFetchMock();
   let callIndex = 0;
 
-  fetchMock.mockImplementation(() => {
+  fetchMock.mockImplementation((url: string) => {
+    if (url === "/api/upload/start") {
+      return Promise.resolve(jsonResponse(200, {
+        activeCount: 1,
+        maxActiveUploads: 3,
+        uploadId: "upload-1",
+      }));
+    }
+
+    if (url === "/api/upload/release") {
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }
+
     const nextResponse = responses[callIndex];
     callIndex += 1;
 
@@ -237,6 +249,18 @@ describe("UploadJob", () => {
         }));
       }
 
+      if (url === "/api/upload/start") {
+        return Promise.resolve(jsonResponse(200, {
+          activeCount: 1,
+          maxActiveUploads: 3,
+          uploadId: "upload-1",
+        }));
+      }
+
+      if (url === "/api/upload/release") {
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+
       throw new Error(`Unexpected fetch url ${url}`);
     });
 
@@ -340,9 +364,11 @@ describe("UploadJob", () => {
     expect(getFetchMock().mock.calls.map(([url]) => url)).toEqual([
       "/api/upload/init",
       "/api/upload/status?uploadId=upload-1",
+      "/api/upload/start",
       "/api/upload/chunk",
       "/api/upload/chunk",
       "/api/upload/complete",
+      "/api/upload/release",
     ]);
     expect(getUploadedChunkIndexes()).toEqual([0, 1]);
     expect(job.getSnapshot()).toMatchObject({
@@ -542,7 +568,7 @@ describe("UploadJob", () => {
       stage: "chunk",
     });
     expect(job.getSnapshot().status).toBe("failed");
-    expect(getFetchMock()).toHaveBeenCalledTimes(3);
+    expect(getFetchMock()).toHaveBeenCalledTimes(5);
   });
 
   it("surfaces the server file-type validation message on the upload snapshot", async () => {
@@ -753,7 +779,7 @@ describe("UploadJob", () => {
       stage: "complete",
     });
     expect(job.getSnapshot().status).toBe("failed");
-    expect(getFetchMock()).toHaveBeenCalledTimes(4);
+    expect(getFetchMock()).toHaveBeenCalledTimes(6);
   });
 
   it("pauses after the current chunk completes", async () => {
@@ -787,6 +813,18 @@ describe("UploadJob", () => {
           chunkIndex: 0,
           status: "uploaded",
         }));
+      }
+
+      if (url === "/api/upload/start") {
+        return Promise.resolve(jsonResponse(200, {
+          activeCount: 1,
+          maxActiveUploads: 3,
+          uploadId: "upload-1",
+        }));
+      }
+
+      if (url === "/api/upload/release") {
+        return Promise.resolve(new Response(null, { status: 204 }));
       }
 
       throw new Error(`Unexpected fetch url ${url}`);
@@ -837,6 +875,18 @@ describe("UploadJob", () => {
           chunkIndex: 0,
           status: "uploaded",
         }));
+      }
+
+      if (url === "/api/upload/start") {
+        return Promise.resolve(jsonResponse(200, {
+          activeCount: 1,
+          maxActiveUploads: 3,
+          uploadId: "upload-1",
+        }));
+      }
+
+      if (url === "/api/upload/release") {
+        return Promise.resolve(new Response(null, { status: 204 }));
       }
 
       throw new Error(`Unexpected fetch url ${url}`);
@@ -1013,6 +1063,18 @@ describe("UploadJob", () => {
         }));
       }
 
+      if (url === "/api/upload/start") {
+        return Promise.resolve(jsonResponse(200, {
+          activeCount: 1,
+          maxActiveUploads: 3,
+          uploadId: "upload-1",
+        }));
+      }
+
+      if (url === "/api/upload/release") {
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+
       throw new Error(`Unexpected fetch url ${url}`);
     });
 
@@ -1069,7 +1131,9 @@ describe("UploadJob", () => {
     expect(getFetchMock().mock.calls.map(([url]) => url)).toEqual([
       "/api/upload/init",
       "/api/upload/status?uploadId=upload-1",
+      "/api/upload/start",
       "/api/upload/complete",
+      "/api/upload/release",
     ]);
     expect(job.getSnapshot()).toMatchObject({
       completedChunkIndexes: [],
@@ -1114,11 +1178,13 @@ describe("UploadJob", () => {
     expect(getFetchMock().mock.calls.map(([url]) => url)).toEqual([
       "/api/upload/init",
       "/api/upload/status?uploadId=upload-1",
+      "/api/upload/start",
       "/api/upload/chunk",
       "/api/upload/complete",
       "/api/embeddings",
+      "/api/upload/release",
     ]);
-    expect(getFetchMock().mock.calls[4]?.[1]).toMatchObject({
+    expect(getFetchMock().mock.calls[5]?.[1]).toMatchObject({
       body: JSON.stringify({
         fileId: "file-1",
         modality: "pdf",
@@ -1166,8 +1232,8 @@ describe("UploadJob", () => {
     await job.start();
     await Promise.resolve();
 
-    expect(getFetchMock().mock.calls[4]?.[0]).toBe("/api/embeddings");
-    expect(getFetchMock().mock.calls[4]?.[1]).toMatchObject({
+    expect(getFetchMock().mock.calls[5]?.[0]).toBe("/api/embeddings");
+    expect(getFetchMock().mock.calls[5]?.[1]).toMatchObject({
       body: JSON.stringify({
         fileId: "file-1",
         modality: "image",
@@ -1208,7 +1274,9 @@ describe("UploadJob", () => {
     expect(getFetchMock().mock.calls.map(([url]) => url)).toEqual([
       "/api/upload/init",
       "/api/upload/status?uploadId=upload-1",
+      "/api/upload/start",
       "/api/upload/complete",
+      "/api/upload/release",
     ]);
     expect(job.getSnapshot()).toMatchObject({
       indexingStatus: "skipped",
@@ -1234,10 +1302,16 @@ describe("UploadJob", () => {
         uploadId: "upload-1",
       }))
       .mockResolvedValueOnce(jsonResponse(200, {
+        activeCount: 1,
+        maxActiveUploads: 3,
+        uploadId: "upload-1",
+      }))
+      .mockResolvedValueOnce(jsonResponse(200, {
         fileId: "file-1",
         status: "ready",
       }))
-      .mockRejectedValueOnce(new Error("indexing service unavailable"));
+      .mockRejectedValueOnce(new Error("indexing service unavailable"))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     await job.start();
     await Promise.resolve();

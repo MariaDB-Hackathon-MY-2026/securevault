@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   assertDownloadAllowed: vi.fn(),
   assertShareLinkAccessible: vi.fn(),
+  createRateLimitResponse: vi.fn(),
+  enforceRateLimit: vi.fn(),
   recordShareAccess: vi.fn(),
   requireFolderShareTargetFile: vi.fn(),
   requireShareLinkByToken: vi.fn(),
@@ -14,6 +16,16 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/sharing/share-access-session", () => ({
   requireValidShareAccessSession: mocks.requireValidShareAccessSession,
 }));
+
+vi.mock("@/lib/rate-limit", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/rate-limit")>("@/lib/rate-limit");
+
+  return {
+    ...actual,
+    createRateLimitResponse: mocks.createRateLimitResponse,
+    enforceRateLimit: mocks.enforceRateLimit,
+  };
+});
 
 vi.mock("@/app/api/files/[id]/service", () => ({
   FileDownloadServiceError: class FileDownloadServiceError extends Error {
@@ -69,6 +81,7 @@ function createLink(overrides: Partial<{
 describe("share routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.enforceRateLimit.mockResolvedValue({ success: true });
     mocks.requireShareLinkByToken.mockResolvedValue(createLink());
     mocks.streamSharedFile.mockResolvedValue(new Response("shared-bytes", { status: 200 }));
     mocks.requireSharedFolderContents.mockResolvedValue({
@@ -77,6 +90,12 @@ describe("share routes", () => {
       files: [],
       folders: [],
     });
+    mocks.createRateLimitResponse.mockReturnValue(
+      new Response(JSON.stringify({ error: "Too many download requests" }), {
+        headers: { "Retry-After": "60" },
+        status: 429,
+      }),
+    );
   });
 
   it("downloads a public file share without a verified session", async () => {
@@ -145,6 +164,33 @@ describe("share routes", () => {
       ownerId: "owner-1",
       signal: expect.any(AbortSignal),
     });
+  });
+
+  it("returns 429 before streaming a shared download when the route is rate limited", async () => {
+    mocks.enforceRateLimit.mockResolvedValueOnce({ success: false });
+
+    const response = await getDownload(
+      new Request("https://example.com/api/share/share-token/download") as never,
+      { params: Promise.resolve({ token: "share-token" }) },
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    expect(mocks.streamSharedFile).not.toHaveBeenCalled();
+    expect(mocks.recordShareAccess).not.toHaveBeenCalled();
+  });
+
+  it("returns 429 before streaming a shared preview when the route is rate limited", async () => {
+    mocks.enforceRateLimit.mockResolvedValueOnce({ success: false });
+
+    const response = await getPreview(
+      new Request("https://example.com/api/share/share-token/preview") as never,
+      { params: Promise.resolve({ token: "share-token" }) },
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    expect(mocks.streamSharedFile).not.toHaveBeenCalled();
   });
 
   it("does not consume a download slot when file streaming fails before a response is ready", async () => {

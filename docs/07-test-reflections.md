@@ -339,6 +339,68 @@ function getBreadcrumbFolderButton(page: Page, folderName: string) {
 }
 ```
 
+### 16. When a client workflow gains a new network handshake, update every mocked E2E contract for that workflow
+
+The upload queue tests originally mocked:
+
+- `/api/upload/init`
+- `/api/upload/status`
+- `/api/upload/chunk`
+- `/api/upload/complete`
+
+After global upload-slot coordination was added, the real client flow also called:
+
+- `/api/upload/start`
+- `/api/upload/release`
+
+Older mocked specs did not intercept those new requests, so Playwright let them fall through to the real server. That produced confusing failures such as `400` responses from `/api/upload/start`, even though the rest of the upload flow was fully mocked.
+
+Rule:
+
+- when a browser workflow adds a new endpoint, treat that as a test-contract change, not just an implementation change
+- update every mocked spec for that workflow in the same patch
+- if the mocked spec uses fake IDs, make sure they still satisfy any new validation rules or intercept the validating endpoint directly
+
+Good:
+
+```ts
+await page.route("**/api/upload/start", async (route) => {
+  const body = route.request().postDataJSON() as { uploadId?: string };
+
+  await route.fulfill({
+    contentType: "application/json",
+    body: JSON.stringify({
+      activeCount: 1,
+      maxActiveUploads: 3,
+      uploadId: body.uploadId ?? "upload-unknown",
+    }),
+  });
+});
+
+await page.route("**/api/upload/release", async (route) => {
+  const body = route.request().postDataJSON() as { uploadId?: string };
+
+  await route.fulfill({
+    contentType: "application/json",
+    body: JSON.stringify({
+      released: true,
+      uploadId: body.uploadId ?? "upload-unknown",
+    }),
+  });
+});
+```
+
+Risky:
+
+```ts
+// Only mocking the pre-existing upload endpoints after the client flow
+// now depends on /api/upload/start and /api/upload/release.
+await page.route("**/api/upload/init", ...);
+await page.route("**/api/upload/status?*", ...);
+await page.route("**/api/upload/chunk", ...);
+await page.route("**/api/upload/complete", ...);
+```
+
 ## Team Conventions For Future E2E Tests
 
 - Prefer `getByRole`, `getByLabel`, and exact accessible names over CSS or text-only locators.
@@ -350,6 +412,7 @@ function getBreadcrumbFolderButton(page: Page, folderName: string) {
 - If a test mixes modals and page actions, make modal open/close behavior explicit.
 - If a UI interaction remains flaky after proper synchronization, move setup into a lower layer and keep the browser focused on the final user-visible result.
 - If a failure mentions strict mode, assume the locator is ambiguous and tighten intent before adding waits.
+- If a mocked workflow starts calling a new endpoint, update every existing route mock for that workflow before trusting the failure signal.
 
 ## Suggested Review Checklist
 

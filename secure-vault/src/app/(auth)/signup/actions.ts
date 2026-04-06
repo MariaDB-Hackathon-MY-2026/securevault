@@ -5,9 +5,11 @@ import { redirect } from "next/navigation";
 import { getRequestMetaData } from "@/lib/auth/request-metadata";
 import { setAuthCookies } from "@/lib/auth/cookies";
 import { hashPassword } from "@/lib/auth/password";
+import { enforceRateLimit, signupLimiter } from "@/lib/rate-limit";
 import { safeRedirect } from "@/lib/auth/redirect";
 import { createSession } from "@/lib/auth/session";
 import { encryptUEK, generateUEK } from "@/lib/crypto";
+import { logAuthDebug } from "@/lib/auth/action-debug";
 import { createUser, deleteUserById } from "@/lib/db/crud/user";
 
 export type SignupActionState = {
@@ -44,14 +46,23 @@ export async function signupAction(
   const signupInput = getSignupInput(formData);
 
   if (!signupInput) {
+    logAuthDebug("signup", "invalid_input");
     return { error: "Missing required fields" };
   }
 
   const signupResult = await runSignup(signupInput);
   if (signupResult) {
+    logAuthDebug("signup", "returned_error", {
+      email: signupInput.email,
+      error: signupResult.error ?? null,
+    });
     return signupResult;
   }
 
+  logAuthDebug("signup", "success_redirect", {
+    email: signupInput.email,
+    redirectTo: signupInput.redirectTo,
+  });
   redirect(signupInput.redirectTo);
 }
 
@@ -102,7 +113,25 @@ async function runSignup({
   let createdUserId: string | null = null;
 
   try {
+    const requestMetaData = await getRequestMetaData();
+    logAuthDebug("signup", "request_metadata_loaded", {
+      email,
+      ip: requestMetaData.ip_address,
+    });
+    const rateLimit = await enforceRateLimit(signupLimiter, requestMetaData.ip_address);
+
+    if (!rateLimit.success) {
+      logAuthDebug("signup", "rate_limited", {
+        email,
+        ip: requestMetaData.ip_address,
+      });
+      return { error: signupLimiter.message };
+    }
+
     const hashedPassword = await hashPassword(password);
+    logAuthDebug("signup", "password_hashed", {
+      email,
+    });
     const encryptedUek = encryptUEK(generateUEK());
     createdUserId = await createUser({
       email,
@@ -110,14 +139,29 @@ async function runSignup({
       password_hash: hashedPassword,
       encrypted_uek: encryptedUek,
     });
+    logAuthDebug("signup", "user_created", {
+      email,
+      userId: createdUserId,
+    });
 
-    const deviceInfo = await getRequestMetaData();
-    const { sessionToken, refreshToken } = await createSession(createdUserId, deviceInfo);
+    const { sessionToken, refreshToken } = await createSession(createdUserId, requestMetaData);
+    logAuthDebug("signup", "session_created", {
+      email,
+      userId: createdUserId,
+    });
 
     await setAuthCookies(sessionToken, refreshToken);
+    logAuthDebug("signup", "cookies_set", {
+      email,
+      userId: createdUserId,
+    });
     return undefined;
   } catch (error) {
     if (createdUserId && !isDuplicateEmailError(error)) {
+      logAuthDebug("signup", "cleanup_started", {
+        email,
+        userId: createdUserId,
+      });
       await tryDeleteCreatedUser(createdUserId);
     }
 
@@ -127,9 +171,11 @@ async function runSignup({
 
 function getSignupErrorState(error: unknown): SignupActionState {
   if (isDuplicateEmailError(error)) {
+    logAuthDebug("signup", "duplicate_email");
     return { error: "An account with this email already exists" };
   }
 
+  logAuthDebug("signup", "generic_error");
   console.error("signupAction failed", error);
   return { error: GENERIC_SIGNUP_ERROR };
 }

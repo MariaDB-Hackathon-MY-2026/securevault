@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getClientIpFromHeaders } from "@/lib/auth/request-metadata";
+import {
+  createRateLimitResponse,
+  enforceRateLimit,
+  otpVerifyLimiter,
+} from "@/lib/rate-limit";
 import { createShareAccessSession } from "@/lib/sharing/share-access-session";
 import { isShareOrOtpError, verifyOtp } from "@/lib/sharing/otp-service";
 import { recordShareAccess } from "@/lib/sharing/share-service";
@@ -10,6 +16,15 @@ export async function POST(
 ) {
   try {
     const { token } = await context.params;
+    const rateLimit = await enforceRateLimit(
+      otpVerifyLimiter,
+      `${getClientIpFromHeaders(request.headers)}:${token}`,
+    );
+
+    if (!rateLimit.success) {
+      return createRateLimitResponse(rateLimit, otpVerifyLimiter.message);
+    }
+
     const payload = (await request.json().catch(() => null)) as {
       code?: unknown;
       email?: unknown;

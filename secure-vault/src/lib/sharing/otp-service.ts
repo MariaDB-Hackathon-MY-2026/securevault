@@ -4,6 +4,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { sendOTPEmail } from "@/lib/email";
+import { safeCompare } from "@/lib/crypto/timing";
 import { MariadbConnection } from "@/lib/db";
 import { shareLinkEmails, shareLinkOtps } from "@/lib/db/schema";
 import { assertShareLinkAccessible, requireShareLinkByToken, ShareServiceError } from "@/lib/sharing/share-service";
@@ -138,7 +139,7 @@ export async function verifyOtp(input: { code: string; email: string; token: str
     );
   }
 
-  if (otpRow.otp_hash !== hashOtp(input.code)) {
+  if (!safeCompare(otpRow.otp_hash, hashOtp(input.code))) {
     const nextAttemptCount = otpRow.attempt_count + 1;
 
     await db
