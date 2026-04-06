@@ -70,11 +70,11 @@ async function clearRateLimitCounters() {
 export const test = base.extend<{
   _resetRateLimitCounters: void;
 }>({
-  _resetRateLimitCounters: [async ({}, use) => {
+  _resetRateLimitCounters: [async ({}, runFixture) => {
     await clearRateLimitCounters();
 
     try {
-      await use();
+      await runFixture();
     } finally {
       await clearRateLimitCounters();
     }
