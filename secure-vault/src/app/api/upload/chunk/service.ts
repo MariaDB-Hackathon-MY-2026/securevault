@@ -10,6 +10,7 @@ import { createEncryptStream, decryptFEK } from "@/lib/crypto";
 import { MariadbConnection } from "@/lib/db";
 import { fileChunks, files, uploadSessions } from "@/lib/db/schema";
 import { buildR2Key, deleteObject, putObjectStream } from "@/lib/storage/r2";
+import { claimUploadSlot } from "@/lib/upload/upload-concurrency";
 
 const MIME_SNIFF_BYTES = 4096;
 
@@ -52,11 +53,13 @@ export type ParsedChunkHeaders = {
 
 export class UploadChunkServiceError extends Error {
   status: number;
+  retryAfterSeconds: number | null;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, retryAfterSeconds?: number | null) {
     super(message);
     this.name = "UploadChunkServiceError";
     this.status = status;
+    this.retryAfterSeconds = retryAfterSeconds ?? null;
   }
 }
 
@@ -78,6 +81,19 @@ export async function uploadChunk({
 
     if (!uploadSession) {
       throw new UploadChunkServiceError("Upload session not found or expired", 404);
+    }
+
+    const slotClaim = await claimUploadSlot({
+      uploadId,
+      userId: user.id,
+    });
+
+    if (!slotClaim.success) {
+      throw new UploadChunkServiceError(
+        "Maximum active uploads reached. Waiting for a slot.",
+        429,
+        slotClaim.retryAfterSeconds,
+      );
     }
 
     if (chunkIndex >= uploadSession.totalChunks) {

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  createRateLimitResponse: vi.fn(),
+  enforceRateLimit: vi.fn(),
   getCurrentUser: vi.fn(),
   streamOwnedFile: vi.fn(),
 }));
@@ -8,6 +10,16 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/auth/get-current-user", () => ({
   getCurrentUser: mocks.getCurrentUser,
 }));
+
+vi.mock("@/lib/rate-limit", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/rate-limit")>("@/lib/rate-limit");
+
+  return {
+    ...actual,
+    createRateLimitResponse: mocks.createRateLimitResponse,
+    enforceRateLimit: mocks.enforceRateLimit,
+  };
+});
 
 vi.mock("@/app/api/files/[id]/service", () => ({
   FileDownloadServiceError: class FileDownloadServiceError extends Error {
@@ -44,6 +56,7 @@ describe("download route", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     mocks.getCurrentUser.mockResolvedValue(createUser());
+    mocks.enforceRateLimit.mockResolvedValue({ success: true });
     mocks.streamOwnedFile.mockResolvedValue(
       new Response("file-bytes", {
         headers: {
@@ -51,6 +64,12 @@ describe("download route", () => {
           "Content-Type": "application/pdf",
         },
         status: 200,
+      }),
+    );
+    mocks.createRateLimitResponse.mockReturnValue(
+      new Response(JSON.stringify({ message: "Too many download requests" }), {
+        headers: { "Retry-After": "60" },
+        status: 429,
       }),
     );
   });
@@ -86,6 +105,19 @@ describe("download route", () => {
       signal,
       user: expect.objectContaining({ id: "user-1" }),
     });
+  });
+
+  it("returns 429 before streaming when the user is rate limited", async () => {
+    mocks.enforceRateLimit.mockResolvedValueOnce({ success: false });
+
+    const response = await GET(
+      { signal: new AbortController().signal } as never,
+      { params: Promise.resolve({ id: "file-1" }) },
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    expect(mocks.streamOwnedFile).not.toHaveBeenCalled();
   });
 
   it("maps expected service errors to their status codes", async () => {

@@ -97,6 +97,14 @@ export function UploadDialog({ children }: { children?: React.ReactNode }) {
     return errorMessage;
   };
 
+  const getStatusLabel = (job: UploadJobSnapshot) => {
+    if (job.status === "waiting_for_slot") {
+      return "Waiting for slot";
+    }
+
+    return job.status.replaceAll("_", " ");
+  };
+
   const handleOpenChange = (nextOpen: boolean) => {
     if (open && !nextOpen) {
       uploads
@@ -196,7 +204,13 @@ export function UploadDialog({ children }: { children?: React.ReactNode }) {
                           <Play className="w-3.5 h-3.5" />
                         </Button>
                       )}
-                      {(job.status === "queued" || job.status === "uploading" || job.status === "pausing" || job.status === "paused") && (
+                      {(
+                        job.status === "queued"
+                        || job.status === "uploading"
+                        || job.status === "waiting_for_slot"
+                        || job.status === "pausing"
+                        || job.status === "paused"
+                      ) && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -230,9 +244,14 @@ export function UploadDialog({ children }: { children?: React.ReactNode }) {
                     <div className="w-24 text-xs text-right truncate text-muted-foreground capitalize">
                       {job.status === "success" && <span className="text-emerald-500 flex items-center justify-end gap-1"><CheckCircle2 className="w-3 h-3"/> Done</span>}
                       {job.status === "failed" && <span className=" text-destructive text-center flex items-center justify-end gap-1" title={job.error || "Failed"}><AlertCircle className="w-3 h-3"/> Error</span>}
-                      {job.status !== "success" && job.status !== "failed" && job.status}
+                      {job.status !== "success" && job.status !== "failed" && getStatusLabel(job)}
                     </div>
                   </div>
+                  {job.status === "waiting_for_slot" ? (
+                    <p className="text-xs text-muted-foreground">
+                      Waiting for an upload slot
+                    </p>
+                  ) : null}
                   {job.status === "failed" ? (
                     <p
                       className="text-xs text-destructive"

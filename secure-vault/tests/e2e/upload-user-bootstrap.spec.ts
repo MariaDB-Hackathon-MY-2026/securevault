@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./helpers/e2e-test";
 
 import {
   cleanupTestUserByEmail,

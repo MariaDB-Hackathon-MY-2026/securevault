@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "./helpers/e2e-test";
 
 import { buildTestUserCredentials } from "./helpers/test-user";
 import { cleanupTestUserByEmail } from "./helpers/test-user-cleanup";

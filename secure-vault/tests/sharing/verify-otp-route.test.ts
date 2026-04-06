@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  createRateLimitResponse: vi.fn(),
   createShareAccessSession: vi.fn(),
+  enforceRateLimit: vi.fn(),
   recordShareAccess: vi.fn(),
   verifyOtp: vi.fn(),
 }));
@@ -25,6 +27,16 @@ vi.mock("@/lib/sharing/share-service", () => ({
   recordShareAccess: mocks.recordShareAccess,
 }));
 
+vi.mock("@/lib/rate-limit", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/rate-limit")>("@/lib/rate-limit");
+
+  return {
+    ...actual,
+    createRateLimitResponse: mocks.createRateLimitResponse,
+    enforceRateLimit: mocks.enforceRateLimit,
+  };
+});
+
 import { POST } from "@/app/api/share/[token]/verify-otp/route";
 
 function createRequest(body: unknown) {
@@ -42,6 +54,13 @@ function createRequest(body: unknown) {
 describe("verify otp route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.enforceRateLimit.mockResolvedValue({ success: true });
+    mocks.createRateLimitResponse.mockReturnValue(
+      new Response(JSON.stringify({ message: "Too many verification attempts" }), {
+        headers: { "Retry-After": "300" },
+        status: 429,
+      }),
+    );
   });
 
   it("returns 400 when email or code is missing", async () => {
@@ -80,6 +99,20 @@ describe("verify otp route", () => {
       linkId: "link-1",
       userAgent: "Vitest Browser",
     });
+  });
+
+  it("returns 429 before verification when the route is rate limited", async () => {
+    mocks.enforceRateLimit.mockResolvedValueOnce({ success: false });
+
+    const response = await POST(
+      createRequest({ code: "123456", email: "reader@example.com" }) as never,
+      { params: Promise.resolve({ token: "share-token" }) },
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("300");
+    expect(mocks.verifyOtp).not.toHaveBeenCalled();
+    expect(mocks.createShareAccessSession).not.toHaveBeenCalled();
   });
 
   it("maps otp verification errors to their status codes", async () => {

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   createUser: vi.fn(),
   deleteUserById: vi.fn(),
   getRequestMetaData: vi.fn(),
+  enforceRateLimit: vi.fn(),
   createSession: vi.fn(),
   setAuthCookies: vi.fn(),
   redirect: vi.fn(),
@@ -31,6 +32,15 @@ vi.mock("@/lib/db/crud/user", () => ({
 vi.mock("@/lib/auth/request-metadata", () => ({
   getRequestMetaData: mocks.getRequestMetaData,
 }));
+
+vi.mock("@/lib/rate-limit", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/rate-limit")>("@/lib/rate-limit");
+
+  return {
+    ...actual,
+    enforceRateLimit: mocks.enforceRateLimit,
+  };
+});
 
 vi.mock("@/lib/auth/session", () => ({
   createSession: mocks.createSession,
@@ -81,6 +91,9 @@ describe("signupAction", () => {
     mocks.getRequestMetaData.mockResolvedValue({
       device_name: "Chrome on Windows",
       ip_address: "203.0.113.10",
+    });
+    mocks.enforceRateLimit.mockResolvedValue({
+      success: true,
     });
     mocks.createSession.mockResolvedValue({
       sessionToken: "session-token",
@@ -177,7 +190,7 @@ describe("signupAction", () => {
     });
 
     expect(mocks.deleteUserById).not.toHaveBeenCalled();
-    expect(mocks.getRequestMetaData).not.toHaveBeenCalled();
+    expect(mocks.getRequestMetaData).toHaveBeenCalledTimes(1);
     expect(mocks.createSession).not.toHaveBeenCalled();
     expect(mocks.setAuthCookies).not.toHaveBeenCalled();
     expect(mocks.redirect).not.toHaveBeenCalled();
@@ -224,6 +237,21 @@ describe("signupAction", () => {
 
     expect(mocks.deleteUserById).toHaveBeenCalledWith("user-123");
     expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("returns a rate-limit error before user creation when the limiter blocks the request", async () => {
+    const formData = buildSignupFormData();
+
+    mocks.enforceRateLimit.mockResolvedValueOnce({
+      success: false,
+    });
+
+    await expect(signupAction(undefined, formData)).resolves.toEqual({
+      error: "Too many attempts. Please try again later.",
+    });
+
+    expect(mocks.hashPassword).not.toHaveBeenCalled();
+    expect(mocks.createUser).not.toHaveBeenCalled();
   });
 });
 

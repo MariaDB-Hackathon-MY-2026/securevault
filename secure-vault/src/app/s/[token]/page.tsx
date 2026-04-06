@@ -35,7 +35,8 @@ export default async function SharedLinkPage(
     | { kind: "auth" }
     | { kind: "expired" }
     | { kind: "file"; fileId: string; fileName: string; mimeType: string }
-    | { kind: "folder"; rootFolderId: string };
+    | { kind: "folder"; rootFolderId: string }
+    | null = null;
 
   try {
     const link = await requireShareLinkByToken(token);

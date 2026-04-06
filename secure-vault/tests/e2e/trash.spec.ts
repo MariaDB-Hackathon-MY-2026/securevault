@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./helpers/e2e-test";
 
 import { buildTestUserCredentials, type TestUserCredentials } from "./helpers/test-user";
 import {
@@ -59,6 +59,7 @@ async function confirmEmptyTrash(page: Page) {
   await expect(confirmDialog).toBeVisible();
   await confirmAlertDialog(confirmDialog, "Empty Trash");
   await expect(confirmDialog).toBeHidden();
+  await expect(page.getByText("Trash emptied")).toBeVisible();
 }
 
 async function setUpUserWithUploads(

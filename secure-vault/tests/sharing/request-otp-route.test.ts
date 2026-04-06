@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  createRateLimitResponse: vi.fn(),
   createAndSendOtp: vi.fn(),
+  enforceRateLimit: vi.fn(),
 }));
 
 vi.mock("@/lib/sharing/otp-service", () => ({
@@ -14,6 +16,16 @@ vi.mock("@/lib/sharing/otp-service", () => ({
       && "message" in (error as Record<string, unknown>),
     ),
 }));
+
+vi.mock("@/lib/rate-limit", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/rate-limit")>("@/lib/rate-limit");
+
+  return {
+    ...actual,
+    createRateLimitResponse: mocks.createRateLimitResponse,
+    enforceRateLimit: mocks.enforceRateLimit,
+  };
+});
 
 import { POST } from "@/app/api/share/[token]/request-otp/route";
 
@@ -28,6 +40,13 @@ function createRequest(body: unknown) {
 describe("request otp route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.enforceRateLimit.mockResolvedValue({ success: true });
+    mocks.createRateLimitResponse.mockReturnValue(
+      new Response(JSON.stringify({ message: "Too many verification requests" }), {
+        headers: { "Retry-After": "900" },
+        status: 429,
+      }),
+    );
   });
 
   it("returns 400 when email is missing", async () => {
@@ -55,6 +74,18 @@ describe("request otp route", () => {
       email: "reader@example.com",
       token: "share-token",
     });
+  });
+
+  it("returns 429 before creating an otp when the route is rate limited", async () => {
+    mocks.enforceRateLimit.mockResolvedValueOnce({ success: false });
+
+    const response = await POST(createRequest({ email: "reader@example.com" }) as never, {
+      params: Promise.resolve({ token: "share-token" }),
+    });
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("900");
+    expect(mocks.createAndSendOtp).not.toHaveBeenCalled();
   });
 
   it("keeps the response generic for disallowed emails", async () => {

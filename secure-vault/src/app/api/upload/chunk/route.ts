@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/get-current-user";
+import {
+  createRateLimitResponse,
+  enforceRateLimit,
+  uploadLimiter,
+} from "@/lib/rate-limit";
 
 import { UploadChunkServiceError, uploadChunk } from "./service";
 
@@ -14,6 +19,12 @@ export async function POST(req: NextRequest) {
       return createErrorResponse("Invalid credentials", 401);
     }
 
+    const rateLimit = await enforceRateLimit(uploadLimiter, user.id);
+
+    if (!rateLimit.success) {
+      return createRateLimitResponse(rateLimit, uploadLimiter.message);
+    }
+
     const result = await uploadChunk({
       body: req.body,
       headers: req.headers,
@@ -25,7 +36,19 @@ export async function POST(req: NextRequest) {
     console.error("Chunk upload failed", error);
 
     if (error instanceof UploadChunkServiceError) {
-      return createErrorResponse(error.message, error.status);
+      const headers = new Headers();
+
+      if (error.retryAfterSeconds) {
+        headers.set("Retry-After", String(error.retryAfterSeconds));
+      }
+
+      return NextResponse.json(
+        { message: error.message },
+        {
+          headers,
+          status: error.status,
+        },
+      );
     }
 
     return createErrorResponse("Failed to upload chunk", 500);

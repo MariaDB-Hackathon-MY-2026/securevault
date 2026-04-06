@@ -9,6 +9,7 @@ import {
   MAX_CHUNK_UPLOAD_RETRIES,
   MAX_RETRY_JITTER_MS,
   RATE_LIMIT_RETRY_BASE_DELAY_MS,
+  UPLOAD_SLOT_RETRY_FALLBACK_DELAY_MS,
 } from "@/lib/upload/upload-job.constants";
 import { isAllowedFileType } from "@/lib/constants";
 import { createUploadJobErrorFromHttp, UploadJobError } from "@/lib/upload/upload-job-error";
@@ -16,6 +17,7 @@ import { createUploadJobErrorFromHttp, UploadJobError } from "@/lib/upload/uploa
 export type UploadJobStatus =
   | "queued"
   | "uploading"
+  | "waiting_for_slot"
   | "pausing"
   | "paused"
   | "cancelling"
@@ -57,6 +59,7 @@ export class UploadJob {
   private error: string | null;
   private indexingStatus: UploadJobIndexingStatus;
   private indexingError: string | null;
+  private hasClaimedUploadSlot: boolean;
   private listeners: Set<UploadJobListener>;
 
   constructor(file: File) {
@@ -71,6 +74,7 @@ export class UploadJob {
     this.error = null;
     this.indexingStatus = "idle";
     this.indexingError = null;
+    this.hasClaimedUploadSlot = false;
     this.listeners = new Set<UploadJobListener>();
   }
 
@@ -106,14 +110,18 @@ export class UploadJob {
   }
 
   pause() {
-    if (this.status === "uploading") {
+    if (this.status === "uploading" || this.status === "waiting_for_slot") {
       this.status = "pausing";
       this.notify();
     }
   }
 
   cancel() {
-    if (this.status === "uploading" || this.status === "pausing") {
+    if (
+      this.status === "uploading"
+      || this.status === "waiting_for_slot"
+      || this.status === "pausing"
+    ) {
       this.status = "cancelling";
       this.notify();
     } else if (this.status === "queued") {
@@ -155,9 +163,15 @@ export class UploadJob {
         return;
       }
 
+      const claimedUploadSlot = await this.claimUploadSlot();
+
+      if (!claimedUploadSlot) {
+        return;
+      }
+
       for (const chunk of chunksWithMetaData) {
         if (this.shouldStopAfterCurrentChunk()) {
-          this.finalizeRequestedStop();
+          await this.finalizeRequestedStop();
           return;
         }
 
@@ -167,7 +181,7 @@ export class UploadJob {
       }
 
       if (this.shouldStopAfterCurrentChunk()) {
-        this.finalizeRequestedStop();
+        await this.finalizeRequestedStop();
         return;
       }
 
@@ -180,6 +194,7 @@ export class UploadJob {
         this.status = "failed";
       }
 
+      await this.releaseUploadSlot();
       this.notify();
       throw error;
     }
@@ -255,6 +270,56 @@ export class UploadJob {
     this.notify();
   }
 
+  private async claimUploadSlot() {
+    const uploadId = this.requireUploadId();
+
+    while (true) {
+      if (this.shouldStopAfterCurrentChunk()) {
+        await this.finalizeRequestedStop();
+        return false;
+      }
+
+      const startResponse = await fetch("/api/upload/start", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ uploadId }),
+      });
+
+      if (startResponse.ok) {
+      if (this.status === "waiting_for_slot") {
+        this.status = "uploading";
+        this.notify();
+      }
+
+      this.hasClaimedUploadSlot = true;
+      return true;
+    }
+
+      const errorMessage = await getUploadErrorMessageFromResponse(
+        startResponse,
+        "Failed to claim an upload slot",
+      );
+
+      const uploadError = createUploadJobErrorFromHttp({
+        message: errorMessage,
+        stage: "start",
+        status: startResponse.status,
+      });
+
+      if (uploadError.status !== 429) {
+        throw uploadError;
+      }
+
+      this.status = "waiting_for_slot";
+      this.error = null;
+      this.notify();
+
+      await sleep(getRetryDelayMsFromResponse(startResponse));
+    }
+  }
+
   private async uploadChunk(chunk: Blob, chunkIndex: number) {
     const uploadId = this.requireUploadId();
     let attempt = 0;
@@ -291,7 +356,16 @@ export class UploadJob {
             throw uploadError;
           }
 
+          if (uploadError.status === 429) {
+            this.status = "waiting_for_slot";
+            this.notify();
+          }
+
           await sleep(getChunkRetryDelayMs(attempt, uploadError.status));
+          if (this.status === "waiting_for_slot") {
+            this.status = "uploading";
+            this.notify();
+          }
           attempt += 1;
           continue;
         }
@@ -306,7 +380,16 @@ export class UploadJob {
           throw normalizedError;
         }
 
+        if (normalizedError.status === 429) {
+          this.status = "waiting_for_slot";
+          this.notify();
+        }
+
         await sleep(getChunkRetryDelayMs(attempt, normalizedError.status));
+        if (this.status === "waiting_for_slot") {
+          this.status = "uploading";
+          this.notify();
+        }
         attempt += 1;
       }
     }
@@ -336,11 +419,15 @@ export class UploadJob {
       });
     }
 
-    await completedResponse.json() as CompleteUploadResponse;
-    this.progress = 100;
-    this.status = "success";
-    this.notify();
-    void this.triggerSemanticIndexing();
+    try {
+      await completedResponse.json() as CompleteUploadResponse;
+      this.progress = 100;
+      this.status = "success";
+      this.notify();
+      void this.triggerSemanticIndexing();
+    } finally {
+      await this.releaseUploadSlot();
+    }
   }
 
   private async triggerSemanticIndexing() {
@@ -400,7 +487,9 @@ export class UploadJob {
     return this.status === "pausing" || this.status === "cancelling";
   }
 
-  private finalizeRequestedStop() {
+  private async finalizeRequestedStop() {
+    await this.releaseUploadSlot();
+
     if (this.status === "pausing") {
       this.status = "paused";
       this.notify();
@@ -436,6 +525,27 @@ export class UploadJob {
       stage: "unknown",
       status: 415,
     });
+  }
+
+  private async releaseUploadSlot() {
+    if (!this.uploadId || !this.hasClaimedUploadSlot) {
+      return;
+    }
+
+    try {
+      await fetch("/api/upload/release", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ uploadId: this.uploadId }),
+      });
+    } catch {
+      // Best-effort cleanup only. The server-side lease TTL remains the
+      // backstop when release cannot be sent.
+    } finally {
+      this.hasClaimedUploadSlot = false;
+    }
   }
 }
 
@@ -510,6 +620,17 @@ function getChunkRetryDelayMs(attempt: number, status: number | null) {
   const jitter = Math.floor(Math.random() * MAX_RETRY_JITTER_MS);
 
   return exponentialDelay + jitter;
+}
+
+function getRetryDelayMsFromResponse(response: Response) {
+  const retryAfterHeader = response.headers.get("Retry-After");
+  const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : NaN;
+
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+    return retryAfterSeconds * 1000;
+  }
+
+  return UPLOAD_SLOT_RETRY_FALLBACK_DELAY_MS;
 }
 
 function sleep(delayMs: number) {
