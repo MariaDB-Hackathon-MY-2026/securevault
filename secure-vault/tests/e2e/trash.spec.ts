@@ -59,6 +59,7 @@ async function confirmEmptyTrash(page: Page) {
   await expect(confirmDialog).toBeVisible();
   await confirmAlertDialog(confirmDialog, "Empty Trash");
   await expect(confirmDialog).toBeHidden();
+  await expect(page.getByText("Trash emptied")).toBeVisible();
 }
 
 async function setUpUserWithUploads(
