@@ -1,60 +1,60 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+"use client";
+
 import { EmailVerificationStatus } from "@/components/auth/email-verification-status";
-import type { CurrentUser } from "@/lib/auth/get-current-user";
-import type { FileListItem, FolderListItem, StorageUsage } from "@/lib/files/types";
 import { FilesLibrary } from "@/components/files/files-library";
+import { LargestFilesCard } from "@/components/files/largest-files-card";
+import { StorageBreakdownCard } from "@/components/files/storage-breakdown-card";
+import { StorageOverviewCard } from "@/components/files/storage-overview-card";
 import { UploadQueueSummary } from "@/components/upload/upload-queue-summary";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useStorageDashboardQuery } from "@/hooks/use-storage-dashboard-query";
+import type {
+  FileListItem,
+  FolderListItem,
+  StorageDashboardData,
+} from "@/lib/files/types";
 
 type FilesPageContentProps = {
+  canUpload: boolean;
+  emailVerified: boolean;
   files: FileListItem[];
   folders: FolderListItem[];
-  storageUsage: StorageUsage;
-  user: CurrentUser | null;
+  initialStorageDashboard: StorageDashboardData;
 };
 
 export function FilesPageContent({
+  canUpload,
+  emailVerified,
   files,
   folders,
-  storageUsage,
-  user,
+  initialStorageDashboard,
 }: FilesPageContentProps) {
+  const { data: storageDashboard = initialStorageDashboard, isFetching: isStorageDashboardFetching } =
+    useStorageDashboardQuery(initialStorageDashboard);
+
   return (
     <div className="grid gap-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Files</p>
-          <h2 className="mt-2 text-3xl font-semibold">Your encrypted library</h2>
+          <h2 className="mt-2 text-3xl font-semibold">Your storage dashboard</h2>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Manage your secured documents. All files are encrypted client-side before upload.
+            Track quota usage, review cleanup candidates, and manage files across your library without leaving the page.
           </p>
         </div>
       </div>
 
-      {!user?.email_verified && (
+      {!emailVerified && (
         <EmailVerificationStatus verified={false} variant="notice" />
       )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Active library size</CardTitle>
-            <CardDescription>Ready files currently visible in your library</CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            {storageUsage.totalBytes.toLocaleString()} bytes in active files. Trashed items still count toward the{" "}
-            {user?.storage_quota.toLocaleString()} byte account quota until permanently deleted.
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Encryption status</CardTitle>
-            <CardDescription>Your user encryption key is available server-side</CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Ready for later upload and file-encryption flows.
-          </CardContent>
-        </Card>
-        {user?.email_verified ? (
+        <StorageOverviewCard
+          data={storageDashboard}
+          isFetching={isStorageDashboardFetching}
+        />
+        <StorageBreakdownCard data={storageDashboard} />
+        {emailVerified ? (
           <UploadQueueSummary />
         ) : (
           <Card>
@@ -63,14 +63,16 @@ export function FilesPageContent({
               <CardDescription>Uploads are disabled</CardDescription>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-              Please verify your email to enable file uploads.
+              Please verify your email to enable new uploads.
             </CardContent>
           </Card>
         )}
       </div>
 
+      <LargestFilesCard files={storageDashboard.largestFiles} folders={folders} />
+
       <FilesLibrary
-        canUpload={Boolean(user?.email_verified)}
+        canUpload={canUpload}
         initialFiles={files}
         initialFolders={folders}
       />

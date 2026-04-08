@@ -1,9 +1,13 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Provider } from "@/app/providers";
 import type { UploadJobSnapshot, UploadJobStatus } from "@/lib/upload/upload-job";
+import { currentUserQueryKey } from "@/lib/auth/current-user-client";
+import { filesExplorerQueryKey } from "@/lib/files/files-explorer-query";
+import { storageDashboardQueryKey } from "@/lib/files/storage-dashboard-query";
 
 const uploadManagerMock = vi.hoisted(() => {
   type Snapshot = {
@@ -592,6 +596,34 @@ describe("UploadQueueProvider", () => {
 
     expect(screen.getByTestId("summary-a").textContent).toBe("shared.pdf:success");
     expect(screen.getByTestId("summary-b").textContent).toBe("shared.pdf:success");
+  });
+
+  it("invalidates explorer, storage dashboard, and current-user quota after a new successful upload", async () => {
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <UploadQueueProvider>
+          <UploadCount testId="count" />
+        </UploadQueueProvider>
+      </QueryClientProvider>,
+    );
+
+    act(() => {
+      uploadManagerMock.setUploads([
+        createUploadSnapshot({
+          file: createFile("done.pdf"),
+          id: "job-1",
+          status: "success",
+        }),
+      ]);
+      uploadManagerMock.emit();
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: filesExplorerQueryKey });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: storageDashboardQueryKey });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: currentUserQueryKey });
   });
 });
 

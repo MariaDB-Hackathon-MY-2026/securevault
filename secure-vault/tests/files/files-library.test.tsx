@@ -4,7 +4,9 @@ import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FilesLibrary } from "@/components/files/files-library";
+import { currentUserQueryKey } from "@/lib/auth/current-user-client";
 import { filesExplorerQueryKey } from "@/lib/files/files-explorer-query";
+import { storageDashboardQueryKey } from "@/lib/files/storage-dashboard-query";
 import type { FileListItem, FolderListItem } from "@/lib/files/types";
 import { trashQueryKey, trashSummaryQueryKey } from "@/lib/trash/trash-query";
 
@@ -20,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   renameFolderAction: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
+  useFilenameSearchQuery: vi.fn(),
 }));
 
 vi.mock("@/app/(dashboard)/files/actions", () => ({
@@ -39,6 +42,10 @@ vi.mock("sonner", () => ({
     error: mocks.toastError,
     success: mocks.toastSuccess,
   },
+}));
+
+vi.mock("@/hooks/use-filename-search-query", () => ({
+  useFilenameSearchQuery: mocks.useFilenameSearchQuery,
 }));
 
 function createFile(overrides: Partial<FileListItem> = {}): FileListItem {
@@ -94,6 +101,12 @@ function chooseFolderAction(folderName: string, actionName: "Delete" | "Move" | 
 describe("FilesLibrary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.useFilenameSearchQuery.mockReturnValue({
+      data: undefined,
+      error: null,
+      isError: false,
+      isFetching: false,
+    });
   });
 
   it("optimistically updates the visible filename before the rename action resolves", async () => {
@@ -342,6 +355,8 @@ describe("FilesLibrary", () => {
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: trashQueryKey });
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: trashSummaryQueryKey });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: storageDashboardQueryKey });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: currentUserQueryKey });
     });
   });
 
@@ -527,6 +542,8 @@ describe("FilesLibrary", () => {
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: trashQueryKey });
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: trashSummaryQueryKey });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: storageDashboardQueryKey });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: currentUserQueryKey });
     });
   });
 
@@ -752,6 +769,65 @@ describe("FilesLibrary", () => {
     await waitFor(() => {
       expect(screen.getByText("Projects")).toBeTruthy();
       expect(mocks.toastError).toHaveBeenCalledWith("Folder move failed");
+    });
+  });
+
+  it("shows filename search results and opens the matching folder back in filter mode", async () => {
+    mocks.useFilenameSearchQuery.mockReturnValue({
+      data: {
+        query: "inside",
+        results: [
+          {
+            folderId: "folder-1",
+            folderPath: [{ id: "folder-1", name: "Projects" }],
+            id: "search-result",
+            isInRoot: false,
+            mimeType: "application/pdf",
+            name: "inside.pdf",
+            size: 2048,
+            updatedAt: "2026-03-21T00:00:00.000Z",
+          },
+        ],
+      },
+      error: null,
+      isError: false,
+      isFetching: false,
+    });
+
+    renderLibrary(
+      [createFile({ id: "inside", folderId: "folder-1", name: "inside.pdf" })],
+      [createFolder()],
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Filename" }));
+    fireEvent.change(screen.getByLabelText("Search all filenames"), {
+      target: { value: "inside" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Projects")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Open folder" })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "inside.pdf" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Filter" }).getAttribute("aria-pressed")).toBe("true");
+    });
+  });
+
+  it("clears stale file selection when switching into filename mode", async () => {
+    renderLibrary([createFile()], [createFolder()]);
+
+    fireEvent.click(screen.getByRole("button", { name: "List" }));
+    fireEvent.click(screen.getByLabelText("Select report.pdf"));
+    expect(screen.getByText("1 selected")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Filename" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("1 selected")).toBeNull();
     });
   });
 });

@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import type { SearchMode } from "@/lib/search/types";
 
 type ToolbarProps = {
   canUpload: boolean;
@@ -26,8 +27,10 @@ type ToolbarProps = {
   onClearSelection: () => void;
   onFilterValueChange: (value: string) => void;
   onNewFolderClick?: () => void;
+  onSearchModeChange: (mode: SearchMode) => void;
   onSortChange: (sort: FileSortState) => void;
   onViewModeChange: (viewMode: FilesViewMode) => void;
+  searchMode: SearchMode;
   selectedCount: number;
   sort: FileSortState;
   viewMode: FilesViewMode;
@@ -51,23 +54,49 @@ export function Toolbar({
   onClearSelection,
   onFilterValueChange,
   onNewFolderClick,
+  onSearchModeChange,
   onSortChange,
   onViewModeChange,
+  searchMode,
   selectedCount,
   sort,
   viewMode,
 }: ToolbarProps) {
+  const isFilenameMode = searchMode === "filename";
+  const helperCopy = isFilenameMode
+    ? "Filename mode searches all ready file names across your library. Enter at least 2 characters."
+    : "Filter mode stays local to the current folder's loaded files and folders.";
+
   return (
     <div className="space-y-4 rounded-lg border border-border/70 bg-background/80 p-4">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-1 flex-col gap-3 sm:flex-row">
+          <div className="flex overflow-hidden rounded-md border border-border">
+            <Button
+              aria-pressed={searchMode === "filter"}
+              onClick={() => onSearchModeChange("filter")}
+              type="button"
+              variant={searchMode === "filter" ? "default" : "ghost"}
+            >
+              Filter
+            </Button>
+            <Button
+              aria-pressed={searchMode === "filename"}
+              onClick={() => onSearchModeChange("filename")}
+              type="button"
+              variant={searchMode === "filename" ? "default" : "ghost"}
+            >
+              Filename
+            </Button>
+          </div>
+
           <label className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              aria-label="Filter files by name"
+              aria-label={isFilenameMode ? "Search all filenames" : "Filter files by name"}
               className="min-h-11 pl-9"
               onChange={(event) => onFilterValueChange(event.target.value)}
-              placeholder="Quick filter by name"
+              placeholder={isFilenameMode ? "Search all filenames" : "Quick filter this folder"}
               value={filterValue}
             />
           </label>
@@ -76,6 +105,7 @@ export function Toolbar({
             <DropdownMenuTrigger asChild>
               <Button
                 className="min-h-11 justify-between sm:min-w-44"
+                disabled={isFilenameMode}
                 type="button"
                 variant="outline"
               >
@@ -96,31 +126,33 @@ export function Toolbar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex overflow-hidden border border-border">
-            <Button
-              aria-pressed={viewMode === "grid"}
-              onClick={() => onViewModeChange("grid")}
-              size="lg"
-              type="button"
-              variant={viewMode === "grid" ? "default" : "ghost"}
-            >
-              <Grid2x2 className="size-4" />
-              Grid
-            </Button>
-            <Button
-              aria-pressed={viewMode === "list"}
-              onClick={() => onViewModeChange("list")}
-              size="lg"
-              type="button"
-              variant={viewMode === "list" ? "default" : "ghost"}
-            >
-              <List className="size-4" />
-              List
-            </Button>
-          </div>
+          {!isFilenameMode ? (
+            <div className="flex overflow-hidden border border-border">
+              <Button
+                aria-pressed={viewMode === "grid"}
+                onClick={() => onViewModeChange("grid")}
+                size="lg"
+                type="button"
+                variant={viewMode === "grid" ? "default" : "ghost"}
+              >
+                <Grid2x2 className="size-4" />
+                Grid
+              </Button>
+              <Button
+                aria-pressed={viewMode === "list"}
+                onClick={() => onViewModeChange("list")}
+                size="lg"
+                type="button"
+                variant={viewMode === "list" ? "default" : "ghost"}
+              >
+                <List className="size-4" />
+                List
+              </Button>
+            </div>
+          ) : null}
 
           <Button
-            disabled={!onNewFolderClick}
+            disabled={!onNewFolderClick || isFilenameMode}
             onClick={onNewFolderClick}
             size="lg"
             type="button"
@@ -145,14 +177,14 @@ export function Toolbar({
           {isFetching ? (
             <>
               <LoaderCircle className="size-4 animate-spin" />
-              Refreshing file list
+              {isFilenameMode ? "Searching filenames" : "Refreshing file list"}
             </>
           ) : (
-            "Browsing your encrypted files"
+            helperCopy
           )}
         </div>
 
-        {selectedCount > 0 ? (
+        {searchMode === "filter" && selectedCount > 0 ? (
           <div className="flex flex-wrap items-center gap-2">
             <span>{selectedCount} selected</span>
             <Button onClick={onBulkMove} size="sm" type="button" variant="outline">

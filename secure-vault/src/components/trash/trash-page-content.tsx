@@ -26,8 +26,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTrashQuery } from "@/hooks/use-trash-query";
 import { filesExplorerQueryKey } from "@/lib/files/files-explorer-query";
+import { storageDashboardQueryKey } from "@/lib/files/storage-dashboard-query";
 import { trashQueryKey, trashSummaryQueryKey } from "@/lib/trash/trash-query";
 import type { TrashItem, TrashPageData } from "@/lib/trash/types";
+import { currentUserQueryKey } from "@/lib/auth/current-user-client";
 
 type TrashPageContentProps = {
   initialData: TrashPageData;
@@ -86,6 +88,8 @@ export function TrashPageContent({ initialData }: TrashPageContentProps) {
       queryClient.invalidateQueries({ queryKey: trashQueryKey }),
       queryClient.invalidateQueries({ queryKey: trashSummaryQueryKey }),
       queryClient.invalidateQueries({ queryKey: filesExplorerQueryKey }),
+      queryClient.invalidateQueries({ queryKey: storageDashboardQueryKey }),
+      queryClient.invalidateQueries({ queryKey: currentUserQueryKey }),
     ]);
   }
 

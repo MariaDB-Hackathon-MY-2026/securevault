@@ -1,27 +1,31 @@
 import { FilesPageContent } from "@/components/files/files-page-content";
 import {
-  getStorageUsage,
   listFoldersForUser,
   listReadyFilesForUser,
 } from "@/app/api/files/service";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
+import {
+  createEmptyStorageDashboardData,
+  getStorageDashboardData,
+} from "@/lib/files/storage-dashboard";
 
 export default async function FilesPage() {
   const user = await getCurrentUser();
-  const [readyFiles, folders, storageUsage] = user
+  const [readyFiles, folders, storageDashboard] = user
     ? await Promise.all([
         listReadyFilesForUser(user.id),
         listFoldersForUser(user.id),
-        getStorageUsage(user.id),
+        getStorageDashboardData(user),
       ])
-    : [[], [], { fileCount: 0, totalBytes: 0 }];
+    : [[], [], createEmptyStorageDashboardData()];
 
   return (
     <FilesPageContent
+      canUpload={Boolean(user?.email_verified)}
+      emailVerified={Boolean(user?.email_verified)}
       files={readyFiles}
       folders={folders}
-      storageUsage={storageUsage}
-      user={user}
+      initialStorageDashboard={storageDashboard}
     />
   );
 }
