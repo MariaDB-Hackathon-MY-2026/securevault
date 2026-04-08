@@ -49,7 +49,9 @@ async function ensureUploadDialogOpen(page: Page) {
     return;
   }
 
-  await page.getByRole("button", { name: "Upload files" }).click();
+  await page.locator(
+    '[data-testid="files-library-toolbar"]:visible [data-testid="files-library-toolbar-upload-trigger"]:visible',
+  ).click();
   await expect(uploadDialog).toBeVisible();
 }
 
@@ -94,12 +96,22 @@ function getGridFolderButton(page: Page, folderName: string) {
   return page.locator(`[data-testid^="folder-name-"][data-test-folder-name="${folderName}"]`).first();
 }
 
-function getFileNameButton(page: Page, fileName: string) {
-  return page.locator(`[data-testid^="file-name-"][data-test-file-name="${fileName}"]`).first();
+function getSearchResultName(page: Page, fileName: string) {
+  return page
+    .locator(
+      `[data-testid^="file-search-result-name-"][data-test-file-name="${fileName}"]`,
+    )
+    .first();
 }
 
-async function setFilter(page: Page, value: string) {
-  await page.getByLabel("Filter files by name").fill(value);
+function getSearchInput(page: Page) {
+  return page.locator(
+    '[data-testid="files-library-toolbar"]:visible [data-testid="files-library-toolbar-search-input"]:visible',
+  );
+}
+
+async function setSearch(page: Page, value: string) {
+  await getSearchInput(page).fill(value);
 }
 
 async function setSort(page: Page, label: string) {
@@ -125,7 +137,7 @@ test.describe("file browser controls", () => {
     await cleanupTestUserByEmail(email);
   });
 
-  test("covers grid and list display, search, sorting, and folder creation flows", async ({ page }, testInfo) => {
+  test("covers grid and list display, filename search, sorting, and folder creation flows", async ({ page }, testInfo) => {
     test.setTimeout(240_000);
     const credentials = buildTestUserCredentials(testInfo);
 
@@ -147,15 +159,15 @@ test.describe("file browser controls", () => {
     await page.getByRole("button", { name: "All files" }).click();
     await expect(getGridFolderButton(page, "Alpha Folder")).toBeVisible();
 
-    await setFilter(page, "Alpha");
-    await expect(getGridFolderButton(page, "Alpha Folder")).toBeVisible();
-    await expect(getFileNameButton(page, "tiny.pdf")).toHaveCount(0);
-
-    await setFilter(page, "tiny");
-    await expect(getFileNameButton(page, "tiny.pdf")).toBeVisible();
+    const searchResponse = page.waitForResponse((response) =>
+      response.url().includes("/api/search/files?q=tiny") && response.ok(),
+    );
+    await setSearch(page, "tiny");
+    await searchResponse;
+    await expect(getSearchResultName(page, "tiny.pdf")).toBeVisible();
     await expect(getGridFolderButton(page, "Alpha Folder")).toHaveCount(0);
 
-    await setFilter(page, "");
+    await setSearch(page, "");
 
     await expect(page.locator("table")).toHaveCount(0);
     await page.getByRole("button", { name: "List" }).click();
@@ -164,8 +176,6 @@ test.describe("file browser controls", () => {
     await page.getByRole("button", { name: "Grid" }).click();
     await expect(page.locator("table")).toHaveCount(0);
     await page.getByRole("button", { name: "List" }).click();
-
-    await setFilter(page, "pdf");
 
     await setSort(page, "Name (A-Z)");
     await expect.poll(() => getVisibleFileOrder(page)).toEqual(["chunked.pdf", "tiny.pdf"]);

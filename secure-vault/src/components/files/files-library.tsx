@@ -48,7 +48,7 @@ import type {
   FilesExplorerData,
   FolderListItem,
 } from "@/lib/files/types";
-import type { FilenameSearchResult, SearchMode } from "@/lib/search/types";
+import type { FilenameSearchResult } from "@/lib/search/types";
 import { trashQueryKey, trashSummaryQueryKey } from "@/lib/trash/trash-query";
 
 type FilesLibraryProps = {
@@ -100,7 +100,6 @@ export function FilesLibrary({
   const { files, folders } = explorerData;
   const [viewMode, setViewMode] = React.useState<FilesViewMode>("grid");
   const [sort, setSort] = React.useState<FileSortState>(defaultSort);
-  const [searchMode, setSearchMode] = React.useState<SearchMode>("filter");
   const [filterValue, setFilterValue] = React.useState("");
   const deferredFilterValue = React.useDeferredValue(filterValue);
   const [currentFolderId, setCurrentFolderId] = React.useState<string | null>(null);
@@ -127,15 +126,18 @@ export function FilesLibrary({
     isError: isFilenameSearchError,
     isFetching: isFilenameSearchFetching,
   } = useFilenameSearchQuery({
-    mode: searchMode,
     query: deferredFilterValue,
   });
   const renamingFileId = renameState?.type === "file" ? renameState.id : null;
   const renamingFolderId = renameState?.type === "folder" ? renameState.id : null;
-  const isFilenameMode = searchMode === "filename";
+  const normalizedSearchQuery = filterValue.trim();
+  const isFilenameMode = normalizedSearchQuery.length > 0;
   const isFilenameInputPending = filterValue.trim() !== deferredFilterValue.trim();
   const hasValidFilenameQuery = deferredFilterValue.trim().length >= 2;
-  const filenameSearchResults = filenameSearchData?.results ?? [];
+  const filenameSearchResults = React.useMemo(
+    () => filenameSearchData?.results ?? [],
+    [filenameSearchData],
+  );
 
   React.useEffect(() => {
     setSelectedFileIds((currentSelection) =>
@@ -169,7 +171,7 @@ export function FilesLibrary({
   }, [currentFolderId, folderMap]);
 
   React.useEffect(() => {
-    if (searchMode !== "filename") {
+    if (!isFilenameMode) {
       return;
     }
 
@@ -180,7 +182,7 @@ export function FilesLibrary({
     setMoveDialogState(null);
     setShareDialogState(null);
     setIsCreateFolderDialogOpen(false);
-  }, [searchMode]);
+  }, [isFilenameMode]);
 
   const filteredFolders = folders.filter(
     (folder) =>
@@ -196,6 +198,31 @@ export function FilesLibrary({
     compareFolders(left, right, sort),
   );
   const visibleFiles = [...filteredFiles].sort((left, right) => compareFiles(left, right, sort));
+  const sortedFilenameSearchResults = React.useMemo(
+    () =>
+      [...filenameSearchResults].sort((left, right) => {
+        if (sort.key === "size") {
+          const sizeComparison = left.size - right.size;
+          if (sizeComparison !== 0) {
+            return sort.direction === "asc" ? sizeComparison : -sizeComparison;
+          }
+        }
+
+        if (sort.key === "updatedAt") {
+          const dateComparison =
+            new Date(left.updatedAt).getTime() - new Date(right.updatedAt).getTime();
+          if (dateComparison !== 0) {
+            return sort.direction === "asc" ? dateComparison : -dateComparison;
+          }
+        }
+
+        return left.name.localeCompare(right.name, "en", {
+          numeric: true,
+          sensitivity: "base",
+        }) * (sort.direction === "asc" ? 1 : -1);
+      }),
+    [filenameSearchResults, sort],
+  );
   const currentFolderPath = getFolderPath(currentFolderId, folderMap);
   const currentFolder = currentFolderId ? folderMap.get(currentFolderId) ?? null : null;
   const currentFolderName = currentFolder?.name ?? "All files";
@@ -634,20 +661,11 @@ export function FilesLibrary({
     clearTransientExplorerState();
   }
 
-  function handleSearchModeChange(nextMode: SearchMode) {
-    if (nextMode === searchMode) {
-      return;
-    }
-
-    setSearchMode(nextMode);
-  }
-
   function openSearchResultFolder(result: FilenameSearchResult) {
     clearTransientExplorerState();
     React.startTransition(() => {
-      setSearchMode("filter");
       setCurrentFolderId(result.folderId);
-      setFilterValue(result.name);
+      setFilterValue("");
     });
   }
 
@@ -733,7 +751,7 @@ export function FilesLibrary({
       <FileSearchResults
         isRefreshing={isFilenameSearchFetching}
         onOpenFolder={openSearchResultFolder}
-        results={filenameSearchResults}
+        results={sortedFilenameSearchResults}
       />
     );
   }
@@ -750,8 +768,7 @@ export function FilesLibrary({
                 : filenameSearchResults.length
               : visibleItemCount
           }
-          query={filterValue.trim()}
-          searchMode={searchMode}
+          query={normalizedSearchQuery}
         />
       </CardHeader>
       <CardContent>
@@ -793,10 +810,9 @@ export function FilesLibrary({
               setCreateFolderName("");
               setIsCreateFolderDialogOpen(true);
             }}
-            onSearchModeChange={handleSearchModeChange}
             onSortChange={setSort}
             onViewModeChange={setViewMode}
-            searchMode={searchMode}
+            searchQuery={filterValue}
             selectedCount={selectedCount}
             sort={sort}
             viewMode={viewMode}

@@ -1,4 +1,5 @@
 import {
+  RiDashboardLine,
   RiDeleteBin6Line,
   RiFolder3Line,
   RiPulseLine,
@@ -6,6 +7,7 @@ import {
 } from "@remixicon/react";
 
 export const dashboardNavigationItems = [
+  { href: "/storage", label: "Storage", icon: RiDashboardLine },
   { href: "/files", label: "Files", icon: RiFolder3Line },
   { href: "/trash", label: "Trash", icon: RiDeleteBin6Line },
   { href: "/activity", label: "Activity", icon: RiPulseLine },

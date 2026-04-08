@@ -772,7 +772,7 @@ describe("FilesLibrary", () => {
     });
   });
 
-  it("shows filename search results and opens the matching folder back in filter mode", async () => {
+  it("shows filename search results and opens the matching folder back in explorer mode", async () => {
     mocks.useFilenameSearchQuery.mockReturnValue({
       data: {
         query: "inside",
@@ -799,8 +799,7 @@ describe("FilesLibrary", () => {
       [createFolder()],
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Filename" }));
-    fireEvent.change(screen.getByLabelText("Search all filenames"), {
+    fireEvent.change(screen.getByLabelText("Search filenames"), {
       target: { value: "inside" },
     });
 
@@ -813,18 +812,21 @@ describe("FilesLibrary", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "inside.pdf" })).toBeTruthy();
-      expect(screen.getByRole("button", { name: "Filter" }).getAttribute("aria-pressed")).toBe("true");
+      expect(screen.getByDisplayValue("")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Open folder" })).toBeNull();
     });
   });
 
-  it("clears stale file selection when switching into filename mode", async () => {
+  it("clears stale file selection when a filename search starts", async () => {
     renderLibrary([createFile()], [createFolder()]);
 
     fireEvent.click(screen.getByRole("button", { name: "List" }));
     fireEvent.click(screen.getByLabelText("Select report.pdf"));
     expect(screen.getByText("1 selected")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Filename" }));
+    fireEvent.change(screen.getByLabelText("Search filenames"), {
+      target: { value: "re" },
+    });
 
     await waitFor(() => {
       expect(screen.queryByText("1 selected")).toBeNull();

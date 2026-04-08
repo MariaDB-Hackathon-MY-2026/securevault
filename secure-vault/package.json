@@ -4,8 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:db": "docker compose --file ../compose.yaml up -d mariadb",
+    "dev:db:stop": "docker compose --file ../compose.yaml stop mariadb",
     "dev:redis": "docker compose --file ../compose.yaml up redis",
     "dev:redis:stop": "docker compose --file ../compose.yaml stop redis",
+    "dev:services": "docker compose --file ../compose.yaml up -d mariadb redis",
+    "dev:services:stop": "docker compose --file ../compose.yaml stop mariadb redis",
     "dev:host": "next dev --hostname 127.0.0.1 --port 3000",
     "build": "next build",
     "start": "next start",

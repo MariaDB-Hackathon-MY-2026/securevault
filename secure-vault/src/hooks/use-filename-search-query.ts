@@ -6,17 +6,15 @@ import {
   fetchFilenameSearch,
   filenameSearchQueryKey,
 } from "@/lib/search/filename-search-query";
-import { normalizeFilenameSearchQuery } from "@/lib/search/filename-search";
-import type { SearchMode } from "@/lib/search/types";
+import { normalizeFilenameSearchQuery } from "@/lib/search/filename-search-shared";
 
 type UseFilenameSearchQueryOptions = {
-  mode: SearchMode;
   query: string;
 };
 
-export function useFilenameSearchQuery({ mode, query }: UseFilenameSearchQueryOptions) {
+export function useFilenameSearchQuery({ query }: UseFilenameSearchQueryOptions) {
   const normalizedQuery = normalizeFilenameSearchQuery(query);
-  const enabled = mode === "filename" && normalizedQuery.length >= 2;
+  const enabled = normalizedQuery.length >= 2;
 
   return useQuery({
     enabled,

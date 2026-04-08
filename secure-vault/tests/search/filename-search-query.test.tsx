@@ -10,13 +10,11 @@ import {
 } from "@/lib/search/filename-search-query";
 
 function SearchProbe({
-  mode,
   query,
 }: {
-  mode: "filter" | "filename";
   query: string;
 }) {
-  const result = useFilenameSearchQuery({ mode, query });
+  const result = useFilenameSearchQuery({ query });
 
   return (
     <output data-testid="search-probe">
@@ -53,14 +51,14 @@ describe("filename search query", () => {
     expect(filenameSearchQueryKey("report")).toEqual(["filename-search", "report"]);
   });
 
-  it("does not issue requests in filter mode or for short filename queries", async () => {
+  it("does not issue requests for short filename queries", async () => {
     const queryClient = createQueryClient();
 
     render(
       <QueryClientProvider client={queryClient}>
         <>
-          <SearchProbe mode="filter" query="report" />
-          <SearchProbe mode="filename" query="r" />
+          <SearchProbe query="" />
+          <SearchProbe query="r" />
         </>
       </QueryClientProvider>,
     );
@@ -82,7 +80,7 @@ describe("filename search query", () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <SearchProbe mode="filename" query="  Report  " />
+        <SearchProbe query="  Report  " />
       </QueryClientProvider>,
     );
 

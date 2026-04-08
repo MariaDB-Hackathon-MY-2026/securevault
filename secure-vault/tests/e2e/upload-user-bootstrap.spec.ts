@@ -49,7 +49,11 @@ test.describe("upload user bootstrap", () => {
     await page.goto("/files");
     await page.reload();
 
-    await expect(page.getByRole("button", { name: "Upload files" })).toBeVisible();
+    await expect(
+      page.locator(
+        '[data-testid="files-library-toolbar"]:visible [data-testid="files-library-toolbar-upload-trigger"]:visible',
+      ),
+    ).toBeVisible();
     await expect(page.getByText("Please verify your email to enable file uploads.")).toHaveCount(0);
   });
 });

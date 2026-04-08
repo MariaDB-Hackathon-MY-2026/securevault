@@ -4,20 +4,15 @@ import {
   listReadyFilesForUser,
 } from "@/app/api/files/service";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
-import {
-  createEmptyStorageDashboardData,
-  getStorageDashboardData,
-} from "@/lib/files/storage-dashboard";
 
 export default async function FilesPage() {
   const user = await getCurrentUser();
-  const [readyFiles, folders, storageDashboard] = user
+  const [readyFiles, folders] = user
     ? await Promise.all([
         listReadyFilesForUser(user.id),
         listFoldersForUser(user.id),
-        getStorageDashboardData(user),
       ])
-    : [[], [], createEmptyStorageDashboardData()];
+    : [[], []];
 
   return (
     <FilesPageContent
@@ -25,7 +20,6 @@ export default async function FilesPage() {
       emailVerified={Boolean(user?.email_verified)}
       files={readyFiles}
       folders={folders}
-      initialStorageDashboard={storageDashboard}
     />
   );
 }

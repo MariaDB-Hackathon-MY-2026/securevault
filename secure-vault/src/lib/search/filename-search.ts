@@ -1,54 +1,31 @@
+import "server-only";
+
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 
 import { MariadbConnection } from "@/lib/db";
 import { files, folders } from "@/lib/db/schema";
+import {
+  clampFilenameSearchLimit,
+  escapeLikePattern,
+  getFilenameSearchRank,
+  normalizeFilenameSearchQuery,
+} from "@/lib/search/filename-search-shared";
 import type {
   FilenameSearchResult,
   SearchResultFolderPathItem,
 } from "@/lib/search/types";
 
-const DEFAULT_FILENAME_SEARCH_LIMIT = 20;
-export const MAX_FILENAME_SEARCH_LIMIT = 50;
+export {
+  escapeLikePattern,
+  getFilenameSearchRank,
+  normalizeFilenameSearchQuery,
+};
 
 type FilenameSearchFolderRow = {
   id: string;
   name: string;
   parentId: string | null;
 };
-
-export function normalizeFilenameSearchQuery(query: string) {
-  return query.trim().toLowerCase();
-}
-
-export function escapeLikePattern(value: string) {
-  return value.replace(/[\\%_]/g, "\\$&");
-}
-
-export function getFilenameSearchRank(name: string, normalizedQuery: string) {
-  const normalizedName = name.trim().toLowerCase();
-
-  if (normalizedName === normalizedQuery) {
-    return 0;
-  }
-
-  if (normalizedName.startsWith(normalizedQuery)) {
-    return 1;
-  }
-
-  if (normalizedName.includes(normalizedQuery)) {
-    return 2;
-  }
-
-  return 3;
-}
-
-function clampFilenameSearchLimit(limit?: number) {
-  if (!Number.isFinite(limit) || !limit) {
-    return DEFAULT_FILENAME_SEARCH_LIMIT;
-  }
-
-  return Math.min(MAX_FILENAME_SEARCH_LIMIT, Math.max(1, Math.trunc(limit)));
-}
 
 function buildFolderPath(
   folderId: string | null,
@@ -87,9 +64,6 @@ export async function searchFilesByFilename(input: {
 }): Promise<FilenameSearchResult[]> {
   const normalizedQuery = normalizeFilenameSearchQuery(input.query);
   const normalizedLimit = clampFilenameSearchLimit(input.limit);
-  const escapedQuery = escapeLikePattern(normalizedQuery);
-  const prefixPattern = `${escapedQuery}%`;
-  const substringPattern = `%${escapedQuery}%`;
   const db = MariadbConnection.getConnection();
 
   const matchedFiles = await db
@@ -107,14 +81,14 @@ export async function searchFilesByFilename(input: {
         eq(files.user_id, input.userId),
         eq(files.status, "ready"),
         isNull(files.deleted_at),
-        sql`lower(${files.name}) like ${substringPattern} escape '\\'`,
+        sql`locate(${normalizedQuery}, lower(${files.name})) > 0`,
       ),
     )
     .orderBy(
       sql`
         case
           when lower(${files.name}) = ${normalizedQuery} then 0
-          when lower(${files.name}) like ${prefixPattern} escape '\\' then 1
+          when locate(${normalizedQuery}, lower(${files.name})) = 1 then 1
           else 2
         end
       `,
@@ -147,7 +121,7 @@ export async function searchFilesByFilename(input: {
       mimeType: file.mimeType,
       name: file.name,
       size: file.size,
-      updatedAt: file.updatedAt.toISOString(),
+      updatedAt: new Date(file.updatedAt).toISOString(),
     };
   });
 }

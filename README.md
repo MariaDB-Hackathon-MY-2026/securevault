@@ -31,13 +31,20 @@ Some features described in the planning documents are still in progress or track
 1. Change into the app folder: `cd secure-vault`
 2. Install dependencies: `npm install`
 3. Set local environment variables using [`secure-vault/.env.example`](secure-vault/.env.example) as the template
-4. Start the development server: `npm run dev`
+4. Optional local services:
+   - MariaDB: `cd secure-vault && npm run dev:db`
+   - Redis: `cd secure-vault && npm run dev:redis`
+   - Both: `cd secure-vault && npm run dev:services`
+5. Start the development server: `npm run dev`
 
 Useful scripts:
 
 - `npm run dev`
+- `npm run dev:db`
 - `npm run lint`
 - `npm run test`
+
+For a Railway MariaDB to local Compose MariaDB workflow, see [docs/railway-to-local-mariadb.md](docs/railway-to-local-mariadb.md).
 
 ## Project documentation
 

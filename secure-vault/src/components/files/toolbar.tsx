@@ -1,6 +1,6 @@
 "use client";
 
-import { FolderPlus, Grid2x2, List, LoaderCircle, Search } from "lucide-react";
+import { FolderPlus, Grid2x2, List, LoaderCircle, Search, UploadCloud } from "lucide-react";
 
 import {
   type FileSortState,
@@ -16,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import type { SearchMode } from "@/lib/search/types";
 
 type ToolbarProps = {
   canUpload: boolean;
@@ -27,10 +26,9 @@ type ToolbarProps = {
   onClearSelection: () => void;
   onFilterValueChange: (value: string) => void;
   onNewFolderClick?: () => void;
-  onSearchModeChange: (mode: SearchMode) => void;
   onSortChange: (sort: FileSortState) => void;
   onViewModeChange: (viewMode: FilesViewMode) => void;
-  searchMode: SearchMode;
+  searchQuery: string;
   selectedCount: number;
   sort: FileSortState;
   viewMode: FilesViewMode;
@@ -54,49 +52,33 @@ export function Toolbar({
   onClearSelection,
   onFilterValueChange,
   onNewFolderClick,
-  onSearchModeChange,
   onSortChange,
   onViewModeChange,
-  searchMode,
+  searchQuery,
   selectedCount,
   sort,
   viewMode,
 }: ToolbarProps) {
-  const isFilenameMode = searchMode === "filename";
-  const helperCopy = isFilenameMode
-    ? "Filename mode searches all ready file names across your library. Enter at least 2 characters."
-    : "Filter mode stays local to the current folder's loaded files and folders.";
+  const isSearchActive = searchQuery.trim().length > 0;
+  const helperCopy = isSearchActive
+    ? "Searching ready file names across your whole library."
+    : "Browse folders normally, or search to jump across your ready files.";
 
   return (
-    <div className="space-y-4 rounded-lg border border-border/70 bg-background/80 p-4">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex flex-1 flex-col gap-3 sm:flex-row">
-          <div className="flex overflow-hidden rounded-md border border-border">
-            <Button
-              aria-pressed={searchMode === "filter"}
-              onClick={() => onSearchModeChange("filter")}
-              type="button"
-              variant={searchMode === "filter" ? "default" : "ghost"}
-            >
-              Filter
-            </Button>
-            <Button
-              aria-pressed={searchMode === "filename"}
-              onClick={() => onSearchModeChange("filename")}
-              type="button"
-              variant={searchMode === "filename" ? "default" : "ghost"}
-            >
-              Filename
-            </Button>
-          </div>
-
-          <label className="relative flex-1">
+    <div
+      className="space-y-4 rounded-lg border border-border/70 bg-background/80 p-4"
+      data-testid="files-library-toolbar"
+    >
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="relative min-w-0 flex-1 sm:min-w-56 lg:min-w-64">
+            <span className="sr-only">Search filenames</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              aria-label={isFilenameMode ? "Search all filenames" : "Filter files by name"}
               className="min-h-11 pl-9"
+              data-testid="files-library-toolbar-search-input"
               onChange={(event) => onFilterValueChange(event.target.value)}
-              placeholder={isFilenameMode ? "Search all filenames" : "Quick filter this folder"}
+              placeholder="Search filenames"
               value={filterValue}
             />
           </label>
@@ -104,8 +86,7 @@ export function Toolbar({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
-                className="min-h-11 justify-between sm:min-w-44"
-                disabled={isFilenameMode}
+                className="min-h-11 shrink-0 justify-between sm:min-w-44"
                 type="button"
                 variant="outline"
               >
@@ -125,11 +106,12 @@ export function Toolbar({
           </DropdownMenu>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {!isFilenameMode ? (
-            <div className="flex overflow-hidden border border-border">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 lg:flex-nowrap lg:self-start">
+          {!isSearchActive ? (
+            <div className="flex shrink-0 overflow-hidden border border-border">
               <Button
                 aria-pressed={viewMode === "grid"}
+                className={viewMode === "grid" ? "min-h-11 text-foreground" : "min-h-11"}
                 onClick={() => onViewModeChange("grid")}
                 size="lg"
                 type="button"
@@ -140,6 +122,7 @@ export function Toolbar({
               </Button>
               <Button
                 aria-pressed={viewMode === "list"}
+                className={viewMode === "list" ? "min-h-11 text-foreground" : "min-h-11"}
                 onClick={() => onViewModeChange("list")}
                 size="lg"
                 type="button"
@@ -152,20 +135,30 @@ export function Toolbar({
           ) : null}
 
           <Button
-            disabled={!onNewFolderClick || isFilenameMode}
+            className="min-h-11 min-w-11 shrink-0 px-0"
+            data-testid="files-new-folder-trigger"
+            disabled={!onNewFolderClick || isSearchActive}
             onClick={onNewFolderClick}
             size="lg"
+            title="New folder"
             type="button"
             variant="outline"
           >
             <FolderPlus className="size-4" />
-            New folder
+            <span className="sr-only">New folder</span>
           </Button>
 
           {canUpload ? (
             <UploadDialog>
-              <Button size="lg" type="button">
-                Upload files
+              <Button
+                className="min-h-11 min-w-11 shrink-0 px-0 text-foreground"
+                data-testid="files-library-toolbar-upload-trigger"
+                size="lg"
+                title="Upload files"
+                type="button"
+              >
+                <UploadCloud className="size-4" />
+                <span className="sr-only">Upload files</span>
               </Button>
             </UploadDialog>
           ) : null}
@@ -177,14 +170,14 @@ export function Toolbar({
           {isFetching ? (
             <>
               <LoaderCircle className="size-4 animate-spin" />
-              {isFilenameMode ? "Searching filenames" : "Refreshing file list"}
+              {isSearchActive ? "Searching filenames" : "Refreshing file list"}
             </>
           ) : (
             helperCopy
           )}
         </div>
 
-        {searchMode === "filter" && selectedCount > 0 ? (
+        {!isSearchActive && selectedCount > 0 ? (
           <div className="flex flex-wrap items-center gap-2">
             <span>{selectedCount} selected</span>
             <Button onClick={onBulkMove} size="sm" type="button" variant="outline">

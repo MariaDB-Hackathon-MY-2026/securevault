@@ -65,7 +65,9 @@ export async function ensureUploadDialogOpen(page: Page) {
     return uploadDialog;
   }
 
-  await page.getByRole("button", { name: "Upload files" }).click();
+  await page.locator(
+    '[data-testid="files-library-toolbar"]:visible [data-testid="files-library-toolbar-upload-trigger"]:visible',
+  ).click();
   await expect(uploadDialog).toBeVisible();
   return uploadDialog;
 }

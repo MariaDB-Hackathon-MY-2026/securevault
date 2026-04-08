@@ -25,11 +25,8 @@ type DashboardMobileNavProps = {
 export function DashboardMobileNav({ initialUser }: DashboardMobileNavProps) {
   const pathname = usePathname();
   const { data: user } = useCurrentUserQuery(initialUser);
+  const resolvedUser = user ?? initialUser;
   const [open, setOpen] = useState(false);
-
-  if (!user) {
-    return null;
-  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -40,7 +37,7 @@ export function DashboardMobileNav({ initialUser }: DashboardMobileNavProps) {
               SecureVault
             </p>
             <h1 className="mt-1 text-lg font-semibold">{getDashboardSectionLabel(pathname)}</h1>
-            <p className="mt-1 truncate text-sm text-muted-foreground">{user.email}</p>
+            <p className="mt-1 truncate text-sm text-muted-foreground">{resolvedUser.email}</p>
           </div>
 
           <DialogTrigger asChild>
@@ -70,7 +67,11 @@ export function DashboardMobileNav({ initialUser }: DashboardMobileNavProps) {
         </DialogHeader>
 
         <div className="h-[calc(100dvh-73px)] overflow-y-auto p-4">
-          <DashboardNavigationPanel user={user} pathname={pathname} onNavigate={() => setOpen(false)} />
+          <DashboardNavigationPanel
+            user={resolvedUser}
+            pathname={pathname}
+            onNavigate={() => setOpen(false)}
+          />
         </div>
       </DialogContent>
     </Dialog>
