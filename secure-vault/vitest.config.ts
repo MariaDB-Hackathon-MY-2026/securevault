@@ -10,6 +10,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": resolve(__dirname, "src"),
+      "redis": resolve(__dirname, "tests/support/redis.ts"),
+      "resend": resolve(__dirname, "tests/support/resend.ts"),
       "server-only": resolve(__dirname, "tests/support/server-only.ts"),
     },
   },

@@ -29,6 +29,10 @@ export type SessionSummary = Pick<
   "id" | "device_name" | "ip_address" | "session_expires_at" | "refresh_expires_at" | "created_at"
 >;
 
+type DbConnection = ReturnType<typeof MariadbConnection.getConnection>;
+type DbTransaction = Parameters<Parameters<DbConnection["transaction"]>[0]>[0];
+type DbExecutor = DbConnection | DbTransaction;
+
 export async function generateSha256Hash(value: string): Promise<string> {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -175,8 +179,8 @@ export async function deleteSessionByToken(sessionToken: string): Promise<void> 
   await db.delete(sessions).where(eq(sessions.session_token_hash, hashedSessionToken));
 }
 
-export async function deleteAllSessions(userId: string): Promise<void> {
-  const db = MariadbConnection.getConnection();
+export async function deleteAllSessions(userId: string, executor?: DbExecutor): Promise<void> {
+  const db = executor ?? MariadbConnection.getConnection();
   await db.delete(sessions).where(eq(sessions.user_id, userId));
 }
 

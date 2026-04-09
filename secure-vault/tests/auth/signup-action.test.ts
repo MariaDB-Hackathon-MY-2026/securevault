@@ -33,14 +33,15 @@ vi.mock("@/lib/auth/request-metadata", () => ({
   getRequestMetaData: mocks.getRequestMetaData,
 }));
 
-vi.mock("@/lib/rate-limit", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/rate-limit")>("@/lib/rate-limit");
-
-  return {
-    ...actual,
-    enforceRateLimit: mocks.enforceRateLimit,
-  };
-});
+vi.mock("@/lib/rate-limit", () => ({
+  enforceRateLimit: mocks.enforceRateLimit,
+  signupLimiter: {
+    limit: 5,
+    message: "Too many attempts. Please try again later.",
+    prefix: "rate-limit:signup",
+    windowSeconds: 3600,
+  },
+}));
 
 vi.mock("@/lib/auth/session", () => ({
   createSession: mocks.createSession,
@@ -123,6 +124,7 @@ describe("signupAction", () => {
     expect(mocks.encryptUEK).toHaveBeenCalledWith(Buffer.from("generated-uek"));
     expect(mocks.createUser).toHaveBeenCalledWith({
       email: "alice@example.com",
+      email_verified: true,
       name: "Alice Johnson",
       password_hash: "hashed-password",
       encrypted_uek: Buffer.from("encrypted-uek"),

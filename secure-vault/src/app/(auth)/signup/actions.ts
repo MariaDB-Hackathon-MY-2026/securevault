@@ -135,6 +135,7 @@ async function runSignup({
     const encryptedUek = encryptUEK(generateUEK());
     createdUserId = await createUser({
       email,
+      email_verified: true,
       name,
       password_hash: hashedPassword,
       encrypted_uek: encryptedUek,

@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { otpEmailHtml } from "./templates";
+import { otpEmailHtml, passwordResetOtpEmailHtml } from "./templates";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
 const fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev"; // Fallback to resend default sandbox
@@ -35,4 +35,14 @@ export async function sendOTPEmail(to: string, code: string) {
 
   const html = otpEmailHtml(code);
   await sendEmail(to, "Your secure access code", html);
+}
+
+export async function sendPasswordResetOtpEmail(to: string, code: string) {
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`[Password Reset OTP][dev-only] To: ${to}, Code: ${code}`);
+    return;
+  }
+
+  const html = passwordResetOtpEmailHtml(code);
+  await sendEmail(to, "Your SecureVault password reset code", html);
 }

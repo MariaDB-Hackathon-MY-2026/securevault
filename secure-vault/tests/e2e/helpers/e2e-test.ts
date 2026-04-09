@@ -16,6 +16,8 @@ ensureTestEnvLoaded();
 const RATE_LIMIT_PREFIXES = [
   "rate-limit:login",
   "rate-limit:signup",
+  "rate-limit:password-reset-request",
+  "rate-limit:password-reset-verify",
   "rate-limit:share-otp-request",
   "rate-limit:share-otp-verify",
   "rate-limit:upload",

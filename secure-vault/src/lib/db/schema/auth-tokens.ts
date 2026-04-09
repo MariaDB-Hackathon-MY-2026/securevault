@@ -1,5 +1,5 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
-import { index, mysqlTable, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { index, int, mysqlTable, timestamp, varchar } from "drizzle-orm/mysql-core";
 import { users } from "@/lib/db/schema/users";
 
 export const passwordResetTokens = mysqlTable(
@@ -11,10 +11,20 @@ export const passwordResetTokens = mysqlTable(
       .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
     token_hash: varchar("token_hash", { length: 255 }).notNull(),
     expires_at: timestamp().notNull(),
+    attempt_count: int("attempt_count").default(0).notNull(),
     used_at: timestamp(),
     created_at: timestamp().defaultNow().notNull(),
   },
-  (table) => [index("idx_password_reset_tokens_user_id").on(table.user_id)],
+  (table) => [
+    index("idx_password_reset_tokens_user_id").on(table.user_id),
+    index("idx_password_reset_tokens_active_lookup").on(
+      table.user_id,
+      table.used_at,
+      table.expires_at,
+      table.created_at,
+      table.id,
+    ),
+  ],
 );
 
 export const emailVerificationTokens = mysqlTable(

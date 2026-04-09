@@ -63,6 +63,20 @@ export const otpVerifyLimiter: RateLimitPolicy = {
   windowSeconds: 5 * 60,
 };
 
+export const passwordResetRequestLimiter: RateLimitPolicy = {
+  limit: 3,
+  message: "Too many password reset requests. Please try again later.",
+  prefix: "rate-limit:password-reset-request",
+  windowSeconds: 15 * 60,
+};
+
+export const passwordResetVerifyLimiter: RateLimitPolicy = {
+  limit: 5,
+  message: "Too many password reset attempts. Please try again later.",
+  prefix: "rate-limit:password-reset-verify",
+  windowSeconds: 15 * 60,
+};
+
 export const uploadLimiter: RateLimitPolicy = {
   limit: 100,
   message: "Too many upload requests. Please try again later.",

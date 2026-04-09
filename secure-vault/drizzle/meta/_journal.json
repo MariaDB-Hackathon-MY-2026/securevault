@@ -36,6 +36,13 @@
       "when": 1775260334081,
       "tag": "0004_next_pestilence",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1775721600000,
+      "tag": "0005_parallel_sway",
+      "breakpoints": true
     }
   ]
 }
