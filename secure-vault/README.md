@@ -26,25 +26,58 @@ DISABLE_REDIS=true
 REDIS_URL=redis://127.0.0.1:6379
 ```
 
+If you want to run the database locally under Docker Compose, use these values:
+
+```bash
+DATABASE_HOST=127.0.0.1
+DATABASE_PORT=3307
+DATABASE_NAME=SecureVault
+DATABASE_USER=securevault
+DATABASE_PASSWORD=securevault
+```
+
 If `DISABLE_REDIS=true` in local development, the app uses a no-op Redis adapter even when `REDIS_URL` is present. That disables Redis-backed rate limiting and global upload slot enforcement locally, but keeps the rest of the app usable.
 
-2. Start Redis:
+2. Start MariaDB:
+
+```bash
+npm run dev:db
+```
+
+3. Start Redis:
 
 ```bash
 npm run dev:redis
 ```
 
-3. Start the app in a separate terminal:
+4. Start the app in a separate terminal:
 
 ```bash
 npm run dev
 ```
 
-4. Optional Redis stop command:
+5. Optional stop commands:
 
 ```bash
+npm run dev:db:stop
 npm run dev:redis:stop
 ```
+
+To start both local services together:
+
+```bash
+npm run dev:services
+```
+
+To stop both local services:
+
+```bash
+npm run dev:services:stop
+```
+
+## Railway migration
+
+For a full Railway MariaDB to local Compose MariaDB migration workflow, including dump/import commands and validation steps, see [`../docs/railway-to-local-mariadb.md`](../docs/railway-to-local-mariadb.md).
 
 ## Redis configuration
 
@@ -57,11 +90,14 @@ Redis is used for:
 
 ## Docker Redis
 
-The repo root contains `compose.yaml` with a local Redis service. The package scripts use that file directly:
+The repo root contains `compose.yaml` with local MariaDB and Redis services. The package scripts use that file directly:
 
 ```bash
 npm run dev
+npm run dev:db
 npm run dev:redis
+npm run dev:services
+npm run dev:services:stop
 npm run dev:redis:stop
 ```
 

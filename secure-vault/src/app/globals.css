@@ -80,6 +80,9 @@
   --sidebar-ring: oklch(0.705 0.015 286.067);
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
+  --scrollbar-thumb: oklch(0.82 0.004 286.32 / 55%);
+  --scrollbar-thumb-hover: oklch(0.74 0.006 286.067 / 70%);
+  --scrollbar-track: oklch(0.975 0.001 286.375 / 50%);
 }
 
 .dark {
@@ -114,12 +117,40 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.552 0.016 285.938);
+  --scrollbar-thumb: oklch(0.38 0.01 286.033 / 65%);
+  --scrollbar-thumb-hover: oklch(0.5 0.015 286.067 / 78%);
+  --scrollbar-track: oklch(0.24 0.006 285.885 / 45%);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
   body {
     @apply bg-background text-foreground;
   }

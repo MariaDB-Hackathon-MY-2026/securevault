@@ -217,12 +217,12 @@ export function FileGrid({
             </div>
           </div>
 
-          <div className="mt-6 flex items-center justify-between gap-4">
-            <div className="flex min-h-10 flex-1 items-center">
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <div className="flex min-h-10 items-center">
               <FilePreview file={file} />
             </div>
-            <div className="flex min-h-10 shrink-0 items-center">
-              <DownloadButton className="min-w-0" file={file} />
+            <div className="flex min-h-10 items-center">
+              <DownloadButton file={file} />
             </div>
           </div>
         </div>

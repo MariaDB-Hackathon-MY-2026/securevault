@@ -20,6 +20,38 @@ export type FilesExplorerData = {
   folders: FolderListItem[];
 };
 
+export type StorageCategory =
+  | "documents"
+  | "images"
+  | "videos"
+  | "audio"
+  | "archives"
+  | "other";
+
+export type StorageBreakdownItem = {
+  bytes: number;
+  category: StorageCategory;
+  fileCount: number;
+  percentOfActiveBytes: number;
+};
+
+export type LargestFileItem = Pick<
+  FileListItem,
+  "folderId" | "id" | "mimeType" | "name" | "size" | "updatedAt"
+>;
+
+export type StorageDashboardData = {
+  activeBytes: number;
+  activeFileCount: number;
+  breakdown: StorageBreakdownItem[];
+  largestFiles: LargestFileItem[];
+  quotaBytes: number;
+  quotaUsedBytes: number;
+  trashedBytes: number;
+  trashedFileCount: number;
+  usagePercent: number;
+};
+
 export type StorageUsage = {
   fileCount: number;
   totalBytes: number;

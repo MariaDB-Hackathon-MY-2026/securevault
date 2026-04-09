@@ -288,6 +288,43 @@ page.locator(`[data-testid^="file-card-"][data-test-file-name="tiny.pdf"]`).firs
 page.locator(`[data-testid^="folder-name-"][data-test-folder-name="Projects"]`).first()
 ```
 
+### 12a. Namespace test ids by surface and role, not just by control label
+
+One failure came from giving two different upload entry points effectively the same test hook shape. Even after moving away from role and label selectors, Playwright strict mode still failed because the test id itself was duplicated across surfaces.
+
+Rule:
+
+- include both the surface and the control role in the test id
+- use container ids for major surfaces, then child ids for controls inside them
+- avoid generic ids like `upload-trigger`, `search-input`, or `new-folder-button` when the page can render more than one of that control
+
+Good:
+
+```tsx
+<div data-testid="files-library-toolbar">
+  <input data-testid="files-library-toolbar-search-input" />
+  <button data-testid="files-library-toolbar-upload-trigger" />
+</div>
+```
+
+```ts
+page
+  .getByTestId("files-library-toolbar")
+  .getByTestId("files-library-toolbar-upload-trigger")
+  .click();
+```
+
+Risky:
+
+```tsx
+<button data-testid="files-upload-trigger" />
+```
+
+Reason:
+
+- another upload trigger in a queue card, header, or mobile action bar will collide immediately
+- strict mode failures here are a locator-design problem, not a Playwright problem
+
 ### 13. For inline rename fields opened from menus, prefer blur-based commit over Enter when focus is unstable
 
 One folder-rename flow reopened the actions menu when the test pressed `Enter`. The rename input was created from an async menu action, and focus could bounce back to the menu trigger.

@@ -13,15 +13,12 @@ type DashboardSidebarProps = {
 export function DashboardSidebar({ initialUser }: DashboardSidebarProps) {
   const pathname = usePathname();
   const { data: user } = useCurrentUserQuery(initialUser);
-
-  if (!user) {
-    return null;
-  }
+  const resolvedUser = user ?? initialUser;
 
   return (
     <aside className="hidden shrink-0 lg:block lg:h-full lg:w-64 xl:w-68">
       <DashboardNavigationPanel
-        user={user}
+        user={resolvedUser}
         pathname={pathname}
         className="border border-border/60 bg-background/95 p-4 backdrop-blur lg:sticky lg:top-0 lg:h-full lg:overflow-y-auto"
       />

@@ -4,7 +4,9 @@ import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TrashPageContent } from "@/components/trash/trash-page-content";
+import { currentUserQueryKey } from "@/lib/auth/current-user-client";
 import { filesExplorerQueryKey } from "@/lib/files/files-explorer-query";
+import { storageDashboardQueryKey } from "@/lib/files/storage-dashboard-query";
 import { trashQueryKey, trashSummaryQueryKey } from "@/lib/trash/trash-query";
 import type { TrashItem, TrashPageData } from "@/lib/trash/types";
 
@@ -135,6 +137,8 @@ describe("TrashPageContent", () => {
       expect(rendered.invalidateSpy).toHaveBeenCalledWith({ queryKey: trashQueryKey });
       expect(rendered.invalidateSpy).toHaveBeenCalledWith({ queryKey: trashSummaryQueryKey });
       expect(rendered.invalidateSpy).toHaveBeenCalledWith({ queryKey: filesExplorerQueryKey });
+      expect(rendered.invalidateSpy).toHaveBeenCalledWith({ queryKey: storageDashboardQueryKey });
+      expect(rendered.invalidateSpy).toHaveBeenCalledWith({ queryKey: currentUserQueryKey });
     });
   });
 

@@ -27,6 +27,7 @@ import {
 } from "@/components/files/file-browser-utils";
 import { CreateFolderDialog } from "@/components/files/create-folder-dialog";
 import { DeleteFilesDialog } from "@/components/files/delete-files-dialog";
+import { FileSearchResults } from "@/components/files/file-search-results";
 import { FilesBreadcrumbs } from "@/components/files/files-breadcrumbs";
 import { FilesEmptyState } from "@/components/files/files-empty-state";
 import { FilesLibraryHeader } from "@/components/files/files-library-header";
@@ -36,14 +37,18 @@ import { MoveFilesDialog } from "@/components/files/move-files-dialog";
 import { Toolbar } from "@/components/files/toolbar";
 import { CreateShareDialog } from "@/components/share/create-share-dialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useFilenameSearchQuery } from "@/hooks/use-filename-search-query";
 import { useFilesExplorerQuery } from "@/hooks/use-files-explorer-query";
 import { sanitizeFilename } from "@/lib/crypto/sanitize";
+import { currentUserQueryKey } from "@/lib/auth/current-user-client";
 import { filesExplorerQueryKey } from "@/lib/files/files-explorer-query";
+import { storageDashboardQueryKey } from "@/lib/files/storage-dashboard-query";
 import type {
   FileListItem,
   FilesExplorerData,
   FolderListItem,
 } from "@/lib/files/types";
+import type { FilenameSearchResult } from "@/lib/search/types";
 import { trashQueryKey, trashSummaryQueryKey } from "@/lib/trash/trash-query";
 
 type FilesLibraryProps = {
@@ -115,8 +120,24 @@ export function FilesLibrary({
     () => new Map(folders.map((folder) => [folder.id, folder])),
     [folders],
   );
+  const {
+    data: filenameSearchData,
+    error: filenameSearchError,
+    isError: isFilenameSearchError,
+    isFetching: isFilenameSearchFetching,
+  } = useFilenameSearchQuery({
+    query: deferredFilterValue,
+  });
   const renamingFileId = renameState?.type === "file" ? renameState.id : null;
   const renamingFolderId = renameState?.type === "folder" ? renameState.id : null;
+  const normalizedSearchQuery = filterValue.trim();
+  const isFilenameMode = normalizedSearchQuery.length > 0;
+  const isFilenameInputPending = filterValue.trim() !== deferredFilterValue.trim();
+  const hasValidFilenameQuery = deferredFilterValue.trim().length >= 2;
+  const filenameSearchResults = React.useMemo(
+    () => filenameSearchData?.results ?? [],
+    [filenameSearchData],
+  );
 
   React.useEffect(() => {
     setSelectedFileIds((currentSelection) =>
@@ -149,6 +170,20 @@ export function FilesLibrary({
     }
   }, [currentFolderId, folderMap]);
 
+  React.useEffect(() => {
+    if (!isFilenameMode) {
+      return;
+    }
+
+    setSelectedFileIds([]);
+    setRenameState(null);
+    setRenameDraft("");
+    setDeleteDialogState(null);
+    setMoveDialogState(null);
+    setShareDialogState(null);
+    setIsCreateFolderDialogOpen(false);
+  }, [isFilenameMode]);
+
   const filteredFolders = folders.filter(
     (folder) =>
       folder.parentId === currentFolderId &&
@@ -163,8 +198,35 @@ export function FilesLibrary({
     compareFolders(left, right, sort),
   );
   const visibleFiles = [...filteredFiles].sort((left, right) => compareFiles(left, right, sort));
+  const sortedFilenameSearchResults = React.useMemo(
+    () =>
+      [...filenameSearchResults].sort((left, right) => {
+        if (sort.key === "size") {
+          const sizeComparison = left.size - right.size;
+          if (sizeComparison !== 0) {
+            return sort.direction === "asc" ? sizeComparison : -sizeComparison;
+          }
+        }
+
+        if (sort.key === "updatedAt") {
+          const dateComparison =
+            new Date(left.updatedAt).getTime() - new Date(right.updatedAt).getTime();
+          if (dateComparison !== 0) {
+            return sort.direction === "asc" ? dateComparison : -dateComparison;
+          }
+        }
+
+        return left.name.localeCompare(right.name, "en", {
+          numeric: true,
+          sensitivity: "base",
+        }) * (sort.direction === "asc" ? 1 : -1);
+      }),
+    [filenameSearchResults, sort],
+  );
   const currentFolderPath = getFolderPath(currentFolderId, folderMap);
   const currentFolder = currentFolderId ? folderMap.get(currentFolderId) ?? null : null;
+  const currentFolderName = currentFolder?.name ?? "All files";
+  const visibleItemCount = visibleFolders.length + visibleFiles.length;
   const selectedCount = selectedFileIds.length;
   const createFolderParentLabel = createFolderParentId
     ? folderMap.get(createFolderParentId)?.name ?? "Selected folder"
@@ -229,7 +291,11 @@ export function FilesLibrary({
   }
 
   async function invalidateExplorer() {
-    await queryClient.invalidateQueries({ queryKey: filesExplorerQueryKey });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: filesExplorerQueryKey }),
+      queryClient.invalidateQueries({ queryKey: storageDashboardQueryKey }),
+      queryClient.invalidateQueries({ queryKey: currentUserQueryKey }),
+    ]);
   }
 
   async function invalidateTrash() {
@@ -267,6 +333,16 @@ export function FilesLibrary({
 
   function clearSelection() {
     setSelectedFileIds([]);
+  }
+
+  function clearTransientExplorerState() {
+    setSelectedFileIds([]);
+    setRenameState(null);
+    setRenameDraft("");
+    setDeleteDialogState(null);
+    setMoveDialogState(null);
+    setShareDialogState(null);
+    setIsCreateFolderDialogOpen(false);
   }
 
   function openFileMoveDialog(fileIds: string[], targetFolderId: string | null) {
@@ -581,9 +657,15 @@ export function FilesLibrary({
   function navigateToFolder(folderId: string | null) {
     React.startTransition(() => {
       setCurrentFolderId(folderId);
-      setSelectedFileIds([]);
-      setRenameState(null);
-      setRenameDraft("");
+    });
+    clearTransientExplorerState();
+  }
+
+  function openSearchResultFolder(result: FilenameSearchResult) {
+    clearTransientExplorerState();
+    React.startTransition(() => {
+      setCurrentFolderId(result.folderId);
+      setFilterValue("");
     });
   }
 
@@ -608,39 +690,117 @@ export function FilesLibrary({
     );
   }
 
+  function renderFilenameSearchSurface() {
+    if (!filterValue.trim()) {
+      return (
+        <FilesEmptyState
+          mode="filename"
+          state="blank"
+        />
+      );
+    }
+
+    if (isFilenameInputPending) {
+      return (
+        <FilesEmptyState
+          mode="filename"
+          state="loading"
+        />
+      );
+    }
+
+    if (!hasValidFilenameQuery) {
+      return (
+        <FilesEmptyState
+          mode="filename"
+          state="short"
+        />
+      );
+    }
+
+    if (isFilenameSearchError) {
+      return (
+        <FilesEmptyState
+          message={filenameSearchError instanceof Error ? filenameSearchError.message : undefined}
+          mode="filename"
+          state="error"
+        />
+      );
+    }
+
+    if (isFilenameSearchFetching && filenameSearchResults.length === 0) {
+      return (
+        <FilesEmptyState
+          mode="filename"
+          state="loading"
+        />
+      );
+    }
+
+    if (filenameSearchResults.length === 0) {
+      return (
+        <FilesEmptyState
+          mode="filename"
+          query={deferredFilterValue}
+          state="empty"
+        />
+      );
+    }
+
+    return (
+      <FileSearchResults
+        isRefreshing={isFilenameSearchFetching}
+        onOpenFolder={openSearchResultFolder}
+        results={sortedFilenameSearchResults}
+      />
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
-        <FilesLibraryHeader fileCount={files.length} />
+        <FilesLibraryHeader
+          currentFolderName={currentFolderName}
+          itemCount={
+            isFilenameMode
+              ? isFilenameInputPending || !hasValidFilenameQuery
+                ? 0
+                : filenameSearchResults.length
+              : visibleItemCount
+          }
+          query={normalizedSearchQuery}
+        />
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <FilesBreadcrumbs
-            currentFolderPath={currentFolderPath}
-            currentFolder={currentFolder}
-            currentFolderActions={
-              currentFolder
-                ? {
-                    onDelete: openFolderDeleteDialog,
-                    onMove: openFolderMoveDialog,
-                    onRename: startFolderRename,
-                    onShare: openFolderShareDialog,
-                  }
-                : undefined
-            }
-            isFetching={isFetching}
-            onNavigate={navigateToFolder}
-            onRenameCancel={cancelRename}
-            onRenameChange={setRenameDraft}
-            onRenameCommit={commitFolderRename}
-            renameDraft={renameDraft}
-            renamingFolderId={renamingFolderId}
-          />
+          {!isFilenameMode ? (
+            <FilesBreadcrumbs
+              currentFolderPath={currentFolderPath}
+              currentFolder={currentFolder}
+              currentFolderActions={
+                currentFolder
+                  ? {
+                      onDelete: openFolderDeleteDialog,
+                      onMove: openFolderMoveDialog,
+                      onRename: startFolderRename,
+                      onShare: openFolderShareDialog,
+                    }
+                  : undefined
+              }
+              isFetching={isFetching}
+              onNavigate={navigateToFolder}
+              onRenameCancel={cancelRename}
+              onRenameChange={setRenameDraft}
+              onRenameCommit={commitFolderRename}
+              renameDraft={renameDraft}
+              renamingFolderId={renamingFolderId}
+            />
+          ) : null}
 
           <Toolbar
             canUpload={canUpload}
             filterValue={filterValue}
-            isFetching={isFetching}
+            isFetching={isFilenameMode ? isFilenameSearchFetching : isFetching}
             onBulkDelete={() => openFileDeleteDialog(selectedFileIds)}
             onBulkMove={() => openFileMoveDialog(selectedFileIds, currentFolderId)}
             onClearSelection={clearSelection}
@@ -652,13 +812,14 @@ export function FilesLibrary({
             }}
             onSortChange={setSort}
             onViewModeChange={setViewMode}
+            searchQuery={filterValue}
             selectedCount={selectedCount}
             sort={sort}
             viewMode={viewMode}
           />
 
-          {visibleFolders.length === 0 && visibleFiles.length === 0 ? (
-            <FilesEmptyState hasFilter={Boolean(deferredFilterValue)} />
+          {isFilenameMode ? renderFilenameSearchSurface() : visibleFolders.length === 0 && visibleFiles.length === 0 ? (
+            <FilesEmptyState hasFilter={Boolean(deferredFilterValue)} mode="filter" />
           ) : viewMode === "grid" ? (
             <FileGrid
               files={visibleFiles}
