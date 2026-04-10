@@ -91,6 +91,10 @@ function mapFileListItem(file: {
 }
 
 function getAffectedCount(result: unknown) {
+  if (Array.isArray(result)) {
+    return getAffectedCount(result[0]);
+  }
+
   if (typeof result !== "object" || !result) {
     return 0;
   }

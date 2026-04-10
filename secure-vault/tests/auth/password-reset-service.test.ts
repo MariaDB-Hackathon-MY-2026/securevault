@@ -362,6 +362,33 @@ describe("password reset service", () => {
     expect(mocks.deleteAllSessions).toHaveBeenCalledWith("user-123", expect.any(Object));
   });
 
+  it("treats tuple-shaped update results from the MariaDB driver as a successful consume", async () => {
+    const harness = createResetTransactionHarness({
+      executeResults: [
+        wrapRows([makeTokenRow({ tokenHash: hashOtpCode("123456") })]),
+        wrapRows([makeTokenRow({ tokenHash: hashOtpCode("123456") })]),
+      ],
+      updateResults: [[{ affectedRows: 1 }, null]],
+      userResult: [{ email: "alice@example.com", id: "user-123" }],
+    });
+    vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+    await expect(
+      resetPasswordWithOtp({
+        code: "123456",
+        email: "alice@example.com",
+        newPassword: "CorrectHorseBatteryStaple!2026",
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.updateUserPassword).toHaveBeenCalledWith(
+      "user-123",
+      "hashed-next-password",
+      expect.any(Object),
+    );
+    expect(mocks.deleteAllSessions).toHaveBeenCalledWith("user-123", expect.any(Object));
+  });
+
   it("retries deadlocked password reset transactions before succeeding", async () => {
     vi.useFakeTimers();
 

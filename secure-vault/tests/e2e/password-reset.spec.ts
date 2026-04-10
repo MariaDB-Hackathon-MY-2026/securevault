@@ -85,7 +85,7 @@ test.describe("password reset", () => {
       await page.getByLabel("New Password").fill(newPassword);
       await page.getByRole("button", { name: "Reset password" }).click();
 
-      await expect(page.getByText("Password reset successful")).toBeVisible();
+      await expect(page.getByText("Password reset successful", { exact: true })).toBeVisible();
 
       const currentUserStatus = await secondaryPage.evaluate(async () => {
         const response = await fetch("/api/auth/current-user", {

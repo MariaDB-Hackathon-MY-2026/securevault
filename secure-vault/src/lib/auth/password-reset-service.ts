@@ -118,8 +118,7 @@ export async function requestPasswordResetOtp(email: string): Promise<RequestPas
   }
 
   try {
-    await invalidateOlderActivePasswordResetTokens(db, {
-      createdAt,
+    await invalidateOtherActivePasswordResetTokens(db, {
       tokenId,
       userId: user.id,
     });
@@ -331,9 +330,9 @@ async function retireOtherActivePasswordResetTokens(
     );
 }
 
-async function invalidateOlderActivePasswordResetTokens(
+async function invalidateOtherActivePasswordResetTokens(
   executor: DbExecutor,
-  input: { createdAt: Date; tokenId: string; userId: string },
+  input: { tokenId: string; userId: string },
 ) {
   await executor
     .update(passwordResetTokens)
@@ -342,13 +341,7 @@ async function invalidateOlderActivePasswordResetTokens(
       and(
         eq(passwordResetTokens.user_id, input.userId),
         isNull(passwordResetTokens.used_at),
-        or(
-          lt(passwordResetTokens.created_at, input.createdAt),
-          and(
-            eq(passwordResetTokens.created_at, input.createdAt),
-            lt(passwordResetTokens.id, input.tokenId),
-          ),
-        ),
+        sql`${passwordResetTokens.id} <> ${input.tokenId}`,
       ),
     );
 }
@@ -434,7 +427,17 @@ function parseDate(value: unknown): Date | null {
     return Number.isNaN(value.getTime()) ? null : value;
   }
 
-  if (typeof value === "string" || typeof value === "number") {
+  if (typeof value === "string") {
+    // MariaDB can return UTC timestamps without a timezone suffix; normalize
+    // them explicitly so Node does not reinterpret them in local time.
+    const normalizedValue = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(value)
+      ? `${value.replace(" ", "T")}Z`
+      : value;
+    const parsed = new Date(normalizedValue);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  if (typeof value === "number") {
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
@@ -465,6 +468,10 @@ function unwrapSelectRows(result: unknown): unknown[] {
 }
 
 function getAffectedCount(result: unknown) {
+  if (Array.isArray(result)) {
+    return getAffectedCount(result[0]);
+  }
+
   if (!result || typeof result !== "object") {
     return 0;
   }
