@@ -57,6 +57,7 @@ import {
   createRateLimitResponse,
   enforceRateLimit,
   loginLimiter,
+  passwordResetVerifyLimiter,
 } from "@/lib/rate-limit";
 
 describe("rate limit helper", () => {
@@ -103,5 +104,20 @@ describe("rate limit helper", () => {
     expect(result.remaining).toBe(loginLimiter.limit);
     expect(result.headers.get("Retry-After")).toBeNull();
     expect(warnSpy).toHaveBeenCalled();
+  });
+
+  it("fails open for password reset verification when redis is unavailable", async () => {
+    state.setShouldThrow(true);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const result = await enforceRateLimit(passwordResetVerifyLimiter, "203.0.113.10:alice@example.com");
+
+    expect(result.success).toBe(true);
+    expect(result.limit).toBe(passwordResetVerifyLimiter.limit);
+    expect(result.retryAfterSeconds).toBe(passwordResetVerifyLimiter.windowSeconds);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining(passwordResetVerifyLimiter.prefix),
+      expect.any(Error),
+    );
   });
 });

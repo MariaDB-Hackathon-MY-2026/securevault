@@ -89,6 +89,25 @@ export default function ResetPasswordPage() {
     event.preventDefault();
     setErrorCode(null);
     setErrorMessage(null);
+    const nextFieldErrors: Record<string, string[]> = {};
+
+    if (!email.trim()) {
+      nextFieldErrors.email = ["Email is required"];
+    }
+
+    if (!code.trim()) {
+      nextFieldErrors.code = ["Verification code is required"];
+    }
+
+    if (!newPassword) {
+      nextFieldErrors.newPassword = ["New password is required"];
+    }
+
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
+      return;
+    }
+
     setFieldErrors({});
     setResendMessage(null);
     setSuccessMessage(null);
@@ -262,9 +281,18 @@ export default function ResetPasswordPage() {
             ) : null}
           </CardContent>
           <CardFooter className="flex-col gap-4">
-            <Button className="w-full" disabled={isSubmitting || !strength?.valid} type="submit">
+            <Button
+              aria-describedby="password-strength password-reset-submit-hint"
+              className="w-full"
+              disabled={isSubmitting || !strength?.valid}
+              title={!strength?.valid ? "Enter a strong password to enable reset" : undefined}
+              type="submit"
+            >
               {isSubmitting ? "Resetting password..." : "Reset password"}
             </Button>
+            <p id="password-reset-submit-hint" className="sr-only">
+              Enter a strong password to enable reset.
+            </p>
             <Button
               className="w-full"
               disabled={isResending || !email.trim()}

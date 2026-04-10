@@ -37,6 +37,7 @@ function createRequest(body: unknown) {
 describe("password reset request route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
     mocks.enforceRateLimit.mockResolvedValue({ success: true });
     mocks.createRateLimitResponse.mockReturnValue(
       new Response(JSON.stringify({ message: "Too many password reset requests. Please try again later." }), {
@@ -69,6 +70,19 @@ describe("password reset request route", () => {
     expect(mocks.requestPasswordResetOtp).toHaveBeenCalledWith("alice@example.com");
   });
 
+  it("returns the same generic success payload for unknown emails", async () => {
+    mocks.requestPasswordResetOtp.mockResolvedValueOnce({ delivered: false, userFound: false });
+
+    const response = await POST(createRequest({ email: "unknown@example.com" }) as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      message: "If an account exists for that email, a verification code has been sent.",
+      success: true,
+    });
+    expect(mocks.requestPasswordResetOtp).toHaveBeenCalledWith("unknown@example.com");
+  });
+
   it("returns 429 when either limiter blocks the request", async () => {
     mocks.enforceRateLimit
       .mockResolvedValueOnce({ success: true })
@@ -94,5 +108,26 @@ describe("password reset request route", () => {
       success: true,
     });
     expect(errorSpy).toHaveBeenCalled();
+  });
+
+  it("keeps the generic success payload when the service resolves after the minimum response delay", async () => {
+    vi.useFakeTimers();
+    mocks.requestPasswordResetOtp.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve({ delivered: true, userFound: true }), 300);
+        }),
+    );
+
+    const responsePromise = POST(createRequest({ email: "alice@example.com" }) as never);
+    await vi.advanceTimersByTimeAsync(300);
+    const response = await responsePromise;
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      message: "If an account exists for that email, a verification code has been sent.",
+      success: true,
+    });
+    expect(mocks.requestPasswordResetOtp).toHaveBeenCalledWith("alice@example.com");
   });
 });

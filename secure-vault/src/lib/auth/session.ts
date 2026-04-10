@@ -1,5 +1,3 @@
-"use server";
-
 import { createHash } from "node:crypto";
 
 import { and, desc, eq, gte, ne } from "drizzle-orm";

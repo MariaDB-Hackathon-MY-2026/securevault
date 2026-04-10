@@ -28,12 +28,14 @@ export default function ForgotPasswordPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage(null);
     setFieldError(null);
+    setSubmittedEmail(null);
     setSuccessMessage(null);
     setIsSubmitting(true);
 
@@ -54,6 +56,7 @@ export default function ForgotPasswordPage() {
       setSuccessMessage(
         payload.message ?? "If an account exists for that email, a verification code has been sent.",
       );
+      setSubmittedEmail(email.trim().toLowerCase());
     } catch {
       setErrorMessage("Failed to send verification code.");
     } finally {
@@ -107,9 +110,9 @@ export default function ForgotPasswordPage() {
             <Button className="w-full" disabled={isSubmitting} type="submit">
               {isSubmitting ? "Sending code..." : "Send verification code"}
             </Button>
-            {successMessage ? (
+            {successMessage && submittedEmail ? (
               <Button asChild className="w-full" variant="outline">
-                <Link href={`/reset-password?email=${encodeURIComponent(email.trim().toLowerCase())}`}>
+                <Link href={`/reset-password?email=${encodeURIComponent(submittedEmail)}`}>
                   Continue to reset password
                 </Link>
               </Button>

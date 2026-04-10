@@ -48,7 +48,9 @@ export async function POST(request: NextRequest) {
       return createRateLimitResponse(scopedLimit, passwordResetRequestLimiter.message);
     }
 
-    await requestPasswordResetOtp(email);
+    await requestPasswordResetOtp(email).catch((error) => {
+      console.error("Password reset OTP request failed", error);
+    });
     await waitForMinimumResponseTime(startedAt);
     return NextResponse.json(GENERIC_SUCCESS_RESPONSE);
   } catch (error) {

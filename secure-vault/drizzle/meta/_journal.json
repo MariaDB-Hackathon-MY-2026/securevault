@@ -43,6 +43,13 @@
       "when": 1775721600000,
       "tag": "0005_parallel_sway",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1775791606224,
+      "tag": "0006_password_reset_token_hash_index",
+      "breakpoints": true
     }
   ]
 }

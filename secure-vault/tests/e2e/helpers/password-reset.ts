@@ -9,6 +9,10 @@ export async function replacePasswordResetOtp(email: string, code: string, optio
   expiresAt?: Date;
   usedAt?: Date | null;
 }) {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Password reset E2E helper must never run in production");
+  }
+
   const normalizedEmail = normalizeEmailAddress(email);
   const db = MariadbConnection.getConnection();
   const user = await db
@@ -28,7 +32,7 @@ export async function replacePasswordResetOtp(email: string, code: string, optio
     attempt_count: options?.attemptCount ?? 0,
     created_at: createdAt,
     expires_at: options?.expiresAt ?? createOtpExpiry(createdAt),
-    id: createAuthOtpId(createdAt.getTime()),
+    id: createAuthOtpId(),
     token_hash: hashOtpCode(code),
     used_at: options?.usedAt ?? null,
     user_id: user[0].id,

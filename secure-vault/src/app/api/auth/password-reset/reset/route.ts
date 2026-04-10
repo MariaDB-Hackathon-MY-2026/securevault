@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { hashPassword } from "@/lib/auth/password";
 import { validatePasswordStrength } from "@/lib/auth/password-strength";
 import { normalizeEmailAddress } from "@/lib/auth/otp";
 import {
@@ -84,7 +83,7 @@ export async function POST(request: NextRequest) {
     await resetPasswordWithOtp({
       code: code.trim(),
       email: normalizedEmail,
-      newPasswordHash: await hashPassword(newPassword),
+      newPassword,
     });
 
     return NextResponse.json({

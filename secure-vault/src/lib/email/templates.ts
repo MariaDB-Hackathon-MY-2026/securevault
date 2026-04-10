@@ -1,8 +1,20 @@
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;");
+}
+
 export function otpEmailHtml(code: string): string {
+  const safeCode = escapeHtml(code);
+
   return `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; color: #333; }
     .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -14,7 +26,7 @@ export function otpEmailHtml(code: string): string {
   <div class="container">
     <h2>SecureVault Access Code</h2>
     <p>You requested a secure link access code. Please use the following code to continue:</p>
-    <div class="otp-code">${code}</div>
+    <div class="otp-code">${safeCode}</div>
     <p><strong>This code expires in 5 minutes.</strong></p>
     <div class="footer">
       If you did not request this code, you can safely ignore this email.
@@ -26,10 +38,14 @@ export function otpEmailHtml(code: string): string {
 }
 
 export function passwordResetOtpEmailHtml(code: string): string {
+  const safeCode = escapeHtml(code);
+
   return `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; color: #333; }
     .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -41,7 +57,7 @@ export function passwordResetOtpEmailHtml(code: string): string {
   <div class="container">
     <h2>SecureVault Password Reset Code</h2>
     <p>You requested to reset your SecureVault password. Use the following verification code to continue:</p>
-    <div class="otp-code">${code}</div>
+    <div class="otp-code">${safeCode}</div>
     <p><strong>This code expires in 5 minutes.</strong></p>
     <div class="footer">
       If you did not request a password reset, you can safely ignore this email.

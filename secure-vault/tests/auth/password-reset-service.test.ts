@@ -9,6 +9,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   deleteAllSessions: vi.fn(),
+  hashPassword: vi.fn(),
   safeCompare: vi.fn(),
   sendPasswordResetOtpEmail: vi.fn(),
   updateUserPassword: vi.fn(),
@@ -20,6 +21,10 @@ vi.mock("nanoid", () => ({
 
 vi.mock("@/lib/email", () => ({
   sendPasswordResetOtpEmail: mocks.sendPasswordResetOtpEmail,
+}));
+
+vi.mock("@/lib/auth/password", () => ({
+  hashPassword: mocks.hashPassword,
 }));
 
 vi.mock("@/lib/crypto/timing", () => ({
@@ -116,10 +121,12 @@ function wrapRows(rows: unknown[]) {
 describe("password reset service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
     vi.spyOn(MariadbConnection, "getConnection").mockImplementation(() => {
       throw new Error("getConnection mock not configured");
     });
     mocks.safeCompare.mockImplementation((left, right) => left === right);
+    mocks.hashPassword.mockResolvedValue("hashed-next-password");
     mocks.sendPasswordResetOtpEmail.mockResolvedValue(undefined);
     mocks.updateUserPassword.mockResolvedValue(undefined);
     mocks.deleteAllSessions.mockResolvedValue(undefined);
@@ -198,6 +205,7 @@ describe("password reset service", () => {
     });
 
     expect(mocks.sendPasswordResetOtpEmail).not.toHaveBeenCalled();
+    expect(harness.spies.deleteFn).not.toHaveBeenCalled();
     expect(harness.spies.insertValues).not.toHaveBeenCalled();
   });
 
@@ -212,7 +220,7 @@ describe("password reset service", () => {
       resetPasswordWithOtp({
         code: "000000",
         email: "alice@example.com",
-        newPasswordHash: "next-hash",
+        newPassword: "CorrectHorseBatteryStaple!2026",
       }),
     ).rejects.toMatchObject({
       code: "OTP_INVALID",
@@ -220,6 +228,7 @@ describe("password reset service", () => {
     });
 
     expect(harness.spies.updateSet).toHaveBeenCalledWith({ attempt_count: 1 });
+    expect(mocks.hashPassword).not.toHaveBeenCalled();
     expect(mocks.updateUserPassword).not.toHaveBeenCalled();
   });
 
@@ -234,7 +243,7 @@ describe("password reset service", () => {
       resetPasswordWithOtp({
         code: "999999",
         email: "alice@example.com",
-        newPasswordHash: "next-hash",
+        newPassword: "CorrectHorseBatteryStaple!2026",
       }),
     ).rejects.toMatchObject({
       code: "OTP_LOCKED",
@@ -242,6 +251,7 @@ describe("password reset service", () => {
     });
 
     expect(harness.spies.updateSet).toHaveBeenCalledWith({ attempt_count: 3 });
+    expect(mocks.hashPassword).not.toHaveBeenCalled();
   });
 
   it("returns OTP_USED when the submitted code was already consumed", async () => {
@@ -258,13 +268,14 @@ describe("password reset service", () => {
       resetPasswordWithOtp({
         code: "123456",
         email: "alice@example.com",
-        newPasswordHash: "next-hash",
+        newPassword: "CorrectHorseBatteryStaple!2026",
       }),
     ).rejects.toMatchObject({
       code: "OTP_USED",
       status: 403,
     });
 
+    expect(mocks.hashPassword).not.toHaveBeenCalled();
     expect(mocks.updateUserPassword).not.toHaveBeenCalled();
     expect(mocks.deleteAllSessions).not.toHaveBeenCalled();
   });
@@ -284,14 +295,42 @@ describe("password reset service", () => {
       resetPasswordWithOtp({
         code: "123456",
         email: "alice@example.com",
-        newPasswordHash: "next-hash",
+        newPassword: "CorrectHorseBatteryStaple!2026",
       }),
     ).rejects.toMatchObject({
       code: "OTP_USED",
       status: 403,
     });
 
+    expect(mocks.hashPassword).not.toHaveBeenCalled();
     expect(mocks.updateUserPassword).not.toHaveBeenCalled();
+  });
+
+  it("accepts a matching older active token when a newer cleanup-failed token is still active", async () => {
+    const harness = createResetTransactionHarness({
+      executeResults: [
+        wrapRows([makeTokenRow({ id: "newer-token", tokenHash: hashOtpCode("654321") })]),
+        wrapRows([makeTokenRow({ id: "older-token", tokenHash: hashOtpCode("123456") })]),
+      ],
+      updateResults: [{ affectedRows: 1 }, { affectedRows: 1 }],
+      userResult: [{ email: "alice@example.com", id: "user-123" }],
+    });
+    vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+    await expect(
+      resetPasswordWithOtp({
+        code: "123456",
+        email: "alice@example.com",
+        newPassword: "CorrectHorseBatteryStaple!2026",
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.hashPassword).toHaveBeenCalledWith("CorrectHorseBatteryStaple!2026");
+    expect(mocks.updateUserPassword).toHaveBeenCalledWith(
+      "user-123",
+      "hashed-next-password",
+      expect.any(Object),
+    );
   });
 
   it("updates the password, consumes the OTP, and invalidates all sessions on success", async () => {
@@ -309,12 +348,59 @@ describe("password reset service", () => {
       resetPasswordWithOtp({
         code: "123456",
         email: "alice@example.com",
-        newPasswordHash: "next-hash",
+        newPassword: "CorrectHorseBatteryStaple!2026",
       }),
     ).resolves.toBeUndefined();
 
     expect(harness.spies.updateSet).toHaveBeenCalledWith({ used_at: expect.any(Date) });
-    expect(mocks.updateUserPassword).toHaveBeenCalledWith("user-123", "next-hash", expect.any(Object));
+    expect(mocks.hashPassword).toHaveBeenCalledWith("CorrectHorseBatteryStaple!2026");
+    expect(mocks.updateUserPassword).toHaveBeenCalledWith(
+      "user-123",
+      "hashed-next-password",
+      expect.any(Object),
+    );
     expect(mocks.deleteAllSessions).toHaveBeenCalledWith("user-123", expect.any(Object));
+  });
+
+  it("retries deadlocked password reset transactions before succeeding", async () => {
+    vi.useFakeTimers();
+
+    const tx = {
+      execute: vi.fn(async () => wrapRows([makeTokenRow({ tokenHash: hashOtpCode("123456") })])),
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(async () => [{ email: "alice@example.com", id: "user-123" }]),
+          })),
+        })),
+      })),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(async () => ({ affectedRows: 1 })),
+        })),
+      })),
+    };
+
+    const transaction = vi.fn(async (callback: (executor: typeof tx) => unknown) => {
+      if (transaction.mock.calls.length === 1) {
+        throw { code: "ER_LOCK_DEADLOCK" };
+      }
+
+      return callback(tx);
+    });
+
+    vi.spyOn(MariadbConnection, "getConnection").mockReturnValue({ transaction } as never);
+
+    const resetPromise = resetPasswordWithOtp({
+      code: "123456",
+      email: "alice@example.com",
+      newPassword: "CorrectHorseBatteryStaple!2026",
+    });
+
+    await vi.advanceTimersByTimeAsync(50);
+    await expect(resetPromise).resolves.toBeUndefined();
+
+    expect(transaction).toHaveBeenCalledTimes(2);
+    expect(mocks.hashPassword).toHaveBeenCalledWith("CorrectHorseBatteryStaple!2026");
   });
 });

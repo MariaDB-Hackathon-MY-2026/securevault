@@ -14,8 +14,23 @@ export async function updateUserPassword(
 ): Promise<void> {
   const db = executor ?? MariadbConnection.getConnection();
 
-  await db
+  const result = await db
     .update(users)
     .set({ password_hash: passwordHash })
     .where(eq(users.id, userId));
+
+  const affectedCount = getAffectedCount(result);
+
+  if (affectedCount === 0) {
+    throw new Error(`Password update affected 0 rows for userId=${userId}`);
+  }
+}
+
+function getAffectedCount(result: unknown) {
+  if (!result || typeof result !== "object") {
+    return 0;
+  }
+
+  const maybeResult = result as { affectedRows?: number; rowsAffected?: number };
+  return maybeResult.rowsAffected ?? maybeResult.affectedRows ?? 0;
 }

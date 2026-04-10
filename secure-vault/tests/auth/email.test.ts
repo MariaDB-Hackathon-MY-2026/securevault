@@ -42,4 +42,15 @@ describe("email helpers", () => {
       }),
     ]);
   });
+
+  it("escapes OTP content before inserting it into email HTML", async () => {
+    const { passwordResetOtpEmailHtml } = await import("@/lib/email/templates");
+    const html = passwordResetOtpEmailHtml("<123&456>");
+
+    expect(html).toContain("<html lang=\"en\">");
+    expect(html).toContain("<meta charset=\"utf-8\">");
+    expect(html).toContain("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
+    expect(html).toContain("&lt;123&amp;456&gt;");
+    expect(html).not.toContain("<div class=\"otp-code\"><123&456></div>");
+  });
 });

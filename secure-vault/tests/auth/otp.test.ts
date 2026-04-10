@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  __resetAuthOtpIdStateForTests,
   createAuthOtpId,
   generateOtpCode,
   hashOtpCode,
@@ -20,12 +19,12 @@ describe("auth otp helpers", () => {
     expect(hashOtpCode("123456")).toMatch(/^[a-f0-9]{64}$/);
   });
 
-  it("creates lexically increasing ids for tokens created in the same millisecond", () => {
-    __resetAuthOtpIdStateForTests();
+  it("creates fixed-length ids without shared mutable state", () => {
+    const firstId = createAuthOtpId();
+    const secondId = createAuthOtpId();
 
-    const firstId = createAuthOtpId(1_800_000_000_000);
-    const secondId = createAuthOtpId(1_800_000_000_000);
-
-    expect(firstId < secondId).toBe(true);
+    expect(firstId).toHaveLength(21);
+    expect(secondId).toHaveLength(21);
+    expect(firstId).not.toBe(secondId);
   });
 });

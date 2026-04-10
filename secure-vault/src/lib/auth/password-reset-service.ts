@@ -1,5 +1,6 @@
 import { and, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 
+import { hashPassword } from "@/lib/auth/password";
 import { safeCompare } from "@/lib/crypto/timing";
 import { deleteAllSessions } from "@/lib/auth/session";
 import { MariadbConnection } from "@/lib/db";
@@ -68,10 +69,13 @@ export async function requestPasswordResetOtp(email: string): Promise<RequestPas
   }
 
   const createdAt = new Date();
-  const tokenId = createAuthOtpId(createdAt.getTime());
+  const tokenId = createAuthOtpId();
   const code = generateOtpCode();
 
-  await cleanupPasswordResetTokens(db, user.id);
+  // Concurrent resend requests can still race between insert and invalidation.
+  // The reset flow remains safe because consume is compare-and-set guarded, but
+  // a future phase should add a short-lived per-user resend lock if we need the
+  // strict invariant that only one newly delivered code can exist at a time.
   await db.insert(passwordResetTokens).values({
     attempt_count: 0,
     created_at: createdAt,
@@ -84,7 +88,22 @@ export async function requestPasswordResetOtp(email: string): Promise<RequestPas
   try {
     await sendPasswordResetOtpEmail(normalizedEmail, code);
   } catch (error) {
-    await retirePasswordResetToken(db, tokenId);
+    try {
+      await retirePasswordResetToken(db, tokenId);
+    } catch (retireError) {
+      console.error("Password reset OTP retirement failed - orphan OTP row may remain active", {
+        email: normalizedEmail,
+        flow: "password-reset",
+        retireError,
+        tokenId,
+        userId: user.id,
+      });
+    }
+
+    // Cleanup on the failure path is safe because active OTP rows cannot be
+    // older than the 5-minute TTL, which is far shorter than the 7-day
+    // retention window used for expired or already-used rows.
+    await cleanupPasswordResetTokensBestEffort(db, normalizedEmail, user.id);
     console.error("Password reset OTP delivery failed", {
       email: normalizedEmail,
       error,
@@ -114,6 +133,8 @@ export async function requestPasswordResetOtp(email: string): Promise<RequestPas
     });
   }
 
+  await cleanupPasswordResetTokensBestEffort(db, normalizedEmail, user.id);
+
   return {
     delivered: true,
     userFound: true,
@@ -123,7 +144,7 @@ export async function requestPasswordResetOtp(email: string): Promise<RequestPas
 export async function resetPasswordWithOtp(input: {
   code: string;
   email: string;
-  newPasswordHash: string;
+  newPassword: string;
 }): Promise<void> {
   const normalizedEmail = normalizeEmailAddress(input.email);
   const hashedCode = hashOtpCode(input.code);
@@ -138,6 +159,9 @@ export async function resetPasswordWithOtp(input: {
           throw createOtpInvalidError();
         }
 
+        // Lock both the latest active token and the submitted-code candidate in a
+        // single transaction so another request cannot consume either between
+        // validation and the compare-and-set consume step.
         const activeToken = await findLatestUnusedPasswordResetTokenForUpdate(tx, user.id);
         const matchingToken = await findLatestMatchingPasswordResetTokenForUpdate(
           tx,
@@ -149,9 +173,15 @@ export async function resetPasswordWithOtp(input: {
         if (matchingToken) {
           const matchingTokenError = getTokenStateError(matchingToken, now);
 
-          if (matchingTokenError) {
-            throw matchingTokenError;
+          if (!matchingTokenError) {
+            await consumePasswordResetToken(tx, matchingToken.id, now);
+            await retireOtherActivePasswordResetTokens(tx, user.id, matchingToken.id, now);
+            await updateUserPassword(user.id, await hashPassword(input.newPassword), tx);
+            await deleteAllSessions(user.id, tx);
+            return;
           }
+
+          throw matchingTokenError;
         }
 
         if (!activeToken) {
@@ -181,16 +211,9 @@ export async function resetPasswordWithOtp(input: {
           throw createOtpInvalidError();
         }
 
-        const consumeResult = await tx
-          .update(passwordResetTokens)
-          .set({ used_at: now })
-          .where(and(eq(passwordResetTokens.id, activeToken.id), isNull(passwordResetTokens.used_at)));
-
-        if (getAffectedCount(consumeResult) === 0) {
-          throw createOtpUsedError();
-        }
-
-        await updateUserPassword(user.id, input.newPasswordHash, tx);
+        await consumePasswordResetToken(tx, activeToken.id, now);
+        await retireOtherActivePasswordResetTokens(tx, user.id, activeToken.id, now);
+        await updateUserPassword(user.id, await hashPassword(input.newPassword), tx);
         await deleteAllSessions(user.id, tx);
       });
 
@@ -238,6 +261,10 @@ async function findUserByEmail(executor: DbExecutor, email: string): Promise<Pas
 async function cleanupPasswordResetTokens(executor: DbExecutor, userId: string) {
   const retentionCutoff = new Date(Date.now() - PASSWORD_RESET_TOKEN_RETENTION_MS);
 
+  // Keep expired/used reset rows for 7 days so QA and production debugging can
+  // inspect recent OTP history until a scheduled retention job is introduced.
+  // Active OTP rows cannot age past the 5-minute TTL under normal clock
+  // conditions, so this retention cleanup cannot delete a still-valid token.
   await executor
     .delete(passwordResetTokens)
     .where(
@@ -251,11 +278,57 @@ async function cleanupPasswordResetTokens(executor: DbExecutor, userId: string) 
     );
 }
 
+async function cleanupPasswordResetTokensBestEffort(
+  executor: DbExecutor,
+  email: string,
+  userId: string,
+) {
+  try {
+    await cleanupPasswordResetTokens(executor, userId);
+  } catch (error) {
+    console.error("Password reset OTP cleanup failed", {
+      email,
+      error,
+      flow: "password-reset",
+      userId,
+    });
+  }
+}
+
 async function retirePasswordResetToken(executor: DbExecutor, tokenId: string) {
   await executor
     .update(passwordResetTokens)
     .set({ used_at: new Date() })
     .where(eq(passwordResetTokens.id, tokenId));
+}
+
+async function consumePasswordResetToken(tx: DbTransaction, tokenId: string, usedAt: Date) {
+  const consumeResult = await tx
+    .update(passwordResetTokens)
+    .set({ used_at: usedAt })
+    .where(and(eq(passwordResetTokens.id, tokenId), isNull(passwordResetTokens.used_at)));
+
+  if (getAffectedCount(consumeResult) === 0) {
+    throw createOtpUsedError();
+  }
+}
+
+async function retireOtherActivePasswordResetTokens(
+  executor: DbExecutor,
+  userId: string,
+  retainedTokenId: string,
+  usedAt: Date,
+) {
+  await executor
+    .update(passwordResetTokens)
+    .set({ used_at: usedAt })
+    .where(
+      and(
+        eq(passwordResetTokens.user_id, userId),
+        isNull(passwordResetTokens.used_at),
+        sql`${passwordResetTokens.id} <> ${retainedTokenId}`,
+      ),
+    );
 }
 
 async function invalidateOlderActivePasswordResetTokens(

@@ -24,6 +24,7 @@ export const passwordResetTokens = mysqlTable(
       table.created_at,
       table.id,
     ),
+    index("idx_password_reset_tokens_user_id_token_hash").on(table.user_id, table.token_hash),
   ],
 );
 

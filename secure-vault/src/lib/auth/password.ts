@@ -1,7 +1,7 @@
-"use server";
-
 import argon2 from "argon2";
 
+// Matches the current OWASP baseline for Argon2id while staying within the
+// app's interactive latency budget on the production hardware profile.
 const ARGON2_OPTIONS: argon2.Options & { type: typeof argon2.argon2id } = {
   type: argon2.argon2id,
   memoryCost: 19456,

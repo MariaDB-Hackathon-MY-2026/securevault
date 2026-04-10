@@ -1,29 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  createRateLimitResponse: vi.fn(),
-  enforceRateLimit: vi.fn(),
-  hashPassword: vi.fn(),
-  resetPasswordWithOtp: vi.fn(),
-  validatePasswordStrength: vi.fn(),
-}));
+const mocks = vi.hoisted(() => {
+  class PasswordResetServiceError extends Error {
+    code: string;
+    status: number;
 
-vi.mock("@/lib/auth/password", () => ({
-  hashPassword: mocks.hashPassword,
-}));
+    constructor(code: string, message: string, status: number) {
+      super(message);
+      this.name = "PasswordResetServiceError";
+      this.code = code;
+      this.status = status;
+    }
+  }
+
+  return {
+    PasswordResetServiceError,
+    createRateLimitResponse: vi.fn(),
+    enforceRateLimit: vi.fn(),
+    resetPasswordWithOtp: vi.fn(),
+    validatePasswordStrength: vi.fn(),
+  };
+});
 
 vi.mock("@/lib/auth/password-strength", () => ({
   validatePasswordStrength: mocks.validatePasswordStrength,
 }));
 
 vi.mock("@/lib/auth/password-reset-service", () => ({
-  isPasswordResetServiceError: (error: unknown) =>
-    Boolean(
-      error
-      && typeof error === "object"
-      && "code" in (error as Record<string, unknown>)
-      && "status" in (error as Record<string, unknown>),
-  ),
+  isPasswordResetServiceError: (error: unknown) => error instanceof mocks.PasswordResetServiceError,
   resetPasswordWithOtp: mocks.resetPasswordWithOtp,
 }));
 
@@ -34,7 +38,7 @@ vi.mock("@/lib/rate-limit", () => ({
     limit: 5,
     message: "Too many password reset attempts. Please try again later.",
     prefix: "rate-limit:password-reset-verify",
-    windowSeconds: 900,
+    windowSeconds: 300,
   },
 }));
 
@@ -57,7 +61,7 @@ describe("password reset route", () => {
     mocks.enforceRateLimit.mockResolvedValue({ success: true });
     mocks.createRateLimitResponse.mockReturnValue(
       new Response(JSON.stringify({ message: "Too many password reset attempts. Please try again later." }), {
-        headers: { "Retry-After": "900" },
+        headers: { "Retry-After": "300" },
         status: 429,
       }),
     );
@@ -66,7 +70,6 @@ describe("password reset route", () => {
       strength: 4,
       valid: true,
     });
-    mocks.hashPassword.mockResolvedValue("hashed-password");
     mocks.resetPasswordWithOtp.mockResolvedValue(undefined);
   });
 
@@ -110,12 +113,14 @@ describe("password reset route", () => {
     });
   });
 
-  it("maps OTP state errors to the documented response contract", async () => {
-    mocks.resetPasswordWithOtp.mockRejectedValueOnce({
-      code: "OTP_EXPIRED",
-      message: "Verification code has expired",
-      status: 403,
-    });
+  it("maps OTP_EXPIRED errors to the documented response contract", async () => {
+    mocks.resetPasswordWithOtp.mockRejectedValueOnce(
+      new mocks.PasswordResetServiceError(
+        "OTP_EXPIRED",
+        "Verification code has expired",
+        403,
+      ),
+    );
 
     const response = await POST(
       createRequest({
@@ -132,6 +137,83 @@ describe("password reset route", () => {
     });
   });
 
+  it("maps OTP_LOCKED errors to the documented response contract", async () => {
+    mocks.resetPasswordWithOtp.mockRejectedValueOnce(
+      new mocks.PasswordResetServiceError(
+        "OTP_LOCKED",
+        "Too many attempts. Please request a new verification code",
+        403,
+      ),
+    );
+
+    const response = await POST(
+      createRequest({
+        code: "123456",
+        email: "alice@example.com",
+        newPassword: "CorrectHorseBatteryStaple!2026",
+      }) as never,
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: "OTP_LOCKED",
+      message: "Too many attempts. Please request a new verification code",
+    });
+  });
+
+  it("maps OTP_USED errors to the documented response contract", async () => {
+    mocks.resetPasswordWithOtp.mockRejectedValueOnce(
+      new mocks.PasswordResetServiceError(
+        "OTP_USED",
+        "Verification code has already been used. Please request a new verification code.",
+        403,
+      ),
+    );
+
+    const response = await POST(
+      createRequest({
+        code: "123456",
+        email: "alice@example.com",
+        newPassword: "CorrectHorseBatteryStaple!2026",
+      }) as never,
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: "OTP_USED",
+      message: "Verification code has already been used. Please request a new verification code.",
+    });
+  });
+
+  it("returns OTP_INVALID when the email does not match the submitted valid-looking code", async () => {
+    mocks.resetPasswordWithOtp.mockRejectedValueOnce(
+      new mocks.PasswordResetServiceError(
+        "OTP_INVALID",
+        "Invalid verification code",
+        403,
+      ),
+    );
+
+    const response = await POST(
+      createRequest({
+        code: "123456",
+        email: "bob@example.com",
+        newPassword: "CorrectHorseBatteryStaple!2026",
+      }) as never,
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: "OTP_INVALID",
+      message: "Invalid verification code",
+    });
+    expect(mocks.resetPasswordWithOtp).toHaveBeenCalledWith({
+      code: "123456",
+      email: "bob@example.com",
+      newPassword: "CorrectHorseBatteryStaple!2026",
+    });
+  });
+
   it("returns 429 before hashing or resetting when rate limited", async () => {
     mocks.enforceRateLimit.mockResolvedValueOnce({ success: false });
 
@@ -144,7 +226,6 @@ describe("password reset route", () => {
     );
 
     expect(response.status).toBe(429);
-    expect(mocks.hashPassword).not.toHaveBeenCalled();
     expect(mocks.resetPasswordWithOtp).not.toHaveBeenCalled();
   });
 
@@ -162,11 +243,10 @@ describe("password reset route", () => {
       message: "Password reset successful. Please log in again.",
       success: true,
     });
-    expect(mocks.hashPassword).toHaveBeenCalledWith("CorrectHorseBatteryStaple!2026");
     expect(mocks.resetPasswordWithOtp).toHaveBeenCalledWith({
       code: "123456",
       email: "alice@example.com",
-      newPasswordHash: "hashed-password",
+      newPassword: "CorrectHorseBatteryStaple!2026",
     });
   });
 });
