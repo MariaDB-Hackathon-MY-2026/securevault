@@ -53,6 +53,8 @@ export const otpRequestLimiter: RateLimitPolicy = {
   limit: 3,
   message: "Too many verification requests. Please try again later.",
   prefix: "rate-limit:share-otp-request",
+  // Fixed-window counters are acceptable here because share OTP abuse is also
+  // constrained by link scope and OTP expiry.
   windowSeconds: 15 * 60,
 };
 
@@ -60,6 +62,32 @@ export const otpVerifyLimiter: RateLimitPolicy = {
   limit: 3,
   message: "Too many verification attempts. Please try again later.",
   prefix: "rate-limit:share-otp-verify",
+  windowSeconds: 5 * 60,
+};
+
+export const passwordResetRequestLimiter: RateLimitPolicy = {
+  limit: 3,
+  message: "Too many password reset requests. Please try again later.",
+  prefix: "rate-limit:password-reset-request",
+  // ACCEPTED RISK: If Redis is unavailable, this limiter fails open. Requests
+  // continue and enforceRateLimit emits a console.warn operational signal.
+  // Fixed-window, limit 3 per 15 min. At a window boundary an attacker can
+  // burst up to 6 requests (3 from the closing window + 3 from the new one),
+  // which is acceptable alongside the IP and IP:email scoping here.
+  windowSeconds: 15 * 60,
+};
+
+export const passwordResetVerifyLimiter: RateLimitPolicy = {
+  limit: 5,
+  message: "Too many password reset attempts. Please try again later.",
+  prefix: "rate-limit:password-reset-verify",
+  // ACCEPTED RISK: If Redis is unavailable, this limiter fails open. Requests
+  // continue and enforceRateLimit emits a console.warn operational signal.
+  // Keep the verify limiter aligned with the 5-minute OTP TTL so a legitimate
+  // user does not remain rate-limited longer than the current code can live.
+  // This remains a fixed-window policy, so a boundary can allow up to 10
+  // attempts in quick succession (5 from the closing window + 5 from the next).
+  // That tradeoff is acceptable until a sliding-window limiter is worth it.
   windowSeconds: 5 * 60,
 };
 

@@ -49,8 +49,11 @@ export default function LoginPage() {
               />
             </div>
             <div className="grid gap-2">
-              <div className="flex items-center">
+              <div className="flex items-center justify-between gap-4">
                 <Label htmlFor="password">Password</Label>
+                <Button asChild variant="link" className="h-auto px-0 text-xs">
+                  <Link href="/forgot-password">Forgot password?</Link>
+                </Button>
               </div>
               <Input id="password" name="password" type="password" required />
             </div>

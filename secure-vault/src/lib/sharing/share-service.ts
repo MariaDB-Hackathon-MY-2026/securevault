@@ -51,6 +51,10 @@ export type SharedFileSummary = {
 };
 
 function getAffectedCount(result: unknown) {
+  if (Array.isArray(result)) {
+    return getAffectedCount(result[0]);
+  }
+
   if (!result || typeof result !== "object") {
     return 0;
   }

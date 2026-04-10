@@ -21,7 +21,7 @@
 | **Phase 12** | Rate Limiting & Security Hardening  | Phase 3, 8        |
 | **Phase 13** | Activity / Audit Log UI             | Phase 8           |
 | **Phase 14** | Storage Dashboard & Search          | Phase 6           |
-| **Phase 15** | Password Reset & Email Verification | Phase 3           |
+| **Phase 15** | Password Reset                      | Phase 3           |
 | **Phase 16** | AI Agent _(stretch)_                | Phase 5           |
 | **Phase 17** | 2FA / TOTP _(stretch)_              | Phase 3           |
 | **Phase 18** | Deployment & Final QA               | All               |

@@ -8,13 +8,16 @@ import type { usersInsert } from "@/lib/db/schema";
 export type CreateUserInput = Pick<
   usersInsert,
   "email" | "name" | "password_hash" | "encrypted_uek"
->;
+> & {
+  email_verified?: boolean;
+};
 
 export async function createUser({
   email,
   name,
   password_hash,
   encrypted_uek,
+  email_verified = true,
 }: CreateUserInput): Promise<string> {
   const userId = nanoid(USER_ID_LENGTH);
   const db = MariadbConnection.getConnection();
@@ -25,6 +28,7 @@ export async function createUser({
     name,
     password_hash,
     encrypted_uek,
+    email_verified,
   });
 
   return userId;

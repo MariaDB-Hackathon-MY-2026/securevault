@@ -10,7 +10,7 @@ export const users = mysqlTable("users", {
   encrypted_uek: mysqlBlob("encrypted_uek").notNull(),
   storage_used: bigint({ mode: "number" }).default(0).notNull(),
   storage_quota: bigint({ mode: "number" }).default(1073741824).notNull(),
-  email_verified: boolean().default(false).notNull(),
+  email_verified: boolean().default(true).notNull(),
   created_at: timestamp().defaultNow().notNull(),
   updated_at: timestamp().defaultNow().onUpdateNow().notNull(),
 });
