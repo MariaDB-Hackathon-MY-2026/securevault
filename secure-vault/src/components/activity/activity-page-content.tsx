@@ -63,14 +63,16 @@ export function ActivityPageContent({ feed, hasCursor }: ActivityPageContentProp
               Newest events appear first, with deleted targets kept readable but non-navigable while their source rows survive.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-0 p-0">
-            {feed.entries.map((entry, index) => (
-              <ActivityFeedItem
-                key={entry.id}
-                entry={entry}
-                isLast={index === feed.entries.length - 1}
-              />
-            ))}
+          <CardContent className="p-0">
+            <ol aria-label="Recent activity timeline" className="space-y-0">
+              {feed.entries.map((entry, index) => (
+                <ActivityFeedItem
+                  key={entry.id}
+                  entry={entry}
+                  isLast={index === feed.entries.length - 1}
+                />
+              ))}
+            </ol>
           </CardContent>
         </Card>
       )}

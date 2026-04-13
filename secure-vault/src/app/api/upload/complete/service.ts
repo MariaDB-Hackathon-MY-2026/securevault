@@ -44,6 +44,10 @@ export async function completeUploadTransaction(
           throw new TransactionFailureErrorResponse("Upload session not found", 404);
         }
 
+        if (session.status === "completed") {
+          return { fileId: session.file_id, status: "ready" };
+        }
+
         if (session.status !== "uploading") {
           throw new TransactionFailureErrorResponse(
             "Upload session is already completed or has failed",

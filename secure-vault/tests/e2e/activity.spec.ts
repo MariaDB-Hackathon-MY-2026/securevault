@@ -27,6 +27,14 @@ async function openActivity(page: Page, cursor?: string) {
   await expect(page).toHaveURL(cursor ? /\/activity\?cursor=/ : /\/activity$/);
 }
 
+function getActivityMain(page: Page) {
+  return page.getByRole("main");
+}
+
+function getActivityFeed(page: Page) {
+  return getActivityMain(page).getByTestId("activity-feed");
+}
+
 test.describe("activity page", () => {
   test.afterEach(async ({ page }, testInfo) => {
     const { email } = buildTestUserCredentials(testInfo);
@@ -42,12 +50,12 @@ test.describe("activity page", () => {
     await signUpAndBypassVerification(page, credentials);
 
     await openActivity(page);
-    await expect(page.getByTestId("activity-empty-state")).toBeVisible();
-    await expect(page.getByText("No activity yet")).toBeVisible();
+    await expect(getActivityMain(page).getByTestId("activity-empty-state")).toBeVisible();
+    await expect(getActivityMain(page).getByRole("heading", { name: "No activity yet" })).toBeVisible();
 
     await openActivity(page, "not-a-valid-cursor");
-    await expect(page.getByTestId("activity-empty-state")).toBeVisible();
-    await expect(page.getByText("No activity yet")).toBeVisible();
+    await expect(getActivityMain(page).getByTestId("activity-empty-state")).toBeVisible();
+    await expect(getActivityMain(page).getByRole("heading", { name: "No activity yet" })).toBeVisible();
   });
 
   test("shows upload completion plus share create and revoke events", async ({ page }, testInfo) => {
@@ -81,13 +89,13 @@ test.describe("activity page", () => {
     await revokeShareLinkFixture(link!.id);
 
     await openActivity(page);
-    await expect(page.getByTestId("activity-feed")).toBeVisible();
-    await expect(page.getByText("Upload completed")).toBeVisible();
-    await expect(page.getByText("You completed the upload for tiny.pdf.")).toBeVisible();
-    await expect(page.getByText("Share link created")).toBeVisible();
-    await expect(page.getByText("You created a share link for tiny.pdf.")).toBeVisible();
-    await expect(page.getByText("Share link revoked")).toBeVisible();
-    await expect(page.getByText("You revoked a share link for tiny.pdf.")).toBeVisible();
+    await expect(getActivityFeed(page)).toBeVisible();
+    await expect(getActivityFeed(page).getByText("Upload completed")).toBeVisible();
+    await expect(getActivityFeed(page).getByText("You completed the upload for tiny.pdf.")).toBeVisible();
+    await expect(getActivityFeed(page).getByText("Share link created")).toBeVisible();
+    await expect(getActivityFeed(page).getByText("You created a share link for tiny.pdf.")).toBeVisible();
+    await expect(getActivityFeed(page).getByText("Share link revoked")).toBeVisible();
+    await expect(getActivityFeed(page).getByText("You revoked a share link for tiny.pdf.")).toBeVisible();
   });
 
   test("shows share access events and keeps soft-deleted targets readable but non-navigable", async ({ browser, page }, testInfo) => {
@@ -114,16 +122,23 @@ test.describe("activity page", () => {
       });
 
       await visitor.page.goto(`/s/${link.token}`);
-      await expect(visitor.page.getByText("tiny.pdf")).toBeVisible();
+      await expect(visitor.page).toHaveURL(new RegExp(`/s/${link.token}$`));
+      await expect(visitor.page.getByTestId("shared-file-view")).toBeVisible();
+      await expect(visitor.page.getByRole("button", { name: "Download" })).toBeVisible();
 
       await softDeleteFileByNameForUser(userId!, "tiny.pdf");
 
       await openActivity(page);
-      await expect(page.getByText("Shared link accessed")).toBeVisible();
-      await expect(page.getByText("Deleted item was accessed through a shared link.")).toBeVisible();
-      await expect(page.getByText("Share link created")).toBeVisible();
-      await expect(page.getByText("You created a share link for Deleted item.")).toBeVisible();
-      await expect(page.getByRole("link", { name: /Open/i })).toHaveCount(0);
+      await expect(getActivityFeed(page)).toBeVisible();
+      await expect(
+        getActivityFeed(page).getByRole("listitem").filter({ hasText: "Shared link accessed" }),
+      ).toBeVisible();
+      await expect(getActivityFeed(page).getByText("Deleted item was accessed through a shared link.")).toBeVisible();
+      await expect(
+        getActivityFeed(page).getByRole("listitem").filter({ hasText: "Share link created" }),
+      ).toBeVisible();
+      await expect(getActivityFeed(page).getByText("You created a share link for Deleted item.")).toBeVisible();
+      await expect(getActivityFeed(page).getByRole("link", { name: /Open/i })).toHaveCount(0);
     } finally {
       await clearBrowserStorage(visitor.page);
       await visitor.context.close();

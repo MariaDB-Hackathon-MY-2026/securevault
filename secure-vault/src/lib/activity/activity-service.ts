@@ -111,7 +111,8 @@ function clampPageSize(value: number | undefined) {
 
 function createSourceStates(userId: string, initialCursor: ActivityCursor | null, pageSize: number) {
   const loaders: ActivitySourceLoader[] = [
-    loadUploadCompletedActivity,
+    loadIndexedUploadCompletedActivity,
+    loadApproximateUploadCompletedActivity,
     loadShareRevokedActivity,
     loadShareCreatedActivity,
     loadShareAccessedActivity,
@@ -129,32 +130,67 @@ function createSourceStates(userId: string, initialCursor: ActivityCursor | null
   }));
 }
 
-async function loadUploadCompletedActivity(input: {
+async function loadIndexedUploadCompletedActivity(input: {
   cursor: ActivityCursor | null;
   limit: number;
   userId: string;
 }) {
+  return loadUploadCompletedActivityByTimestamp({
+    ...input,
+    occurredAtApproximateExpression: sql`
+      CASE
+        WHEN ${files.upload_completed_at_approximate} = 1 THEN 1
+        ELSE 0
+      END
+    `,
+    occurredAtExpression: files.upload_completed_at,
+    requiredTimestampClause: sql`${files.upload_completed_at} IS NOT NULL`,
+  });
+}
+
+async function loadApproximateUploadCompletedActivity(input: {
+  cursor: ActivityCursor | null;
+  limit: number;
+  userId: string;
+}) {
+  return loadUploadCompletedActivityByTimestamp({
+    ...input,
+    occurredAtApproximateExpression: sql`1`,
+    occurredAtExpression: files.created_at,
+    requiredTimestampClause: sql`${files.upload_completed_at} IS NULL`,
+  });
+}
+
+async function loadUploadCompletedActivityByTimestamp(input: {
+  cursor: ActivityCursor | null;
+  limit: number;
+  occurredAtApproximateExpression: SQLWrapper;
+  occurredAtExpression: SQLWrapper;
+  requiredTimestampClause: SQLWrapper;
+  userId: string;
+}) {
   const db = MariadbConnection.getConnection();
-  const occurredAtExpression = sql`coalesce(${files.upload_completed_at}, ${files.created_at})`;
+  const sourceIdExpression = createBinarySortExpression(files.id);
   const cursorPredicate = buildCursorPredicate({
     cursor: input.cursor,
-    occurredAtExpression,
-    sourceIdExpression: files.id,
+    occurredAtExpression: input.occurredAtExpression,
+    sourceIdExpression,
     sourceKindRank: getActivitySourceKindRank("upload_completed"),
   });
   const rawResult = await db.execute(sql`
     SELECT
       ${files.id} AS sourceId,
-      ${occurredAtExpression} AS occurredAt,
-      CASE WHEN ${files.upload_completed_at} IS NULL THEN 1 ELSE 0 END AS occurredAtApproximate,
+      ${input.occurredAtExpression} AS occurredAt,
+      ${input.occurredAtApproximateExpression} AS occurredAtApproximate,
       ${files.id} AS targetId,
       ${files.name} AS fileName,
       ${files.deleted_at} AS fileDeletedAt
     FROM ${files}
     WHERE ${files.user_id} = ${input.userId}
       AND ${files.status} = 'ready'
+      AND ${input.requiredTimestampClause}
       AND ${cursorPredicate}
-    ORDER BY ${occurredAtExpression} DESC, ${files.id} DESC
+    ORDER BY ${input.occurredAtExpression} DESC, ${sourceIdExpression} DESC
     LIMIT ${input.limit}
   `);
 
@@ -198,10 +234,11 @@ async function loadShareLinkActivityKind(input: {
   userId: string;
 }) {
   const db = MariadbConnection.getConnection();
+  const sourceIdExpression = createBinarySortExpression(shareLinks.id);
   const cursorPredicate = buildCursorPredicate({
     cursor: input.cursor,
     occurredAtExpression: input.occurredAtExpression,
-    sourceIdExpression: shareLinks.id,
+    sourceIdExpression,
     sourceKindRank: getActivitySourceKindRank(input.kind),
   });
   const rawResult = await db.execute(sql`
@@ -224,7 +261,7 @@ async function loadShareLinkActivityKind(input: {
     WHERE ${shareLinks.created_by} = ${input.userId}
       AND ${input.requiredTimestampClause}
       AND ${cursorPredicate}
-    ORDER BY ${input.occurredAtExpression} DESC, ${shareLinks.id} DESC
+    ORDER BY ${input.occurredAtExpression} DESC, ${sourceIdExpression} DESC
     LIMIT ${input.limit}
   `);
 
@@ -239,10 +276,11 @@ async function loadShareAccessedActivity(input: {
   userId: string;
 }) {
   const db = MariadbConnection.getConnection();
+  const sourceIdExpression = createBinarySortExpression(shareLinkAccessLogs.id);
   const cursorPredicate = buildCursorPredicate({
     cursor: input.cursor,
     occurredAtExpression: shareLinkAccessLogs.accessed_at,
-    sourceIdExpression: shareLinkAccessLogs.id,
+    sourceIdExpression,
     sourceKindRank: getActivitySourceKindRank("share_accessed"),
   });
   const rawResult = await db.execute(sql`
@@ -267,7 +305,7 @@ async function loadShareAccessedActivity(input: {
       AND ${folders.user_id} = ${shareLinks.created_by}
     WHERE ${shareLinks.created_by} = ${input.userId}
       AND ${cursorPredicate}
-    ORDER BY ${shareLinkAccessLogs.accessed_at} DESC, ${shareLinkAccessLogs.id} DESC
+    ORDER BY ${shareLinkAccessLogs.accessed_at} DESC, ${sourceIdExpression} DESC
     LIMIT ${input.limit}
   `);
 
@@ -407,6 +445,10 @@ function buildCursorPredicate(input: {
   `;
 }
 
+function createBinarySortExpression(expression: SQLWrapper) {
+  return sql`convert(${expression} using utf8mb4) collate utf8mb4_bin`;
+}
+
 function unwrapSelectRows(result: unknown): unknown[] {
   if (!Array.isArray(result)) {
     return [];
@@ -469,7 +511,8 @@ function parseBooleanFlag(value: unknown) {
 export const ACTIVITY_FEED_PAGE_SIZE = DEFAULT_ACTIVITY_PAGE_SIZE;
 export const UPLOAD_COMPLETION_REPAIR_SQL = `
 UPDATE files
-SET upload_completed_at = created_at
+SET upload_completed_at = created_at,
+    upload_completed_at_approximate = 1
 WHERE status = 'ready'
   AND upload_completed_at IS NULL;
 `.trim();

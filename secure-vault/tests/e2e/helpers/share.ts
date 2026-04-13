@@ -27,6 +27,10 @@ function normalizeEmail(email: string) {
 }
 
 export async function clearBrowserStorage(page: Page) {
+  if (page.isClosed()) {
+    return;
+  }
+
   try {
     await page.evaluate(() => {
       window.localStorage.clear();
@@ -36,7 +40,11 @@ export async function clearBrowserStorage(page: Page) {
     // Ignore cleanup failures when there is no active page origin.
   }
 
-  await page.context().clearCookies();
+  try {
+    await page.context().clearCookies();
+  } catch {
+    // Ignore cleanup failures after Playwright has already torn down the context.
+  }
 }
 
 export async function signUpAndBypassVerification(

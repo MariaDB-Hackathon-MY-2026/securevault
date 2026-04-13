@@ -47,6 +47,7 @@ describe("ActivityPageContent", () => {
 
     expect(screen.getByText("Some older upload timestamps are approximate")).toBeTruthy();
     expect(screen.getByText("Approximate")).toBeTruthy();
+    expect(screen.getByRole("list", { name: "Recent activity timeline" })).toBeTruthy();
   });
 
   it("renders non-navigable deleted rows without a CTA", () => {

@@ -34,6 +34,7 @@ export const files = mysqlTable(
     thumbnail_r2_key: varchar("thumbnail_r2_key", { length: 255 }),
     deleted_at: timestamp(),
     upload_completed_at: timestamp(),
+    upload_completed_at_approximate: boolean().default(false).notNull(),
     created_at: timestamp().defaultNow().notNull(),
     updated_at: timestamp().defaultNow().onUpdateNow().notNull(),
   },

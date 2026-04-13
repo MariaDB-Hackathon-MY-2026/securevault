@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getDashboardSectionLabel } from "@/components/dashboard/dashboard-navigation";
 import { DashboardNavigationPanel } from "@/components/dashboard/dashboard-navigation-panel";
 
 const mocks = vi.hoisted(() => ({
@@ -60,5 +61,9 @@ describe("DashboardNavigationPanel", () => {
 
     const activityLink = screen.getByRole("link", { name: /Activity/i });
     expect(activityLink.className).toContain("bg-muted");
+  });
+
+  it("resolves the activity label for the mobile nav header", () => {
+    expect(getDashboardSectionLabel("/activity")).toBe("Activity");
   });
 });

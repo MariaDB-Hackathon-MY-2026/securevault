@@ -75,11 +75,61 @@ describe("activity page", () => {
     });
   });
 
+  it("safely ignores extra cursor query values and uses the first valid one", async () => {
+    const cursor = serializeActivityCursor({
+      occurredAt: "2026-04-11T10:00:00.000Z",
+      sourceId: "file-2",
+      sourceKindRank: 40,
+    });
+    mocks.getCurrentUser.mockResolvedValueOnce({ id: "user-1" });
+    mocks.getActivityFeedForUser.mockResolvedValueOnce({
+      entries: [],
+      hasMore: false,
+      nextCursor: null,
+    });
+
+    const element = await ActivityPage({
+      searchParams: Promise.resolve({ cursor: [cursor, "tampered"] }),
+    });
+
+    expect(mocks.getActivityFeedForUser).toHaveBeenCalledWith({
+      cursor: {
+        occurredAt: "2026-04-11T10:00:00.000Z",
+        sourceId: "file-2",
+        sourceKindRank: 40,
+      },
+      userId: "user-1",
+    });
+    expect(element).toMatchObject({
+      props: expect.objectContaining({ hasCursor: true }),
+    });
+  });
+
   it("returns an empty feed without calling the service when no user is available", async () => {
     mocks.getCurrentUser.mockResolvedValueOnce(null);
 
     const element = await ActivityPage({
       searchParams: Promise.resolve({}),
+    });
+
+    expect(mocks.getActivityFeedForUser).not.toHaveBeenCalled();
+    expect(element).toMatchObject({
+      props: {
+        feed: {
+          entries: [],
+          hasMore: false,
+          nextCursor: null,
+        },
+        hasCursor: false,
+      },
+    });
+  });
+
+  it("ignores oversized cursor input when no user is available", async () => {
+    mocks.getCurrentUser.mockResolvedValueOnce(null);
+
+    const element = await ActivityPage({
+      searchParams: Promise.resolve({ cursor: "a".repeat(4096) }),
     });
 
     expect(mocks.getActivityFeedForUser).not.toHaveBeenCalled();

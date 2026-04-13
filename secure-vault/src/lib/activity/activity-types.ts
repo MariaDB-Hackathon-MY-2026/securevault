@@ -38,6 +38,7 @@ export const ACTIVITY_SOURCE_KIND_RANK: Record<ActivityEventKind, number> = {
   share_created: 20,
   share_accessed: 10,
 };
+export const MAX_ACTIVITY_CURSOR_LENGTH = 512;
 
 const VALID_SOURCE_KIND_RANKS = new Set(Object.values(ACTIVITY_SOURCE_KIND_RANK));
 
@@ -59,6 +60,10 @@ export function serializeActivityCursor(cursor: ActivityCursor) {
 
 export function parseActivityCursor(value: string | null | undefined): ActivityCursor | null {
   if (!value) {
+    return null;
+  }
+
+  if (value.length > MAX_ACTIVITY_CURSOR_LENGTH) {
     return null;
   }
 
@@ -101,5 +106,13 @@ export function compareActivityFeedEntries(left: ActivityFeedEntry, right: Activ
     return rightRank - leftRank;
   }
 
-  return right.sourceId.localeCompare(left.sourceId);
+  return compareActivitySourceIdsDesc(left.sourceId, right.sourceId);
+}
+
+export function compareActivitySourceIdsDesc(leftSourceId: string, rightSourceId: string) {
+  if (leftSourceId === rightSourceId) {
+    return 0;
+  }
+
+  return leftSourceId < rightSourceId ? 1 : -1;
 }

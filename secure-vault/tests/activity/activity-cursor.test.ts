@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   compareActivityFeedEntries,
+  compareActivitySourceIdsDesc,
   parseActivityCursor,
   serializeActivityCursor,
   type ActivityFeedEntry,
@@ -41,6 +42,7 @@ describe("activity cursor helpers", () => {
 
   it("treats malformed cursor payloads as invalid", () => {
     expect(parseActivityCursor("not-a-cursor")).toBeNull();
+    expect(parseActivityCursor("a".repeat(513))).toBeNull();
     expect(
       parseActivityCursor(
         Buffer.from(
@@ -91,5 +93,10 @@ describe("activity cursor helpers", () => {
       "file-b",
       "file-a",
     ]);
+  });
+
+  it("uses binary-safe source id ordering instead of locale-sensitive ordering", () => {
+    expect(compareActivitySourceIdsDesc("a", "B")).toBeLessThan(0);
+    expect(compareActivitySourceIdsDesc("A", "a")).toBeGreaterThan(0);
   });
 });

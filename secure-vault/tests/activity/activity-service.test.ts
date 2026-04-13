@@ -34,6 +34,7 @@ describe("activity service", () => {
           targetId: "file-1",
         },
       ]],
+      [[]],
       [[
         {
           fileDeletedAt: null,
@@ -89,6 +90,70 @@ describe("activity service", () => {
     });
   });
 
+  it("keeps legacy backfilled uploads marked as approximate after migration backfill", async () => {
+    const harness = createExecuteHarness([
+      [[
+        {
+          fileDeletedAt: null,
+          fileName: "legacy-report.pdf",
+          occurredAt: "2026-04-10 10:00:00",
+          occurredAtApproximate: 1,
+          sourceId: "file-1",
+          targetId: "file-1",
+        },
+      ]],
+      [[]],
+      [[]],
+      [[]],
+      [[]],
+    ]);
+    vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+    const page = await getActivityFeedForUser({
+      pageSize: 1,
+      userId: "user-1",
+    });
+
+    expect(page.entries).toHaveLength(1);
+    expect(page.entries[0]).toMatchObject({
+      kind: "upload_completed",
+      occurredAtApproximate: true,
+      targetLabel: "legacy-report.pdf",
+    });
+  });
+
+  it("keeps rollout-gap uploads visible via the created_at fallback lane", async () => {
+    const harness = createExecuteHarness([
+      [[]],
+      [[
+        {
+          fileDeletedAt: null,
+          fileName: "repair-me.pdf",
+          occurredAt: "2026-04-10 10:00:00",
+          occurredAtApproximate: 1,
+          sourceId: "file-rollout",
+          targetId: "file-rollout",
+        },
+      ]],
+      [[]],
+      [[]],
+      [[]],
+    ]);
+    vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+    const page = await getActivityFeedForUser({
+      pageSize: 1,
+      userId: "user-1",
+    });
+
+    expect(page.entries).toHaveLength(1);
+    expect(page.entries[0]).toMatchObject({
+      kind: "upload_completed",
+      occurredAtApproximate: true,
+      targetLabel: "repair-me.pdf",
+    });
+  });
+
   it("supports paging forward from a cursor without duplicating prior entries", async () => {
     const firstHarness = createExecuteHarness([
       [[
@@ -120,6 +185,7 @@ describe("activity service", () => {
       [[]],
       [[]],
       [[]],
+      [[]],
     ]);
     vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(firstHarness.db as never);
 
@@ -145,6 +211,7 @@ describe("activity service", () => {
       [[]],
       [[]],
       [[]],
+      [[]],
     ]);
     vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(secondHarness.db as never);
 
@@ -159,7 +226,7 @@ describe("activity service", () => {
   });
 
   it("returns empty results cleanly when none of the sources have rows", async () => {
-    const harness = createExecuteHarness([[[]], [[]], [[]], [[]]]);
+    const harness = createExecuteHarness([[[]], [[]], [[]], [[]], [[]]]);
     vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
 
     const page = await getActivityFeedForUser({

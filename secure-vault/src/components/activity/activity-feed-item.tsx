@@ -12,7 +12,7 @@ type ActivityFeedItemProps = {
 
 export function ActivityFeedItem({ entry, isLast }: ActivityFeedItemProps) {
   return (
-    <div
+    <li
       className={`flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-start sm:justify-between ${isLast ? "" : "border-b border-border/60"}`}
       data-testid={`activity-entry-${entry.kind}-${entry.sourceId}`}
     >
@@ -37,7 +37,7 @@ export function ActivityFeedItem({ entry, isLast }: ActivityFeedItemProps) {
           </Button>
         ) : null}
       </div>
-    </div>
+    </li>
   );
 }
 
