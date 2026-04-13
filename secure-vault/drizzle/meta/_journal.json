@@ -50,6 +50,13 @@
       "when": 1775791606224,
       "tag": "0006_password_reset_token_hash_index",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1776067200000,
+      "tag": "0007_activity_feed_support",
+      "breakpoints": true
     }
   ]
 }

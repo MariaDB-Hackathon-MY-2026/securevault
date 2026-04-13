@@ -50,4 +50,15 @@ describe("DashboardNavigationPanel", () => {
 
     expect(screen.queryByText("0")).toBeNull();
   });
+
+  it("marks the activity destination as active on the activity page", () => {
+    mocks.useTrashSummaryQuery.mockReturnValue({
+      data: { rootFileCount: 0, rootFolderCount: 0, totalRootItemCount: 0 },
+    });
+
+    render(<DashboardNavigationPanel pathname="/activity" user={user} />);
+
+    const activityLink = screen.getByRole("link", { name: /Activity/i });
+    expect(activityLink.className).toContain("bg-muted");
+  });
 });

@@ -219,6 +219,20 @@ describe("upload complete service", () => {
       );
     });
 
+    it("writes upload_completed_at on first successful completion", async () => {
+      const harness = createDbHarness({ session: createSession() });
+      vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+      await completeUploadTransaction(createUser(), { uploadId: VALID_UPLOAD_ID });
+
+      expect(harness.spies.filesSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "ready",
+          upload_completed_at: expect.anything(),
+        }),
+      );
+    });
+
     it("updates the upload session status to 'completed' (Bug 2 fix)", async () => {
       const harness = createDbHarness({ session: createSession() });
       vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);

@@ -63,8 +63,12 @@ export async function completeUploadTransaction(
           .set({ status: "completed" })
           .where(eq(uploadSessions.id, validatedBody.uploadId));
 
+        const completedAt = new Date();
         await tx.update(files)
-          .set({ status: "ready" })
+          .set({
+            status: "ready",
+            upload_completed_at: sql`coalesce(${files.upload_completed_at}, ${completedAt})`,
+          })
           .where(eq(files.id, session.file_id));
 
         await tx.update(users)

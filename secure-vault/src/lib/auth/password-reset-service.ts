@@ -188,11 +188,11 @@ export async function resetPasswordWithOtp(input: {
         }
 
         if (activeToken.expiresAt < now) {
-          throw matchingToken?.id === activeToken.id ? createOtpExpiredError() : createOtpInvalidError();
+          throw createOtpInvalidError();
         }
 
         if (activeToken.attemptCount >= AUTH_OTP_MAX_ATTEMPTS) {
-          throw matchingToken?.id === activeToken.id ? createOtpLockedError() : createOtpInvalidError();
+          throw createOtpInvalidError();
         }
 
         if (!safeCompare(activeToken.tokenHash, hashedCode)) {
