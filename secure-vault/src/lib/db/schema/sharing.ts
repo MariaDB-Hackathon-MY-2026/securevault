@@ -31,6 +31,9 @@ export const shareLinks = mysqlTable(
     uniqueIndex("idx_share_links_token").on(table.token),
     index("idx_share_links_file_id").on(table.file_id),
     index("idx_share_links_folder_id").on(table.folder_id),
+    index("idx_share_links_owner_created_id").on(table.created_by, table.created_at, table.id),
+    index("idx_share_links_owner_revoked_id").on(table.created_by, table.revoked_at, table.id),
+    index("idx_share_links_owner_target_ids").on(table.created_by, table.id, table.file_id, table.folder_id),
   ],
 );
 
@@ -68,7 +71,10 @@ export const shareLinkAccessLogs = mysqlTable(
     email: varchar("email", { length: 255 }),
     accessed_at: timestamp().defaultNow().notNull(),
   },
-  (table) => [index("idx_access_logs_link_id").on(table.link_id)],
+  (table) => [
+    index("idx_access_logs_link_id").on(table.link_id),
+    index("idx_access_logs_link_accessed_id").on(table.link_id, table.accessed_at, table.id),
+  ],
 );
 
 export type shareLinks = InferSelectModel<typeof shareLinks>;

@@ -219,6 +219,20 @@ describe("upload complete service", () => {
       );
     });
 
+    it("writes upload_completed_at on first successful completion", async () => {
+      const harness = createDbHarness({ session: createSession() });
+      vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+      await completeUploadTransaction(createUser(), { uploadId: VALID_UPLOAD_ID });
+
+      expect(harness.spies.filesSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "ready",
+          upload_completed_at: expect.anything(),
+        }),
+      );
+    });
+
     it("updates the upload session status to 'completed' (Bug 2 fix)", async () => {
       const harness = createDbHarness({ session: createSession() });
       vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
@@ -290,7 +304,7 @@ describe("upload complete service", () => {
   });
 
   describe("completeUploadTransaction - wrong session status", () => {
-    it("throws 409 when session status is 'completed'", async () => {
+    it("treats a repeated completion attempt as an idempotent success", async () => {
       const harness = createDbHarness({
         session: createSession({ status: "completed" }),
       });
@@ -298,7 +312,26 @@ describe("upload complete service", () => {
 
       await expect(
         completeUploadTransaction(createUser(), { uploadId: VALID_UPLOAD_ID }),
-      ).rejects.toMatchObject({ status: 409 });
+      ).resolves.toEqual({
+        fileId: FILE_ID,
+        status: "ready",
+      });
+
+      expect(harness.spies.update).not.toHaveBeenCalled();
+    });
+
+    it("returns success when session status is 'completed'", async () => {
+      const harness = createDbHarness({
+        session: createSession({ status: "completed" }),
+      });
+      vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+      await expect(
+        completeUploadTransaction(createUser(), { uploadId: VALID_UPLOAD_ID }),
+      ).resolves.toEqual({
+        fileId: FILE_ID,
+        status: "ready",
+      });
     });
 
     it("throws 409 when session status is 'failed'", async () => {
@@ -313,7 +346,7 @@ describe("upload complete service", () => {
     });
 
     it("does not perform any update when the session status is wrong", async () => {
-      const harness = createDbHarness({ session: createSession({ status: "completed" }) });
+      const harness = createDbHarness({ session: createSession({ status: "failed" }) });
       vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
 
       await expect(

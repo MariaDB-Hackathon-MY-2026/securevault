@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getDashboardSectionLabel } from "@/components/dashboard/dashboard-navigation";
 import { DashboardNavigationPanel } from "@/components/dashboard/dashboard-navigation-panel";
 
 const mocks = vi.hoisted(() => ({
@@ -49,5 +50,20 @@ describe("DashboardNavigationPanel", () => {
     render(<DashboardNavigationPanel pathname="/files" user={user} />);
 
     expect(screen.queryByText("0")).toBeNull();
+  });
+
+  it("marks the activity destination as active on the activity page", () => {
+    mocks.useTrashSummaryQuery.mockReturnValue({
+      data: { rootFileCount: 0, rootFolderCount: 0, totalRootItemCount: 0 },
+    });
+
+    render(<DashboardNavigationPanel pathname="/activity" user={user} />);
+
+    const activityLink = screen.getByRole("link", { name: /Activity/i });
+    expect(activityLink.className).toContain("bg-muted");
+  });
+
+  it("resolves the activity label for the mobile nav header", () => {
+    expect(getDashboardSectionLabel("/activity")).toBe("Activity");
   });
 });

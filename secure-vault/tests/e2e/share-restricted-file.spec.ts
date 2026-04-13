@@ -80,17 +80,11 @@ test.describe("share restricted file", () => {
       await expect(visitorA.page.getByRole("button", { name: "Sign out" })).toBeVisible();
       await expect(visitorA.page.getByRole("button", { name: "Download" })).toBeVisible();
 
-      const logoutResponsePromise = visitorA.page.waitForResponse(
-        (response) =>
-          response.url().includes(`/api/share/${link.token}/logout`) &&
-          response.request().method() === "POST",
-      );
       await visitorA.page.getByRole("button", { name: "Sign out" }).click();
-      const logoutResponse = await logoutResponsePromise;
-      expect(logoutResponse.status()).toBe(200);
-      await visitorA.page.waitForLoadState("domcontentloaded");
       await expect(visitorA.page.getByLabel("Email Address")).toBeVisible({ timeout: 10_000 });
       await expect(visitorA.page.getByRole("button", { name: "Verify and Access" })).toHaveCount(0);
+      await expect(visitorA.page.getByText(`Verified as ${allowedEmailA}`)).toHaveCount(0);
+      await expect(visitorA.page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
 
       await visitorB.page.goto(`/s/${link.token}`);
       await requestOtp(visitorB.page, allowedEmailB);

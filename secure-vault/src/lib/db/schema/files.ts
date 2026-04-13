@@ -33,12 +33,15 @@ export const files = mysqlTable(
     has_thumbnail: boolean().default(false).notNull(),
     thumbnail_r2_key: varchar("thumbnail_r2_key", { length: 255 }),
     deleted_at: timestamp(),
+    upload_completed_at: timestamp(),
+    upload_completed_at_approximate: boolean().default(false).notNull(),
     created_at: timestamp().defaultNow().notNull(),
     updated_at: timestamp().defaultNow().onUpdateNow().notNull(),
   },
   (table) => [
     index("idx_files_folder_id").on(table.folder_id),
     index("idx_files_user_folder").on(table.user_id, table.folder_id),
+    index("idx_files_user_upload_completed_id").on(table.user_id, table.upload_completed_at, table.id),
   ],
 );
 
