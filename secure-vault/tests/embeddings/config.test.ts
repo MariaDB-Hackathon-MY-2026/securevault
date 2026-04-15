@@ -22,10 +22,26 @@ describe("semantic config", () => {
     const config = getSemanticConfig();
 
     expect(config.embeddingDimensions).toBe(1536);
+    expect(config.maxScoreGap).toBe(0.05);
+    expect(config.minSimilarity).toBe(0.35);
     expect(config.pdfFullEmbedMaxPages).toBe(6);
     expect(config.pdfWindowSizePages).toBe(6);
     expect(config.pdfWindowOverlapPages).toBe(1);
     expect(config.queryTopK).toBe(50);
+  });
+
+  it("allows overriding the minimum similarity threshold", () => {
+    process.env.SEMANTIC_INDEXING_MIN_SIMILARITY = "0.6";
+    resetSemanticConfigForTests();
+
+    expect(getSemanticConfig().minSimilarity).toBe(0.6);
+  });
+
+  it("allows overriding the maximum score gap threshold", () => {
+    process.env.SEMANTIC_INDEXING_MAX_SCORE_GAP = "0.02";
+    resetSemanticConfigForTests();
+
+    expect(getSemanticConfig().maxScoreGap).toBe(0.02);
   });
 
   it("allows disabled mode without provider credentials", () => {

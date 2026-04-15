@@ -22,7 +22,9 @@ const envSchema = z.object({
     .transform((value) => value === "1" || value === "true"),
   SEMANTIC_INDEXING_EXECUTION_MODE: z.enum(["inline", "queued"]).default("inline"),
   SEMANTIC_INDEXING_MAX_CONCURRENCY: z.coerce.number().int().min(1).default(2),
+  SEMANTIC_INDEXING_MAX_SCORE_GAP: z.coerce.number().min(0).max(2).default(0.05),
   SEMANTIC_INDEXING_MAX_RETRY_ATTEMPTS: z.coerce.number().int().min(0).default(3),
+  SEMANTIC_INDEXING_MIN_SIMILARITY: z.coerce.number().min(-1).max(1).default(0.35),
   SEMANTIC_INDEXING_PROVIDER: z.enum(["google", "fake"]).default("google"),
   SEMANTIC_INDEXING_QUERY_TOP_K: z.coerce.number().int().min(25).max(200).default(50),
   SEMANTIC_INDEXING_RETRY_BACKOFF_MS: z.coerce.number().int().min(100).default(1_000),
@@ -40,7 +42,9 @@ export type SemanticConfig = {
   geminiEmbeddingModel: string;
   leaseDurationMs: number;
   maxConcurrency: number;
+  maxScoreGap: number;
   maxRetryAttempts: number;
+  minSimilarity: number;
   pdfFullEmbedMaxPages: number;
   pdfIndexingMaxBytes: number;
   pdfWindowOverlapPages: number;
@@ -110,7 +114,9 @@ export function getSemanticConfig() {
     geminiEmbeddingModel: parsedEnv.GEMINI_EMBEDDING_MODEL?.trim() || DEFAULT_EMBEDDING_MODEL,
     leaseDurationMs: Math.max(parsedEnv.EMBEDDING_REQUEST_TIMEOUT_MS * 2, 60_000),
     maxConcurrency: parsedEnv.SEMANTIC_INDEXING_MAX_CONCURRENCY,
+    maxScoreGap: parsedEnv.SEMANTIC_INDEXING_MAX_SCORE_GAP,
     maxRetryAttempts: parsedEnv.SEMANTIC_INDEXING_MAX_RETRY_ATTEMPTS,
+    minSimilarity: parsedEnv.SEMANTIC_INDEXING_MIN_SIMILARITY,
     pdfFullEmbedMaxPages: parsedEnv.PDF_FULL_EMBED_MAX_PAGES,
     pdfIndexingMaxBytes: parsedEnv.PDF_INDEXING_MAX_BYTES,
     pdfWindowOverlapPages: parsedEnv.PDF_WINDOW_OVERLAP_PAGES,

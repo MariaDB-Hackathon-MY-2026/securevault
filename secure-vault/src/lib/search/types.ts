@@ -21,7 +21,8 @@ export type FilenameSearchResponse = {
   results: FilenameSearchResult[];
 };
 
-export type SemanticSearchMatchType = "image" | "pdf_full" | "pdf_page" | "pdf_window";
+export type SemanticSearchMatchType = "filename" | "image" | "pdf_full" | "pdf_page" | "pdf_window";
+export type SemanticSearchSource = "filename" | "semantic";
 
 export type SemanticSearchResult = {
   canPreview: boolean;
@@ -34,6 +35,7 @@ export type SemanticSearchResult = {
   name: string;
   pageFrom: number | null;
   pageTo: number | null;
+  retrievalSources: SemanticSearchSource[];
   score: number;
   size: number;
   updatedAt: string;

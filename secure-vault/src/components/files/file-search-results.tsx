@@ -21,18 +21,39 @@ function formatFolderPath(result: FilenameSearchResult | SemanticSearchResult) {
   return result.folderPath.map((item) => item.name).join(" / ");
 }
 
+function formatSemanticScore(score: number) {
+  return score.toFixed(3);
+}
+
+function getRetrievalSources(result: SemanticSearchResult) {
+  if (result.retrievalSources && result.retrievalSources.length > 0) {
+    return result.retrievalSources;
+  }
+
+  return result.matchType === "filename" ? ["filename"] : ["semantic"];
+}
+
 function getSecondaryCopy(result: FilenameSearchResult | SemanticSearchResult) {
   if (!("matchType" in result)) {
     return `${formatFileSize(result.size)} - Updated ${formatExplorerDate(result.updatedAt)}`;
   }
 
-  const semanticContext = result.matchType === "image"
-    ? "Semantic image match"
-    : result.pageFrom && result.pageTo
-      ? `Semantic PDF match on pages ${result.pageFrom}-${result.pageTo}`
-      : "Semantic PDF match";
+  const retrievalSources = getRetrievalSources(result);
+  const sourceLabel = retrievalSources.includes("filename") && retrievalSources.includes("semantic")
+    ? "Hybrid match"
+    : result.matchType === "filename"
+      ? "Filename match"
+      : result.matchType === "image"
+        ? "Semantic image match"
+        : result.pageFrom && result.pageTo
+          ? `Semantic PDF match on pages ${result.pageFrom}-${result.pageTo}`
+          : "Semantic PDF match";
 
-  return `${semanticContext} - ${formatFileSize(result.size)} - Updated ${formatExplorerDate(result.updatedAt)}`;
+  if (result.matchType === "filename") {
+    return `${sourceLabel} - ${formatFileSize(result.size)} - Updated ${formatExplorerDate(result.updatedAt)}`;
+  }
+
+  return `${sourceLabel} - Score ${formatSemanticScore(result.score)} - ${formatFileSize(result.size)} - Updated ${formatExplorerDate(result.updatedAt)}`;
 }
 
 function getResultId(result: FilenameSearchResult | SemanticSearchResult) {

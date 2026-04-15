@@ -230,6 +230,8 @@ async function fetchSemanticCandidates(input: {
 
 export async function searchSemanticFiles(input: {
   limit: number;
+  maxScoreGap: number;
+  minSimilarity: number;
   queryTopK: number;
   queryVector: number[];
   userId: string;
@@ -239,9 +241,18 @@ export async function searchSemanticFiles(input: {
     return [];
   }
 
+  const topScore = candidates[0]?.score ?? Number.NEGATIVE_INFINITY;
+  const effectiveMinSimilarity = Math.max(input.minSimilarity, topScore - input.maxScoreGap);
+  const filteredCandidates = candidates
+    .filter((candidate) => candidate.score >= effectiveMinSimilarity);
+
+  if (filteredCandidates.length === 0) {
+    return [];
+  }
+
   const grouped = new Map<string, SemanticCandidateRow>();
 
-  for (const candidate of candidates) {
+  for (const candidate of filteredCandidates) {
     const current = grouped.get(candidate.fileId);
     if (!current || compareRepresentativeChunks(current, candidate) > 0) {
       grouped.set(candidate.fileId, candidate);
@@ -275,6 +286,7 @@ export async function searchSemanticFiles(input: {
     name: row.name,
     pageFrom: row.pageFrom,
     pageTo: row.pageTo,
+    retrievalSources: ["semantic"],
     score: row.score,
     size: row.size,
     updatedAt: row.updatedAt.toISOString(),

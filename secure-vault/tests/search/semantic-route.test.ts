@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   embedSemanticQuery: vi.fn(),
   getCurrentUser: vi.fn(),
   getSemanticConfig: vi.fn(),
-  searchSemanticFiles: vi.fn(),
+  searchHybridFiles: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/get-current-user", () => ({
@@ -19,8 +19,8 @@ vi.mock("@/lib/search/semantic/query-embedder", () => ({
   embedSemanticQuery: mocks.embedSemanticQuery,
 }));
 
-vi.mock("@/lib/search/semantic/semantic-search", () => ({
-  searchSemanticFiles: mocks.searchSemanticFiles,
+vi.mock("@/lib/search/semantic/hybrid-search", () => ({
+  searchHybridFiles: mocks.searchHybridFiles,
 }));
 
 import { POST } from "@/app/api/search/semantic/route";
@@ -30,6 +30,8 @@ describe("semantic search route", () => {
     vi.clearAllMocks();
     mocks.getSemanticConfig.mockReturnValue({
       enabled: true,
+      maxScoreGap: 0.05,
+      minSimilarity: 0.35,
       queryTopK: 50,
     });
   });
@@ -60,7 +62,7 @@ describe("semantic search route", () => {
 
   it("returns 503 when semantic search is disabled", async () => {
     mocks.getCurrentUser.mockResolvedValueOnce({ id: "user-1" });
-    mocks.getSemanticConfig.mockReturnValueOnce({ enabled: false, queryTopK: 50 });
+    mocks.getSemanticConfig.mockReturnValueOnce({ enabled: false, maxScoreGap: 0.05, minSimilarity: 0.35, queryTopK: 50 });
 
     const response = await POST(new Request("http://localhost/api/search/semantic", {
       body: JSON.stringify({ query: "report" }),
@@ -77,7 +79,7 @@ describe("semantic search route", () => {
   it("embeds the query and returns folded results", async () => {
     mocks.getCurrentUser.mockResolvedValueOnce({ id: "user-1" });
     mocks.embedSemanticQuery.mockResolvedValueOnce([0.1, 0.2]);
-    mocks.searchSemanticFiles.mockResolvedValueOnce([
+    mocks.searchHybridFiles.mockResolvedValueOnce([
       {
         canPreview: true,
         fileId: "file-1",
@@ -89,6 +91,7 @@ describe("semantic search route", () => {
         name: "report.pdf",
         pageFrom: 2,
         pageTo: 2,
+        retrievalSources: ["semantic"],
         score: 0.91,
         size: 1024,
         updatedAt: "2026-04-15T00:00:00.000Z",
@@ -117,6 +120,7 @@ describe("semantic search route", () => {
           name: "report.pdf",
           pageFrom: 2,
           pageTo: 2,
+          retrievalSources: ["semantic"],
           score: 0.91,
           size: 1024,
           updatedAt: "2026-04-15T00:00:00.000Z",
@@ -124,8 +128,11 @@ describe("semantic search route", () => {
       ],
     });
     expect(mocks.embedSemanticQuery).toHaveBeenCalledWith("report");
-    expect(mocks.searchSemanticFiles).toHaveBeenCalledWith({
+    expect(mocks.searchHybridFiles).toHaveBeenCalledWith({
       limit: 5,
+      maxScoreGap: 0.05,
+      minSimilarity: 0.35,
+      query: "report",
       queryTopK: 50,
       queryVector: [0.1, 0.2],
       userId: "user-1",

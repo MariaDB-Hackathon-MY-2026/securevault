@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { toRouteErrorResponse } from "@/lib/ai/embeddings/errors";
 import { getSemanticConfig } from "@/lib/ai/config";
 import { embedSemanticQuery } from "@/lib/search/semantic/query-embedder";
-import { searchSemanticFiles } from "@/lib/search/semantic/semantic-search";
+import { searchHybridFiles } from "@/lib/search/semantic/hybrid-search";
 
 const requestSchema = z.object({
   limit: z.number().int().min(1).max(25).optional(),
@@ -50,8 +50,11 @@ export async function POST(request: Request) {
 
     const limit = parsedBody.limit ?? 10;
     const queryVector = await embedSemanticQuery(parsedBody.query);
-    const results = await searchSemanticFiles({
+    const results = await searchHybridFiles({
       limit,
+      maxScoreGap: config.maxScoreGap,
+      minSimilarity: config.minSimilarity,
+      query: parsedBody.query,
       queryTopK: config.queryTopK,
       queryVector,
       userId: user.id,

@@ -76,6 +76,8 @@ describe("searchSemanticFiles fallback scoring", () => {
 
     const results = await searchSemanticFiles({
       limit: 10,
+      maxScoreGap: 0.05,
+      minSimilarity: 0.35,
       queryTopK: 50,
       queryVector: [0.6, 0.8],
       userId: "user-1",
@@ -93,6 +95,7 @@ describe("searchSemanticFiles fallback scoring", () => {
         name: "report.pdf",
         pageFrom: 2,
         pageTo: 2,
+        retrievalSources: ["semantic"],
         score: 1,
         size: 1024,
         updatedAt: "2026-04-15T00:00:00.000Z",
@@ -121,6 +124,8 @@ describe("searchSemanticFiles fallback scoring", () => {
 
     const results = await searchSemanticFiles({
       limit: 10,
+      maxScoreGap: 0.05,
+      minSimilarity: 0.35,
       queryTopK: 50,
       queryVector: [0.6, 0.8],
       userId: "user-1",
@@ -138,10 +143,106 @@ describe("searchSemanticFiles fallback scoring", () => {
         name: "report.pdf",
         pageFrom: 3,
         pageTo: 3,
+        retrievalSources: ["semantic"],
         score: 0.91,
         size: 1024,
         updatedAt: "2026-04-15T00:00:00.000Z",
       },
     ]);
+  });
+
+  it("drops weak semantic matches below the minimum similarity threshold", async () => {
+    mocks.fallbackRows.push(
+      {
+        chunkIndex: 0,
+        chunkType: "page",
+        embedding: "[1,0]",
+        fileId: "file-strong",
+        folderId: null,
+        mimeType: "application/pdf",
+        modality: "pdf",
+        name: "strong.pdf",
+        pageFrom: 1,
+        pageTo: 1,
+        size: 1024,
+        updatedAt: new Date("2026-04-15T00:00:00.000Z"),
+      },
+      {
+        chunkIndex: 0,
+        chunkType: "page",
+        embedding: "[0,1]",
+        fileId: "file-weak",
+        folderId: null,
+        mimeType: "application/pdf",
+        modality: "pdf",
+        name: "weak.pdf",
+        pageFrom: 1,
+        pageTo: 1,
+        size: 1024,
+        updatedAt: new Date("2026-04-15T00:00:00.000Z"),
+      },
+    );
+
+    const results = await searchSemanticFiles({
+      limit: 10,
+      maxScoreGap: 0.05,
+      minSimilarity: 0.5,
+      queryTopK: 50,
+      queryVector: [1, 0],
+      userId: "user-1",
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      fileId: "file-strong",
+      score: 1,
+    });
+  });
+
+  it("drops tail results that fall too far below the top score", async () => {
+    mocks.fallbackRows.push(
+      {
+        chunkIndex: 0,
+        chunkType: "page",
+        embedding: "[0.648,0.761640335]",
+        fileId: "file-dog",
+        folderId: null,
+        mimeType: "application/pdf",
+        modality: "pdf",
+        name: "dog.pdf",
+        pageFrom: 1,
+        pageTo: 1,
+        size: 1024,
+        updatedAt: new Date("2026-04-15T00:00:00.000Z"),
+      },
+      {
+        chunkIndex: 0,
+        chunkType: "page",
+        embedding: "[0.601,0.799248396]",
+        fileId: "file-erd",
+        folderId: null,
+        mimeType: "application/pdf",
+        modality: "pdf",
+        name: "erd.pdf",
+        pageFrom: 1,
+        pageTo: 1,
+        size: 1024,
+        updatedAt: new Date("2026-04-15T00:00:00.000Z"),
+      },
+    );
+
+    const results = await searchSemanticFiles({
+      limit: 10,
+      maxScoreGap: 0.04,
+      minSimilarity: 0.35,
+      queryTopK: 50,
+      queryVector: [1, 0],
+      userId: "user-1",
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      fileId: "file-dog",
+    });
   });
 });
