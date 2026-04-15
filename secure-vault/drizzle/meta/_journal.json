@@ -64,6 +64,13 @@
       "when": 1776103200000,
       "tag": "0008_activity_upload_completion_approximation",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1776257744000,
+      "tag": "0009_semantic_indexing",
+      "breakpoints": true
     }
   ]
 }

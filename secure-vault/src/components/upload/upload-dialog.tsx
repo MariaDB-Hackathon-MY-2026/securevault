@@ -56,12 +56,16 @@ export function UploadDialog({ children }: { children?: React.ReactNode }) {
       return null;
     }
 
-    if (job.indexingStatus === "pending") {
+    if (job.indexingStatus === "queued") {
       return "Semantic indexing queued";
     }
 
-    if (job.indexingStatus === "complete") {
-      return "Semantic indexing triggered";
+    if (job.indexingStatus === "processing") {
+      return "Semantic indexing processing";
+    }
+
+    if (job.indexingStatus === "ready") {
+      return "Semantic indexing ready";
     }
 
     return job.indexingError ?? "Semantic indexing unavailable";

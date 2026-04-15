@@ -36,6 +36,7 @@ type FileGridProps = {
   renamingFolderId: string | null;
   renameDraft: string;
   renamingFileId: string | null;
+  semanticSearchEnabled: boolean;
 };
 
 export function FileGrid({
@@ -59,6 +60,7 @@ export function FileGrid({
   renamingFolderId,
   renameDraft,
   renamingFileId,
+  semanticSearchEnabled,
 }: FileGridProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -171,8 +173,9 @@ export function FileGrid({
                 onDelete={onDelete}
                 onMove={onMove}
                 onRename={onRenameStart}
-                  onShare={onShare}
-                />
+                onShare={onShare}
+                semanticSearchEnabled={semanticSearchEnabled}
+              />
             </div>
 
             <div className="space-y-2">

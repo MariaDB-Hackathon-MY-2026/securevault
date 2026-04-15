@@ -42,6 +42,7 @@ type FileListProps = {
   renamingFileId: string | null;
   renamingFolderId: string | null;
   selectedFileIds: string[];
+  semanticSearchEnabled: boolean;
   sort: FileSortState;
 };
 
@@ -99,6 +100,7 @@ export function FileList({
   renamingFileId,
   renamingFolderId,
   selectedFileIds,
+  semanticSearchEnabled,
   sort,
 }: FileListProps) {
   const selectedFileIdSet = React.useMemo(() => new Set(selectedFileIds), [selectedFileIds]);
@@ -319,8 +321,9 @@ export function FileList({
                       onDelete={onDelete}
                       onMove={onMove}
                       onRename={onRenameStart}
-                  onShare={onShare}
-                />
+                      onShare={onShare}
+                      semanticSearchEnabled={semanticSearchEnabled}
+                    />
                   </div>
                 </td>
               </tr>

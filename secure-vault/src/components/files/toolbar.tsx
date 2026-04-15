@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import type { SearchMode } from "@/lib/search/types";
 
 type ToolbarProps = {
   canUpload: boolean;
@@ -28,7 +29,9 @@ type ToolbarProps = {
   onNewFolderClick?: () => void;
   onSortChange: (sort: FileSortState) => void;
   onViewModeChange: (viewMode: FilesViewMode) => void;
+  searchMode: SearchMode;
   searchQuery: string;
+  semanticSearchEnabled: boolean;
   selectedCount: number;
   sort: FileSortState;
   viewMode: FilesViewMode;
@@ -54,15 +57,25 @@ export function Toolbar({
   onNewFolderClick,
   onSortChange,
   onViewModeChange,
+  searchMode,
   searchQuery,
+  semanticSearchEnabled,
   selectedCount,
   sort,
   viewMode,
 }: ToolbarProps) {
   const isSearchActive = searchQuery.trim().length > 0;
-  const helperCopy = isSearchActive
-    ? "Searching ready file names across your whole library."
-    : "Browse folders normally, or search to jump across your ready files.";
+  const helperCopy = searchMode === "semantic"
+    ? semanticSearchEnabled
+      ? isSearchActive
+        ? "Semantic search finds related PDFs and images by meaning, not exact words."
+        : "Browse folders normally, or search semantically across indexed PDFs and images."
+      : "Semantic search is disabled for this deployment."
+    : isSearchActive
+      ? "Filename search looks across ready file names in your whole library."
+      : "Browse folders normally. This search bar is currently set to exact filename matching.";
+  const searchLabel = searchMode === "semantic" ? "Search semantically" : "Search filenames";
+  const placeholder = searchMode === "semantic" ? "Describe the file you need" : "Search exact filenames";
 
   return (
     <div
@@ -72,13 +85,13 @@ export function Toolbar({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center">
           <label className="relative min-w-0 flex-1 sm:min-w-56 lg:min-w-64">
-            <span className="sr-only">Search filenames</span>
+            <span className="sr-only">{searchLabel}</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="min-h-11 pl-9"
               data-testid="files-library-toolbar-search-input"
               onChange={(event) => onFilterValueChange(event.target.value)}
-              placeholder="Search filenames"
+              placeholder={placeholder}
               value={filterValue}
             />
           </label>
@@ -170,7 +183,9 @@ export function Toolbar({
           {isFetching ? (
             <>
               <LoaderCircle className="size-4 animate-spin" />
-              {isSearchActive ? "Searching filenames" : "Refreshing file list"}
+              {searchMode === "semantic"
+                ? "Searching semantically"
+                : "Searching filenames"}
             </>
           ) : (
             helperCopy

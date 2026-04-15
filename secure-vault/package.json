@@ -14,12 +14,14 @@
     "build": "next build",
     "start": "next start",
     "start:host": "next start --hostname 127.0.0.1 --port 3000",
+    "worker:embeddings": "tsx scripts/embedding-worker.ts",
     "lint": "eslint",
     "test": "vitest run",
     "test:e2e": "playwright test --ui",
     "test:e2e:managed": "playwright test"
   },
   "dependencies": {
+    "@google/genai": "^1.20.0",
     "@aws-sdk/client-s3": "^3.893.0",
     "@aws-sdk/lib-storage": "^3.1017.0",
     "@remixicon/react": "^4.9.0",
@@ -36,6 +38,7 @@
     "nanoid": "^5.1.6",
     "next": "^16.2.0",
     "next-themes": "^0.4.6",
+    "pdf-lib": "^1.17.1",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -64,6 +67,7 @@
     "eslint-config-next": "16.1.6",
     "jsdom": "^28.1.0",
     "tailwindcss": "^4",
+    "tsx": "^4.20.6",
     "typescript": "^5",
     "vitest": "^4.0.18"
   }
