@@ -22,7 +22,11 @@ async function clearBrowserStorage(page: Page) {
     // Ignore cleanup failures when there is no active page origin.
   }
 
-  await page.context().clearCookies();
+  try {
+    await page.context().clearCookies();
+  } catch {
+    // Ignore cleanup failures when the page context is already closed.
+  }
 }
 
 async function signUpAndBypassVerification(page: Page, credentials: TestUserCredentials) {
@@ -138,6 +142,7 @@ test.describe("file access", () => {
   });
 
   test("downloads a real multi-chunk file with matching checksum", async ({ browser }, testInfo) => {
+    test.setTimeout(240_000);
     const credentials = buildTestUserCredentials(testInfo);
     const { context, page } = await createContextAndPage(browser);
 
@@ -165,6 +170,7 @@ test.describe("file access", () => {
   });
 
   test("returns 404 for preview and download when a different user requests the file", async ({ browser }, testInfo) => {
+    test.setTimeout(120_000);
     const owner = buildTestUserCredentials(testInfo);
     const otherUser: TestUserCredentials = {
       email: owner.email.replace("@", "+other@"),

@@ -1,5 +1,3 @@
-import path from "node:path";
-
 import { and, eq } from "drizzle-orm";
 import { expect, test, type Page } from "./helpers/e2e-test";
 
@@ -11,8 +9,7 @@ import {
   markTestUserEmailVerified,
 } from "./helpers/test-user-cleanup";
 import { buildTestUserCredentials, type TestUserCredentials } from "./helpers/test-user";
-
-const SAMPLE_DIR = path.resolve(process.cwd(), "sample_upload_test_file");
+import { resolveUploadFixturePaths } from "./helpers/upload-fixtures";
 
 async function clearBrowserStorage(page: Page) {
   try {
@@ -69,7 +66,7 @@ async function closeUploadDialogIfOpen(page: Page) {
 }
 
 async function uploadFiles(page: Page, fileNames: readonly string[]) {
-  const filePaths = fileNames.map((fileName) => path.join(SAMPLE_DIR, fileName));
+  const filePaths = await resolveUploadFixturePaths(fileNames);
 
   await ensureUploadDialogOpen(page);
   await page.locator('input[type="file"]').setInputFiles(filePaths);
