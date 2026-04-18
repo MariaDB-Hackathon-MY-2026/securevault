@@ -13,7 +13,7 @@ This guide covers the container artifacts that already exist in the repo and how
 | Service | Purpose | Notes |
 | --- | --- | --- |
 | `web` | Runs the built Next.js app on port `3000` | Enabled through the `app` profile |
-| `worker` | Runs `npm run worker:embeddings` | Only useful when semantic indexing is enabled |
+| `worker` | Runs `npm run worker:embeddings` | Only useful when semantic indexing is enabled and `SEMANTIC_INDEXING_EXECUTION_MODE=queued` |
 | `mariadb` | Local MariaDB 12 database | Published on host port `3307` by default |
 | `redis` | Local Redis 8 instance | Published on host port `6379` |
 
@@ -47,9 +47,9 @@ This path runs the production build inside Docker instead of `next dev`.
 There are two different env entry points:
 
 - `secure-vault/.env.local`: used by the app when you run it directly with `npm run dev`
-- repo-root `.env`: used by Docker Compose to inject env vars into the `web` and `worker` containers
+- `secure-vault/.env.local`: also copied into the Docker image, so the containerized app uses the same app-level env file at build time and runtime
 
-For the full container stack, create a repo-root `.env` with at least:
+For both host mode and the full container stack, create `secure-vault/.env.local` with at least:
 
 ```env
 DATABASE_NAME=SecureVault
@@ -62,7 +62,11 @@ R2_SECRET_ACCESS_KEY=<your-r2-secret>
 R2_BUCKET_NAME=<your-r2-bucket>
 NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
 REDIS_URL=redis://redis:6379
-SEMANTIC_INDEXING_ENABLED=false
+SEMANTIC_INDEXING_ENABLED=true
+SEMANTIC_INDEXING_EXECUTION_MODE=inline
+SEMANTIC_INDEXING_PROVIDER=google
+GEMINI_API_KEY=<your-gemini-api-key>
+GEMINI_EMBEDDING_MODEL=gemini-embedding-2-preview
 ```
 
 Important behavior from `compose.yaml`:
@@ -72,7 +76,7 @@ Important behavior from `compose.yaml`:
 - the app containers default `REDIS_URL` to `redis://redis:6379`
 - MariaDB service credentials default to `SecureVault` / `securevault` / `securevault` unless you override them
 
-That means host-mode app envs and container-mode app envs are similar, but not identical.
+That means host-mode app envs and container-mode app envs share the same app secrets, while Compose still supplies the container-network overrides.
 
 ## Useful commands
 
@@ -128,6 +132,8 @@ The Docker setup does not change the core app dependencies:
 - uploads, previews, and downloads still require valid `R2_*` credentials
 - restricted sharing still needs the normal app secrets and email configuration
 - semantic indexing still needs its provider settings when enabled
+- the documented default keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`
+- the worker path is only for `SEMANTIC_INDEXING_EXECUTION_MODE=queued` and is currently less stable than inline execution
 
 ## Recommended use
 

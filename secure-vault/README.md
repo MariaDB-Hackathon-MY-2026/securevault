@@ -17,6 +17,11 @@ R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
 R2_BUCKET_NAME=...
 NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
+SEMANTIC_INDEXING_ENABLED=true
+SEMANTIC_INDEXING_EXECUTION_MODE=inline
+SEMANTIC_INDEXING_PROVIDER=google
+GEMINI_API_KEY=...
+GEMINI_EMBEDDING_MODEL=gemini-embedding-2-preview
 ```
 
 Optional:
@@ -38,6 +43,8 @@ DATABASE_PASSWORD=securevault
 
 If `DISABLE_REDIS=true` in local development, the app uses a no-op Redis adapter even when `REDIS_URL` is present. That disables Redis-backed rate limiting and global upload slot enforcement locally, but keeps the rest of the app usable.
 
+The documented local default keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`. Because the provider guidance matches the current app setup, set `SEMANTIC_INDEXING_PROVIDER=google` with a valid `GEMINI_API_KEY`.
+
 2. Start MariaDB:
 
 ```bash
@@ -55,6 +62,14 @@ npm run dev:redis
 ```bash
 npm run dev
 ```
+
+If you are starting from an empty local database, run this once before `npm run dev`:
+
+```bash
+npx drizzle-kit migrate
+```
+
+That applies the checked-in SQL migrations from `drizzle/` and creates Drizzle's migration log table for future runs.
 
 5. Optional stop commands:
 
@@ -114,7 +129,7 @@ This means:
 > [!WARNING]
 > Built images contain the copied env files, so do not push or share those images.
 > Each user should build locally with their own `.env.local`.
-> The default and more stable semantic mode is `SEMANTIC_INDEXING_EXECUTION_MODE=inline`.
+> The documented local path keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`.
 > Only start the separate worker when you explicitly switch to `SEMANTIC_INDEXING_EXECUTION_MODE=queued`.
 > Queued worker execution is currently less stable than inline execution.
 

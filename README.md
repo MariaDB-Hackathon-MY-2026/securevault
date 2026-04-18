@@ -48,7 +48,11 @@ Important current-state note: the real product entry point is the authenticated 
    R2_BUCKET_NAME=<your-r2-bucket>
    NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
    REDIS_URL=redis://127.0.0.1:6379
-   SEMANTIC_INDEXING_ENABLED=false
+   SEMANTIC_INDEXING_ENABLED=true
+   SEMANTIC_INDEXING_EXECUTION_MODE=inline
+   SEMANTIC_INDEXING_PROVIDER=google
+   GEMINI_API_KEY=<your-gemini-api-key>
+   GEMINI_EMBEDDING_MODEL=gemini-embedding-2-preview
    ```
 
    Generate a local master key with:
@@ -61,7 +65,8 @@ Important current-state note: the real product entry point is the authenticated 
 
    - `R2_*` credentials are required for real upload, preview, and download flows.
    - Set `DISABLE_REDIS=true` if you want local development without Redis-backed rate limiting and upload-slot coordination.
-   - Leave semantic indexing disabled unless you also configure the related provider settings.
+   - The documented local default keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`.
+   - `SEMANTIC_INDEXING_PROVIDER=google` requires a valid `GEMINI_API_KEY`.
 
 4. Start local infrastructure:
 
@@ -72,8 +77,10 @@ Important current-state note: the real product entry point is the authenticated 
 5. Bootstrap an empty local database once:
 
    ```powershell
-   npx drizzle-kit push
+   npx drizzle-kit migrate
    ```
+
+   This applies the checked-in SQL migrations in `secure-vault/drizzle/` and records them in Drizzle's migration log table.
 
 6. Start the app:
 
@@ -118,7 +125,7 @@ Use the full container stack:
 > The built Docker image contains your local `secure-vault/.env.local`.
 > Do not push or share built images from this repo unless you first remove or rotate the embedded secrets.
 > Each user should build locally with their own env file instead of reusing someone else's image.
-> The normal local path is inline semantic execution via `SEMANTIC_INDEXING_EXECUTION_MODE=inline`.
+> The documented local path keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`.
 > The worker flow is less stable and only makes sense when `SEMANTIC_INDEXING_EXECUTION_MODE=queued`.
 
 The container guide is in [docs/11-docker-and-compose.md](docs/11-docker-and-compose.md).

@@ -151,8 +151,10 @@ Use Drizzle only when:
 For an empty local database bootstrap, run from `secure-vault/` after local env vars point to `127.0.0.1:3307`:
 
 ```powershell
-npx drizzle-kit push
+npx drizzle-kit migrate
 ```
+
+That keeps the database aligned with the checked-in SQL migrations and initializes Drizzle's migration log table instead of doing a direct schema push.
 
 ## Notes specific to this repo
 
