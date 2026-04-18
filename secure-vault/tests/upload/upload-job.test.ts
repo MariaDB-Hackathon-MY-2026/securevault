@@ -1196,7 +1196,7 @@ describe("UploadJob", () => {
     });
     expect(job.getSnapshot()).toMatchObject({
       indexingError: null,
-      indexingStatus: "complete",
+      indexingStatus: "queued",
       status: "success",
     });
   });
@@ -1239,7 +1239,7 @@ describe("UploadJob", () => {
         modality: "image",
       }),
     });
-    expect(job.getSnapshot().indexingStatus).toBe("complete");
+    expect(job.getSnapshot().indexingStatus).toBe("queued");
   });
 
   it("skips semantic indexing for ineligible files and oversized pdfs", async () => {
@@ -1322,7 +1322,81 @@ describe("UploadJob", () => {
       progress: 100,
       status: "success",
     });
-  });  it("propagates listener errors during notify and does not continue the upload", async () => {
+  });
+
+  it("does not mark indexing as failed just because client polling timed out", async () => {
+    vi.useFakeTimers();
+    const job = new UploadJob(createFile("report.pdf", "pdf-body", "application/pdf"));
+
+    mocks.sliceFilesWithMetaData.mockReturnValue([]);
+    getFetchMock()
+      .mockResolvedValueOnce(jsonResponse(200, {
+        fileId: "file-1",
+        totalChunks: 0,
+        uploadId: "upload-1",
+      }))
+      .mockResolvedValueOnce(jsonResponse(200, {
+        completedChunkIndexes: [],
+        fileId: "file-1",
+        status: "uploading",
+        totalChunks: 0,
+        uploadId: "upload-1",
+      }))
+      .mockResolvedValueOnce(jsonResponse(200, {
+        activeCount: 1,
+        maxActiveUploads: 3,
+        uploadId: "upload-1",
+      }))
+      .mockResolvedValueOnce(jsonResponse(200, {
+        fileId: "file-1",
+        status: "ready",
+      }))
+      .mockResolvedValueOnce(jsonResponse(202, {
+        accepted: true,
+        attemptCount: 0,
+        errorCode: null,
+        fileId: "file-1",
+        jobId: "job-1",
+        modality: "pdf",
+        retryable: false,
+        status: "processing",
+        updatedAt: "2026-04-15T00:00:00.000Z",
+      }))
+      .mockImplementation((url: string) => {
+        if (url === "/api/upload/release") {
+          return Promise.resolve(new Response(null, { status: 204 }));
+        }
+
+        if (url === "/api/embeddings/file-1") {
+          return Promise.resolve(jsonResponse(200, {
+            jobs: [
+              {
+                errorCode: null,
+                errorMessage: null,
+                modality: "pdf",
+                status: "processing",
+              },
+            ],
+          }));
+        }
+
+        throw new Error(`Unexpected fetch url ${url}`);
+      });
+
+    await job.start();
+    await Promise.resolve();
+    await vi.runAllTimersAsync();
+
+    expect(job.getSnapshot()).toMatchObject({
+      indexingError: null,
+      indexingStatus: "processing",
+      status: "success",
+    });
+
+    vi.useRealTimers();
+  });
+
+  it("propagates listener errors during notify and does not continue the upload", async () => {
     const job = new UploadJob(createFile());
     const secondListener = vi.fn();
 

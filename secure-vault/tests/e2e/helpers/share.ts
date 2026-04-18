@@ -1,5 +1,3 @@
-import path from "node:path";
-
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { expect, type Page } from "@playwright/test";
 import { nanoid } from "nanoid";
@@ -19,8 +17,7 @@ import { hashOtp } from "../../../src/lib/sharing/otp-service";
 import { createShareLink } from "../../../src/lib/sharing/share-service";
 import { markTestUserEmailVerified } from "./test-user-cleanup";
 import type { TestUserCredentials } from "./test-user";
-
-const SAMPLE_DIR = path.resolve(process.cwd(), "sample_upload_test_file");
+import { resolveUploadFixturePaths } from "./upload-fixtures";
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -82,7 +79,7 @@ export async function ensureUploadDialogOpen(page: Page) {
 
 export async function uploadFiles(page: Page, fileNames: readonly string[]) {
   const uploadDialog = await ensureUploadDialogOpen(page);
-  const filePaths = fileNames.map((fileName) => path.join(SAMPLE_DIR, fileName));
+  const filePaths = await resolveUploadFixturePaths(fileNames);
 
   await page.locator('input[type="file"]').setInputFiles(filePaths);
 

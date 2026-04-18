@@ -14,7 +14,18 @@ async function clearBrowserStorage(page: Page) {
     // Ignore storage cleanup failures when the current page has no storage access.
   }
 
-  await page.context().clearCookies();
+  try {
+    await page.context().clearCookies();
+  } catch {
+    // Ignore cleanup failures when the page context is already closed.
+  }
+}
+
+async function waitForDashboard(page: Page) {
+  await expect(page).toHaveURL(/\/activity(?:\?|$)/, { timeout: 45_000 });
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Account activity timeline" }),
+  ).toBeVisible({ timeout: 45_000 });
 }
 
 async function signUp(page: Page, credentials: TestUserCredentials) {
@@ -29,7 +40,7 @@ async function signUp(page: Page, credentials: TestUserCredentials) {
   await expect(page.getByText("Password strength looks good.")).toBeVisible();
   await expect(submitButton).toBeEnabled();
   await submitButton.click();
-  await page.waitForURL("**/activity");
+  await waitForDashboard(page);
 }
 
 async function login(page: Page, credentials: Pick<TestUserCredentials, "email" | "password">) {
@@ -37,7 +48,7 @@ async function login(page: Page, credentials: Pick<TestUserCredentials, "email" 
   await page.getByLabel("Email").fill(credentials.email);
   await page.getByLabel("Password").fill(credentials.password);
   await page.getByRole("button", { name: "Login" }).click();
-  await page.waitForURL("**/activity");
+  await waitForDashboard(page);
 }
 
 test.describe("password reset", () => {

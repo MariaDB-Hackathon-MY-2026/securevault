@@ -6,7 +6,11 @@ import type { CurrentUser } from "@/lib/auth/get-current-user";
 import type { SessionSummary } from "@/lib/auth/session";
 import { revokeOtherSessionsAction, revokeSessionAction } from "@/app/(dashboard)/actions";
 
-import { PasswordSettingsForm, ProfileSettingsForm } from "@/components/settings/settings-forms";
+import {
+  PasswordSettingsForm,
+  ProfileSettingsForm,
+  SearchSettingsForm,
+} from "@/components/settings/settings-forms";
 
 const statusMessages: Record<
   string,
@@ -48,9 +52,9 @@ export function SettingsPageContent({
     <div className="grid gap-6">
       <div>
         <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Settings</p>
-        <h2 className="mt-2 text-3xl font-semibold">Account and device security</h2>
+        <h2 className="mt-2 text-3xl font-semibold">Account, search, and device security</h2>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Manage your profile, rotate your password, and review the active sessions tied to your account.
+          Manage your profile, choose search behavior for this browser, rotate your password, and review the active sessions tied to your account.
         </p>
       </div>
 
@@ -81,6 +85,16 @@ export function SettingsPageContent({
             </CardHeader>
             <CardContent>
               <PasswordSettingsForm />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Search</CardTitle>
+              <CardDescription>Choose how the files page search bar behaves in this browser.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SearchSettingsForm />
             </CardContent>
           </Card>
         </div>

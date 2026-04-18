@@ -8,6 +8,7 @@ import { currentUserQueryKey } from "@/lib/auth/current-user-client";
 import { filesExplorerQueryKey } from "@/lib/files/files-explorer-query";
 import { storageDashboardQueryKey } from "@/lib/files/storage-dashboard-query";
 import type { FileListItem, FolderListItem } from "@/lib/files/types";
+import { FILENAME_SEARCH_PREFERENCE_KEY } from "@/lib/search/search-preferences";
 import { trashQueryKey, trashSummaryQueryKey } from "@/lib/trash/trash-query";
 
 const mocks = vi.hoisted(() => ({
@@ -23,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   useFilenameSearchQuery: vi.fn(),
+  useSemanticSearchQuery: vi.fn(),
 }));
 
 vi.mock("@/app/(dashboard)/files/actions", () => ({
@@ -48,6 +50,10 @@ vi.mock("@/hooks/use-filename-search-query", () => ({
   useFilenameSearchQuery: mocks.useFilenameSearchQuery,
 }));
 
+vi.mock("@/hooks/use-semantic-search-query", () => ({
+  useSemanticSearchQuery: mocks.useSemanticSearchQuery,
+}));
+
 function createFile(overrides: Partial<FileListItem> = {}): FileListItem {
   return {
     createdAt: "2026-03-20T00:00:00.000Z",
@@ -71,12 +77,27 @@ function createFolder(overrides: Partial<FolderListItem> = {}): FolderListItem {
   };
 }
 
-function renderLibrary(files: FileListItem[], folders: FolderListItem[] = []) {
+function renderLibrary(
+  files: FileListItem[],
+  folders: FolderListItem[] = [],
+  options?: { filenameSearchEnabled?: boolean; semanticSearchEnabled?: boolean },
+) {
+  window.localStorage.removeItem(FILENAME_SEARCH_PREFERENCE_KEY);
+
+  if (options?.filenameSearchEnabled) {
+    window.localStorage.setItem(FILENAME_SEARCH_PREFERENCE_KEY, "true");
+  }
+
   const queryClient = new QueryClient();
 
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <FilesLibrary canUpload={false} initialFiles={files} initialFolders={folders} />
+      <FilesLibrary
+        canUpload={false}
+        initialFiles={files}
+        initialFolders={folders}
+        semanticSearchEnabled={options?.semanticSearchEnabled}
+      />
     </QueryClientProvider>,
   );
 
@@ -101,7 +122,14 @@ function chooseFolderAction(folderName: string, actionName: "Delete" | "Move" | 
 describe("FilesLibrary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     mocks.useFilenameSearchQuery.mockReturnValue({
+      data: undefined,
+      error: null,
+      isError: false,
+      isFetching: false,
+    });
+    mocks.useSemanticSearchQuery.mockReturnValue({
       data: undefined,
       error: null,
       isError: false,
@@ -797,6 +825,7 @@ describe("FilesLibrary", () => {
     renderLibrary(
       [createFile({ id: "inside", folderId: "folder-1", name: "inside.pdf" })],
       [createFolder()],
+      { filenameSearchEnabled: true },
     );
 
     fireEvent.change(screen.getByLabelText("Search filenames"), {
@@ -818,7 +847,7 @@ describe("FilesLibrary", () => {
   });
 
   it("clears stale file selection when a filename search starts", async () => {
-    renderLibrary([createFile()], [createFolder()]);
+    renderLibrary([createFile()], [createFolder()], { filenameSearchEnabled: true });
 
     fireEvent.click(screen.getByRole("button", { name: "List" }));
     fireEvent.click(screen.getByLabelText("Select report.pdf"));
@@ -831,5 +860,38 @@ describe("FilesLibrary", () => {
     await waitFor(() => {
       expect(screen.queryByText("1 selected")).toBeNull();
     });
+  });
+
+  it("defaults the search bar to semantic search", () => {
+    renderLibrary([createFile()], [createFolder()]);
+
+    expect(screen.queryByRole("button", { name: "Filter" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Filename" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Semantic" })).toBeNull();
+    expect(screen.getByLabelText("Search semantically")).toBeTruthy();
+  });
+
+  it("switches the search bar to filename search when the preference is enabled", () => {
+    renderLibrary([createFile()], [createFolder()], { filenameSearchEnabled: true });
+
+    expect(screen.queryByRole("button", { name: "Semantic" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Filename" })).toBeNull();
+    expect(screen.getByLabelText("Search filenames")).toBeTruthy();
+  });
+
+  it("shows the semantic disabled state when semantic search is unavailable", async () => {
+    renderLibrary([createFile()], [createFolder()], { semanticSearchEnabled: false });
+
+    fireEvent.change(screen.getByLabelText("Search semantically"), {
+      target: { value: "cat" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Semantic search is disabled")).toBeTruthy();
+      expect(screen.getByText("This deployment has semantic search turned off.")).toBeTruthy();
+    });
+    expect(mocks.useSemanticSearchQuery).toHaveBeenCalledWith(expect.objectContaining({
+      enabled: false,
+    }));
   });
 });

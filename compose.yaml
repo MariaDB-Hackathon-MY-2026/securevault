@@ -1,4 +1,31 @@
 services:
+  web:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: secure-vault/Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  worker:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: secure-vault/Dockerfile
+    command: ["npm", "run", "worker:embeddings"]
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
   mariadb:
     image: mariadb:12-noble
     ports:

@@ -32,6 +32,7 @@ artifacts
 # sample_test file
 secure-vault/test-results
 secure-vault/sample_upload_test_file
+secure-vault/.playwright-fixtures
 
 
 # misc

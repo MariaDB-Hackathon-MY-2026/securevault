@@ -1,6 +1,4 @@
-// Phase 19 will extend this union with semantic search without changing the
-// existing filter-vs-filename UI contract.
-export type SearchMode = "filter" | "filename";
+export type SearchMode = "filename" | "semantic";
 
 export type SearchResultFolderPathItem = {
   id: string;
@@ -21,4 +19,30 @@ export type FilenameSearchResult = {
 export type FilenameSearchResponse = {
   query: string;
   results: FilenameSearchResult[];
+};
+
+export type SemanticSearchMatchType = "filename" | "image" | "pdf_full" | "pdf_page" | "pdf_window";
+export type SemanticSearchSource = "filename" | "semantic";
+
+export type SemanticSearchResult = {
+  canPreview: boolean;
+  fileId: string;
+  folderId: string | null;
+  folderPath: SearchResultFolderPathItem[];
+  isInRoot: boolean;
+  matchType: SemanticSearchMatchType;
+  mimeType: string;
+  name: string;
+  pageFrom: number | null;
+  pageTo: number | null;
+  retrievalSources: SemanticSearchSource[];
+  score: number;
+  size: number;
+  updatedAt: string;
+};
+
+export type SemanticSearchResponse = {
+  limit: number;
+  query: string;
+  results: SemanticSearchResult[];
 };

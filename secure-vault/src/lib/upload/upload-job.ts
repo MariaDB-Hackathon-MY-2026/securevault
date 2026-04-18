@@ -11,7 +11,7 @@ import {
   RATE_LIMIT_RETRY_BASE_DELAY_MS,
   UPLOAD_SLOT_RETRY_FALLBACK_DELAY_MS,
 } from "@/lib/upload/upload-job.constants";
-import { isAllowedFileType } from "@/lib/constants";
+import { ALLOWED_IMAGE_TYPES, isAllowedFileType, MAX_PDF_INDEXING_SIZE_BYTES } from "@/lib/constants";
 import { createUploadJobErrorFromHttp, UploadJobError } from "@/lib/upload/upload-job-error";
 
 export type UploadJobStatus =
@@ -27,8 +27,9 @@ export type UploadJobStatus =
 
 export type UploadJobIndexingStatus =
   | "idle"
-  | "pending"
-  | "complete"
+  | "queued"
+  | "processing"
+  | "ready"
   | "failed"
   | "skipped";
 
@@ -440,14 +441,12 @@ export class UploadJob {
       return;
     }
 
-    this.indexingStatus = "pending";
+    this.indexingStatus = "queued";
     this.indexingError = null;
     this.notify();
 
     try {
-      // Phase 4 only wires the client trigger. The embeddings API may not
-      // exist yet, so any failure here must stay isolated from upload success.
-      await fetch("/api/embeddings", {
+      const response = await fetch("/api/embeddings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -455,14 +454,95 @@ export class UploadJob {
         body: JSON.stringify(indexingRequest),
       });
 
-      this.indexingStatus = "complete";
+      if (!response.ok) {
+        this.indexingStatus = "failed";
+        this.indexingError = await getUploadErrorMessageFromResponse(
+          response,
+          "Semantic indexing is unavailable",
+        );
+        this.notify();
+        return;
+      }
+
+      const contentType = response.headers.get("Content-Type") ?? "";
+      if (!contentType.includes("application/json") || response.status === 204) {
+        this.indexingStatus = "queued";
+        this.indexingError = null;
+        this.notify();
+        return;
+      }
+
+      const payload = await response.json() as {
+        errorCode: string | null;
+        fileId: string;
+        modality: "image" | "pdf";
+        retryable: boolean;
+        status: "queued" | "processing" | "ready" | "skipped" | "failed";
+      };
+      this.indexingStatus = payload.status;
       this.indexingError = null;
       this.notify();
+
+      if (payload.status === "queued" || payload.status === "processing") {
+        void this.pollSemanticIndexingStatus(indexingRequest.fileId, indexingRequest.modality);
+      }
     } catch (error) {
       this.indexingStatus = "failed";
       this.indexingError = getUploadJobErrorMessage(error);
       this.notify();
     }
+  }
+
+  private async pollSemanticIndexingStatus(fileId: string, modality: "image" | "pdf") {
+    const maxAttempts = 30;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      await sleep(Math.min(1_000 * (attempt + 1), 5_000));
+
+      try {
+        const response = await fetch(`/api/embeddings/${encodeURIComponent(fileId)}`, {
+          method: "GET",
+        });
+
+        if (!response.ok) {
+          this.indexingStatus = "failed";
+          this.indexingError = await getUploadErrorMessageFromResponse(
+            response,
+            "Failed to load semantic indexing status",
+          );
+          this.notify();
+          return;
+        }
+
+        const payload = await response.json() as {
+          jobs: Array<{
+            errorCode: string | null;
+            errorMessage: string | null;
+            modality: "image" | "pdf";
+            status: "queued" | "processing" | "ready" | "skipped" | "failed";
+          }>;
+        };
+        const currentJob = payload.jobs.find((job) => job.modality === modality);
+        if (!currentJob) {
+          continue;
+        }
+
+        this.indexingStatus = currentJob.status;
+        this.indexingError = currentJob.errorMessage;
+        this.notify();
+
+        if (currentJob.status === "ready" || currentJob.status === "skipped" || currentJob.status === "failed") {
+          return;
+        }
+      } catch (error) {
+        this.indexingStatus = "failed";
+        this.indexingError = getUploadJobErrorMessage(error);
+        this.notify();
+        return;
+      }
+    }
+
+    this.indexingError = null;
   }
 
   private updateCompletedChunkIndexAndProgress(chunkIndex: number) {
@@ -675,7 +755,7 @@ function getSemanticIndexingRequest(file: File, fileId: string | null) {
   }
 
   if (file.type === "application/pdf") {
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > MAX_PDF_INDEXING_SIZE_BYTES) {
       return null;
     }
 
@@ -696,12 +776,5 @@ function getSemanticIndexingRequest(file: File, fileId: string | null) {
 }
 
 function isEligibleImageMimeType(mimeType: string) {
-  return new Set([
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "image/gif",
-    "image/heic",
-    "image/heif",
-  ]).has(mimeType);
+  return (ALLOWED_IMAGE_TYPES as readonly string[]).includes(mimeType);
 }

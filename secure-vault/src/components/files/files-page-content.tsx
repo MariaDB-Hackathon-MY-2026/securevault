@@ -18,6 +18,7 @@ type FilesPageContentProps = {
   emailVerified: boolean;
   files: FileListItem[];
   folders: FolderListItem[];
+  semanticSearchEnabled: boolean;
 };
 
 export function FilesPageContent({
@@ -25,6 +26,7 @@ export function FilesPageContent({
   emailVerified,
   files,
   folders,
+  semanticSearchEnabled,
 }: FilesPageContentProps) {
   return (
     <div className="grid gap-6">
@@ -33,7 +35,7 @@ export function FilesPageContent({
           <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Files</p>
           <h2 className="mt-2 text-3xl font-semibold">Your encrypted file library</h2>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Browse folders, search by filename, and manage encrypted files without the analytics layer crowding the workspace.
+            Browse folders, search semantically across your library, and manage encrypted files without crowding the workspace.
           </p>
         </div>
         <Button asChild className="sm:self-start" variant="outline">
@@ -68,6 +70,7 @@ export function FilesPageContent({
         canUpload={canUpload}
         initialFiles={files}
         initialFolders={folders}
+        semanticSearchEnabled={semanticSearchEnabled}
       />
     </div>
   );

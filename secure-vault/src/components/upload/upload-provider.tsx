@@ -28,6 +28,7 @@ export function UploadQueueProvider({ children }: React.PropsWithChildren) {
   const queryClient = React.useContext(QueryClientContext);
   const snapshotRef = React.useRef<UploadManagerSnapshot>(manager.getSnapshot());
   const successfulUploadIdsRef = React.useRef<Set<string>>(new Set());
+  const semanticReadyIdsRef = React.useRef<Set<string>>(new Set());
 
   const subscribe = React.useCallback((onStoreChange: () => void) => {
     // Refresh once on subscribe so React does not miss mutations that land
@@ -68,6 +69,38 @@ export function UploadQueueProvider({ children }: React.PropsWithChildren) {
         queryClient.invalidateQueries({ queryKey: currentUserQueryKey }),
       ]);
     }
+  }, [queryClient, snapshot.uploads]);
+
+  React.useEffect(() => {
+    if (!queryClient) {
+      return;
+    }
+
+    const nextSemanticReadyIds = new Set(
+      snapshot.uploads
+        .filter((upload) => upload.status === "success" && upload.indexingStatus === "ready")
+        .map((upload) => upload.id),
+    );
+    let shouldInvalidate = false;
+
+    for (const uploadId of nextSemanticReadyIds) {
+      if (!semanticReadyIdsRef.current.has(uploadId)) {
+        shouldInvalidate = true;
+        break;
+      }
+    }
+
+    semanticReadyIdsRef.current = nextSemanticReadyIds;
+
+    if (!shouldInvalidate) {
+      return;
+    }
+
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: filesExplorerQueryKey }),
+      queryClient.invalidateQueries({ queryKey: storageDashboardQueryKey }),
+      queryClient.invalidateQueries({ queryKey: currentUserQueryKey }),
+    ]);
   }, [queryClient, snapshot.uploads]);
 
   const addFiles = React.useCallback((files: File[]) => {

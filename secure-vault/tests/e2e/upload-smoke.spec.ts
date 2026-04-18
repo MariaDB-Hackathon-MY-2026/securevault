@@ -1,13 +1,15 @@
-import path from "node:path";
-
 import { expect, test, type Page } from "./helpers/e2e-test";
+import {
+  getFileIdByName,
+  waitForSemanticJobStatus,
+} from "./helpers/semantic-helpers";
 
 import {
   cleanupTestUserByEmail,
   markTestUserEmailVerified,
 } from "./helpers/test-user-cleanup";
 import { buildTestUserCredentials, type TestUserCredentials } from "./helpers/test-user";
-const SAMPLE_DIR = path.resolve(process.cwd(), "sample_upload_test_file");
+import { resolveUploadFixturePaths } from "./helpers/upload-fixtures";
 
 const SUPPORTED_FILES = [
   "tiny.pdf",
@@ -81,7 +83,7 @@ async function closeUploadDialog(page: Page) {
 }
 
 async function setUploadFiles(page: Page, fileNames: readonly string[]) {
-  const filePaths = fileNames.map((fileName) => path.join(SAMPLE_DIR, fileName));
+  const filePaths = await resolveUploadFixturePaths(fileNames);
 
   await ensureUploadDialogOpen(page);
   await page.locator('input[type="file"]').setInputFiles(filePaths);
@@ -185,5 +187,74 @@ test.describe("upload smoke", () => {
     await imagePreviewResponsePromise;
     await page.getByRole("button", { name: "Close preview" }).click();
     await expect(page.getByRole("dialog", { name: "photo.png" })).toBeHidden();
+  });
+
+  test("shows semantic indexing progressing independently after a successful PDF upload", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(180_000);
+    const credentials = buildTestUserCredentials(testInfo);
+
+    await signUpAndBypassVerification(page, credentials);
+    await openUploadDialog(page);
+    await setUploadFiles(page, ["tiny.pdf"]);
+
+    const row = uploadRow(page, "tiny.pdf");
+    await expect(row).toContainText("Done", { timeout: 120_000 });
+    await expect(row).toContainText(/Semantic indexing (queued|processing|ready)/i, {
+      timeout: 30_000,
+    });
+
+    const fileId = await getFileIdByName(page, "tiny.pdf");
+    await waitForSemanticJobStatus({
+      expectedStatus: "ready",
+      fileId,
+      modality: "pdf",
+      page,
+    });
+
+    await expect(row).toContainText("Semantic indexing ready", { timeout: 30_000 });
+  });
+
+  test("keeps upload success and file preview working when semantic indexing cannot be triggered", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(180_000);
+    const credentials = buildTestUserCredentials(testInfo);
+
+    await page.route("**/api/embeddings", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.fallback();
+        return;
+      }
+
+      await route.fulfill({
+        body: JSON.stringify({
+          errorCode: "SEMANTIC_INDEXING_UNAVAILABLE",
+          message: "Semantic indexing is unavailable.",
+          retryable: true,
+        }),
+        contentType: "application/json",
+        status: 503,
+      });
+    });
+
+    await signUpAndBypassVerification(page, credentials);
+    await openUploadDialog(page);
+    await setUploadFiles(page, ["tiny.pdf"]);
+
+    const row = uploadRow(page, "tiny.pdf");
+    await expect(row).toContainText("Done", { timeout: 120_000 });
+    await expect(row).toContainText("Semantic indexing is unavailable.", {
+      timeout: 30_000,
+    });
+
+    await closeUploadDialog(page);
+
+    const pdfRow = libraryRow(page, "tiny.pdf");
+    await expect(pdfRow).toBeVisible({ timeout: 30_000 });
+    await pdfRow.getByRole("button", { name: "Preview" }).click();
+    await expect(page.getByRole("dialog", { name: "tiny.pdf" })).toBeVisible();
+    await expect(page.locator('iframe[title="Preview of tiny.pdf"]')).toBeVisible();
   });
 });

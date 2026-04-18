@@ -9,6 +9,7 @@ import {
 import { buildTestUserCredentials, type TestUserCredentials } from "./helpers/test-user";
 
 const SAMPLE_DIR = path.resolve(process.cwd(), "sample_upload_test_file");
+const FILENAME_SEARCH_PREFERENCE_KEY = "securevault.files.search.filename-enabled";
 
 async function clearBrowserStorage(page: Page) {
   try {
@@ -20,7 +21,11 @@ async function clearBrowserStorage(page: Page) {
     // Ignore cleanup failures when there is no active page origin.
   }
 
-  await page.context().clearCookies();
+  try {
+    await page.context().clearCookies();
+  } catch {
+    // Ignore cleanup failures when the page context is already closed.
+  }
 }
 
 async function signUpAndBypassVerification(page: Page, credentials: TestUserCredentials) {
@@ -34,6 +39,12 @@ async function signUpAndBypassVerification(page: Page, credentials: TestUserCred
   await page.waitForURL("**/activity");
 
   await markTestUserEmailVerified(credentials.email);
+}
+
+async function enableFilenameSearch(page: Page) {
+  await page.evaluate((storageKey) => {
+    window.localStorage.setItem(storageKey, "true");
+  }, FILENAME_SEARCH_PREFERENCE_KEY);
 }
 
 async function openUploadDialog(page: Page) {
@@ -142,6 +153,7 @@ test.describe("file browser controls", () => {
     const credentials = buildTestUserCredentials(testInfo);
 
     await signUpAndBypassVerification(page, credentials);
+    await enableFilenameSearch(page);
 
     await openUploadDialog(page);
     await uploadFiles(page, ["tiny.pdf"]);

@@ -15,6 +15,7 @@ export const embeddingChunks = mysqlTable(
       .notNull()
       .references(() => files.id, { onDelete: "cascade", onUpdate: "cascade" }),
     chunk_index: int().notNull(),
+    chunk_type: mysqlEnum("chunk_type", ["full", "window", "page"]).default("full").notNull(),
     modality: mysqlEnum("modality", ["pdf", "image"]).default("pdf").notNull(),
     page_from: int(),
     page_to: int(),

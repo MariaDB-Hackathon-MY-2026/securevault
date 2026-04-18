@@ -23,7 +23,6 @@ import {
   getNearestSurvivingFolderId,
   getFolderPath,
   getFolderSubtreeIds,
-  matchesExplorerFilter,
 } from "@/components/files/file-browser-utils";
 import { CreateFolderDialog } from "@/components/files/create-folder-dialog";
 import { DeleteFilesDialog } from "@/components/files/delete-files-dialog";
@@ -38,6 +37,11 @@ import { Toolbar } from "@/components/files/toolbar";
 import { CreateShareDialog } from "@/components/share/create-share-dialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useFilenameSearchQuery } from "@/hooks/use-filename-search-query";
+import {
+  SemanticSearchDisabledError,
+  SemanticSearchUnavailableError,
+  useSemanticSearchQuery,
+} from "@/hooks/use-semantic-search-query";
 import { useFilesExplorerQuery } from "@/hooks/use-files-explorer-query";
 import { sanitizeFilename } from "@/lib/crypto/sanitize";
 import { currentUserQueryKey } from "@/lib/auth/current-user-client";
@@ -48,13 +52,17 @@ import type {
   FilesExplorerData,
   FolderListItem,
 } from "@/lib/files/types";
-import type { FilenameSearchResult } from "@/lib/search/types";
+import {
+  readFilenameSearchPreference,
+} from "@/lib/search/search-preferences";
+import type { FilenameSearchResult, SearchMode, SemanticSearchResult } from "@/lib/search/types";
 import { trashQueryKey, trashSummaryQueryKey } from "@/lib/trash/trash-query";
 
 type FilesLibraryProps = {
   canUpload: boolean;
   initialFiles: FileListItem[];
   initialFolders: FolderListItem[];
+  semanticSearchEnabled?: boolean;
 };
 
 type RenameState =
@@ -89,6 +97,7 @@ export function FilesLibrary({
   canUpload,
   initialFiles,
   initialFolders,
+  semanticSearchEnabled = false,
 }: FilesLibraryProps) {
   const queryClient = useQueryClient();
   const initialExplorerData = React.useMemo<FilesExplorerData>(() => ({
@@ -101,6 +110,9 @@ export function FilesLibrary({
   const [viewMode, setViewMode] = React.useState<FilesViewMode>("grid");
   const [sort, setSort] = React.useState<FileSortState>(defaultSort);
   const [filterValue, setFilterValue] = React.useState("");
+  const [filenameSearchEnabled, setFilenameSearchEnabled] = React.useState(() =>
+    readFilenameSearchPreference(),
+  );
   const deferredFilterValue = React.useDeferredValue(filterValue);
   const [currentFolderId, setCurrentFolderId] = React.useState<string | null>(null);
   const [selectedFileIds, setSelectedFileIds] = React.useState<string[]>([]);
@@ -126,17 +138,31 @@ export function FilesLibrary({
     isError: isFilenameSearchError,
     isFetching: isFilenameSearchFetching,
   } = useFilenameSearchQuery({
+    query: filenameSearchEnabled ? deferredFilterValue : "",
+  });
+  const {
+    data: semanticSearchData,
+    error: semanticSearchError,
+    isError: isSemanticSearchError,
+    isFetching: isSemanticSearchFetching,
+  } = useSemanticSearchQuery({
+    enabled: !filenameSearchEnabled && semanticSearchEnabled,
     query: deferredFilterValue,
   });
+  const searchMode: SearchMode = filenameSearchEnabled ? "filename" : "semantic";
   const renamingFileId = renameState?.type === "file" ? renameState.id : null;
   const renamingFolderId = renameState?.type === "folder" ? renameState.id : null;
   const normalizedSearchQuery = filterValue.trim();
-  const isFilenameMode = normalizedSearchQuery.length > 0;
-  const isFilenameInputPending = filterValue.trim() !== deferredFilterValue.trim();
-  const hasValidFilenameQuery = deferredFilterValue.trim().length >= 2;
+  const isSearchActive = normalizedSearchQuery.length > 0;
+  const isSearchInputPending = filterValue.trim() !== deferredFilterValue.trim();
+  const hasValidSearchQuery = deferredFilterValue.trim().length >= 2;
   const filenameSearchResults = React.useMemo(
     () => filenameSearchData?.results ?? [],
     [filenameSearchData],
+  );
+  const semanticSearchResults = React.useMemo(
+    () => semanticSearchData?.results ?? [],
+    [semanticSearchData],
   );
 
   React.useEffect(() => {
@@ -171,7 +197,20 @@ export function FilesLibrary({
   }, [currentFolderId, folderMap]);
 
   React.useEffect(() => {
-    if (!isFilenameMode) {
+    const syncPreference = () => {
+      setFilenameSearchEnabled(readFilenameSearchPreference());
+    };
+
+    syncPreference();
+    window.addEventListener("storage", syncPreference);
+
+    return () => {
+      window.removeEventListener("storage", syncPreference);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!isSearchActive) {
       return;
     }
 
@@ -182,22 +221,14 @@ export function FilesLibrary({
     setMoveDialogState(null);
     setShareDialogState(null);
     setIsCreateFolderDialogOpen(false);
-  }, [isFilenameMode]);
+  }, [isSearchActive]);
 
-  const filteredFolders = folders.filter(
-    (folder) =>
-      folder.parentId === currentFolderId &&
-      matchesExplorerFilter(folder.name, deferredFilterValue),
-  );
-  const filteredFiles = files.filter(
-    (file) =>
-      file.folderId === currentFolderId &&
-      matchesExplorerFilter(file.name, deferredFilterValue),
-  );
-  const visibleFolders = [...filteredFolders].sort((left, right) =>
+  const visibleFolders = [...folders.filter((folder) => folder.parentId === currentFolderId)].sort((left, right) =>
     compareFolders(left, right, sort),
   );
-  const visibleFiles = [...filteredFiles].sort((left, right) => compareFiles(left, right, sort));
+  const visibleFiles = [...files.filter((file) => file.folderId === currentFolderId)].sort((left, right) =>
+    compareFiles(left, right, sort),
+  );
   const sortedFilenameSearchResults = React.useMemo(
     () =>
       [...filenameSearchResults].sort((left, right) => {
@@ -661,7 +692,7 @@ export function FilesLibrary({
     clearTransientExplorerState();
   }
 
-  function openSearchResultFolder(result: FilenameSearchResult) {
+  function openSearchResultFolder(result: FilenameSearchResult | SemanticSearchResult) {
     clearTransientExplorerState();
     React.startTransition(() => {
       setCurrentFolderId(result.folderId);
@@ -700,7 +731,7 @@ export function FilesLibrary({
       );
     }
 
-    if (isFilenameInputPending) {
+    if (isSearchInputPending) {
       return (
         <FilesEmptyState
           mode="filename"
@@ -709,7 +740,7 @@ export function FilesLibrary({
       );
     }
 
-    if (!hasValidFilenameQuery) {
+    if (!hasValidSearchQuery) {
       return (
         <FilesEmptyState
           mode="filename"
@@ -756,24 +787,113 @@ export function FilesLibrary({
     );
   }
 
+  function renderSemanticSearchSurface() {
+    if (!semanticSearchEnabled) {
+      return (
+        <FilesEmptyState
+          message="This deployment has semantic search turned off."
+          mode="semantic"
+          state="disabled"
+        />
+      );
+    }
+
+    if (!filterValue.trim()) {
+      return (
+        <FilesEmptyState
+          mode="semantic"
+          state="blank"
+        />
+      );
+    }
+
+    if (isSearchInputPending) {
+      return (
+        <FilesEmptyState
+          mode="semantic"
+          state="loading"
+        />
+      );
+    }
+
+    if (!hasValidSearchQuery) {
+      return (
+        <FilesEmptyState
+          mode="semantic"
+          state="short"
+        />
+      );
+    }
+
+    if (isSemanticSearchError) {
+      const message = semanticSearchError instanceof SemanticSearchDisabledError
+        || semanticSearchError instanceof SemanticSearchUnavailableError
+        || semanticSearchError instanceof Error
+        ? semanticSearchError.message
+        : undefined;
+      const state = semanticSearchError instanceof SemanticSearchDisabledError ? "disabled" : "error";
+
+      return (
+        <FilesEmptyState
+          message={message}
+          mode="semantic"
+          query={deferredFilterValue}
+          state={state}
+        />
+      );
+    }
+
+    if (isSemanticSearchFetching && semanticSearchResults.length === 0) {
+      return (
+        <FilesEmptyState
+          mode="semantic"
+          state="loading"
+        />
+      );
+    }
+
+    if (semanticSearchResults.length === 0) {
+      return (
+        <FilesEmptyState
+          mode="semantic"
+          query={deferredFilterValue}
+          state="empty"
+        />
+      );
+    }
+
+    return (
+      <FileSearchResults
+        isRefreshing={isSemanticSearchFetching}
+        onOpenFolder={openSearchResultFolder}
+        results={semanticSearchResults}
+      />
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
         <FilesLibraryHeader
           currentFolderName={currentFolderName}
           itemCount={
-            isFilenameMode
-              ? isFilenameInputPending || !hasValidFilenameQuery
+            isSearchActive && searchMode === "filename"
+              ? isSearchInputPending || !hasValidSearchQuery
                 ? 0
                 : filenameSearchResults.length
-              : visibleItemCount
+              : isSearchActive && searchMode === "semantic"
+                ? isSearchInputPending || !hasValidSearchQuery
+                  ? 0
+                  : semanticSearchResults.length
+                : visibleItemCount
           }
           query={normalizedSearchQuery}
+          searchMode={searchMode}
         />
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {!isFilenameMode ? (
+          {!isSearchActive ? (
             <FilesBreadcrumbs
               currentFolderPath={currentFolderPath}
               currentFolder={currentFolder}
@@ -800,7 +920,13 @@ export function FilesLibrary({
           <Toolbar
             canUpload={canUpload}
             filterValue={filterValue}
-            isFetching={isFilenameMode ? isFilenameSearchFetching : isFetching}
+            isFetching={
+              isSearchActive && searchMode === "filename"
+                ? isFilenameSearchFetching
+                : isSearchActive && searchMode === "semantic"
+                  ? isSemanticSearchFetching
+                  : isFetching
+            }
             onBulkDelete={() => openFileDeleteDialog(selectedFileIds)}
             onBulkMove={() => openFileMoveDialog(selectedFileIds, currentFolderId)}
             onClearSelection={clearSelection}
@@ -812,14 +938,18 @@ export function FilesLibrary({
             }}
             onSortChange={setSort}
             onViewModeChange={setViewMode}
+            searchMode={searchMode}
             searchQuery={filterValue}
+            semanticSearchEnabled={semanticSearchEnabled}
             selectedCount={selectedCount}
             sort={sort}
             viewMode={viewMode}
           />
 
-          {isFilenameMode ? renderFilenameSearchSurface() : visibleFolders.length === 0 && visibleFiles.length === 0 ? (
-            <FilesEmptyState hasFilter={Boolean(deferredFilterValue)} mode="filter" />
+          {isSearchActive ? (
+            searchMode === "filename" ? renderFilenameSearchSurface() : renderSemanticSearchSurface()
+          ) : visibleFolders.length === 0 && visibleFiles.length === 0 ? (
+            <FilesEmptyState hasFilter={false} mode="filter" />
           ) : viewMode === "grid" ? (
             <FileGrid
               files={visibleFiles}
@@ -842,6 +972,7 @@ export function FilesLibrary({
               renameDraft={renameDraft}
               renamingFileId={renamingFileId}
               renamingFolderId={renamingFolderId}
+              semanticSearchEnabled={semanticSearchEnabled}
             />
           ) : (
             <FileList
@@ -869,6 +1000,7 @@ export function FilesLibrary({
               renamingFileId={renamingFileId}
               renamingFolderId={renamingFolderId}
               selectedFileIds={selectedFileIds}
+              semanticSearchEnabled={semanticSearchEnabled}
               sort={sort}
             />
           )}

@@ -1,5 +1,3 @@
-import path from "node:path";
-
 import { and, eq } from "drizzle-orm";
 import { expect, type Locator, type Page } from "@playwright/test";
 
@@ -15,8 +13,7 @@ import {
   markTestUserEmailVerified,
 } from "./test-user-cleanup";
 import type { TestUserCredentials } from "./test-user";
-
-const SAMPLE_DIR = path.resolve(process.cwd(), "sample_upload_test_file");
+import { resolveUploadFixturePaths } from "./upload-fixtures";
 
 export async function clearBrowserStorage(page: Page) {
   try {
@@ -28,7 +25,11 @@ export async function clearBrowserStorage(page: Page) {
     // Ignore cleanup failures when there is no active page origin.
   }
 
-  await page.context().clearCookies();
+  try {
+    await page.context().clearCookies();
+  } catch {
+    // Ignore cleanup failures when the page context is already closed.
+  }
 }
 
 export async function signUpAndBypassVerification(
@@ -83,7 +84,7 @@ export async function closeUploadDialogIfOpen(page: Page) {
 
 export async function uploadFiles(page: Page, fileNames: readonly string[]) {
   const uploadDialog = await ensureUploadDialogOpen(page);
-  const filePaths = fileNames.map((fileName) => path.join(SAMPLE_DIR, fileName));
+  const filePaths = await resolveUploadFixturePaths(fileNames);
 
   await uploadDialog.locator('input[type="file"]').setInputFiles(filePaths);
 
