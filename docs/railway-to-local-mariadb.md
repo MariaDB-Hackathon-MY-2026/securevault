@@ -37,7 +37,7 @@ Run the dump from the repo root so the backup lands in `artifacts/`.
 
 ```powershell
 docker run --rm `
-  mariadb:11.8 `
+  mariadb:12-noble `
   mariadb-dump `
   --single-transaction `
   --quick `
@@ -157,5 +157,5 @@ npx drizzle-kit push
 ## Notes specific to this repo
 
 - The existing Drizzle migrations include `VECTOR(1536)` columns for embeddings, so the local image needs a MariaDB version that supports the `VECTOR` type.
-- The local Compose service uses MariaDB `11.8` for that reason.
+- The local Compose service uses MariaDB `12` via the `mariadb:12-noble` image.
 - The Compose file publishes MariaDB on host port `3307` by default to avoid conflicts with an existing local MySQL or MariaDB server on `3306`.

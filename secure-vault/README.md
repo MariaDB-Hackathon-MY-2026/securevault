@@ -101,6 +101,23 @@ npm run dev:services:stop
 npm run dev:redis:stop
 ```
 
+## Docker builds
+
+`secure-vault/Dockerfile` now copies any available `secure-vault/.env*` files into the image, including `.env.local`.
+
+This means:
+
+- the same env files are available to both `next build` and `next start`
+- you must rebuild the image after changing those env files
+- Compose still overrides container-only networking values like `DATABASE_HOST`, `DATABASE_PORT`, and `REDIS_URL`
+
+> [!WARNING]
+> Built images contain the copied env files, so do not push or share those images.
+> Each user should build locally with their own `.env.local`.
+> The default and more stable semantic mode is `SEMANTIC_INDEXING_EXECUTION_MODE=inline`.
+> Only start the separate worker when you explicitly switch to `SEMANTIC_INDEXING_EXECUTION_MODE=queued`.
+> Queued worker execution is currently less stable than inline execution.
+
 ## E2E
 
 Start Redis and the app first:

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -62,7 +62,7 @@ function getStrengthAppearance(strength: PasswordStrengthValidation | null) {
   };
 }
 
-export default function ResetPasswordPage() {
+function ResetPasswordPageContent() {
   const searchParams = useSearchParams();
   const [code, setCode] = useState("");
   const [email, setEmail] = useState(searchParams.get("email") ?? "");
@@ -312,5 +312,26 @@ export default function ResetPasswordPage() {
         </form>
       </Card>
     </div>
+  );
+}
+
+function ResetPasswordPageFallback() {
+  return (
+    <div className="flex w-full flex-col items-center justify-center p-4 md:p-8">
+      <Card className="w-full max-w-sm border-border/70 bg-background/88 shadow-xl shadow-slate-950/5 backdrop-blur">
+        <CardHeader>
+          <CardTitle className="text-2xl">Reset Password</CardTitle>
+          <CardDescription>Loading reset form...</CardDescription>
+        </CardHeader>
+      </Card>
+    </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<ResetPasswordPageFallback />}>
+      <ResetPasswordPageContent />
+    </Suspense>
   );
 }

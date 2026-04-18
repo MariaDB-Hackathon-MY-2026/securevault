@@ -106,6 +106,7 @@ function getIndexingDetails(
       body: job.status === "processing"
         ? "Semantic indexing is running for this file."
         : "Semantic indexing is queued for this file.",
+      errorCode: null,
       title: job.status === "processing" ? "Indexing in progress" : "Indexing queued",
     };
   }
@@ -113,6 +114,7 @@ function getIndexingDetails(
   if (job.status === "ready") {
     return {
       body: "Semantic indexing is ready for this file.",
+      errorCode: null,
       title: "Indexed",
     };
   }

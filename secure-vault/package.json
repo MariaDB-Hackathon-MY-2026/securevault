@@ -14,7 +14,7 @@
     "build": "next build",
     "start": "next start",
     "start:host": "next start --hostname 127.0.0.1 --port 3000",
-    "worker:embeddings": "tsx scripts/embedding-worker.ts",
+    "worker:embeddings": "tsx --tsconfig tsconfig.worker.json scripts/embedding-worker.ts",
     "lint": "eslint",
     "test": "vitest run",
     "test:e2e": "playwright test --ui",

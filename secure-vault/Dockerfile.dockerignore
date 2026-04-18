@@ -2,6 +2,8 @@
 .gitignore
 **/.env
 **/.env.*
+!secure-vault/.env
+!secure-vault/.env.*
 !secure-vault/.env.example
 node_modules
 **/node_modules
