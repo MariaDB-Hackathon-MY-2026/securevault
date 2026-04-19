@@ -60,8 +60,6 @@ SecureVault is implemented as a Next.js App Router application backed by MariaDB
 
 The real product experience lives in the authenticated dashboard under `/files`, `/activity`, `/storage`, `/settings`, and `/trash`.
 
-> [!IMPORTANT]
-> The root `/` route is still the default Next.js starter page. For real product evaluation, start at `/login` and move into the dashboard.
 
 ## Repository Layout
 
@@ -217,7 +215,6 @@ For a quick repository review, start here:
 
 SecureVault already has a real dashboard workflow, but a few implementation realities are worth knowing up front:
 
-- `/` is still a starter page, so the real product path begins at `/login`.
 - `/chat` exists structurally but is not a finished capability.
 - Semantic indexing is feature-gated and environment-dependent by design.
 - The project is already strong enough for demos, technical review, and portfolio use, while still leaving obvious room for a polished public landing page and broader production hardening.
