@@ -1,30 +1,68 @@
 # SecureVault
 
-SecureVault is a Next.js secure file-storage application focused on encrypted-at-rest uploads, scoped sharing, lifecycle controls, and optional semantic search. This repository is the project workspace; the running app lives in [`secure-vault/`](secure-vault/).
+SecureVault is a secure file-storage application built with product depth, not just UI polish. It combines encrypted-at-rest uploads, resumable large-file handling, controlled sharing, lifecycle management, and optional semantic search in a single Next.js workspace.
 
-Implemented today:
+If you are scanning this repo as a hiring manager, collaborator, investor, or technical reviewer, the headline is simple: this is not a toy upload form. SecureVault already implements the hard parts that make storage products credible.
 
-- account signup, login, session cookies, and password-reset OTP flows
-- encrypted chunked uploads to Cloudflare R2 with resume and queue controls
-- file and folder management, trash, storage dashboards, and activity feeds
-- public and restricted share links with OTP verification, download caps, and access logging
-- optional semantic indexing and semantic search for eligible PDFs and images
+## Why This Repo Deserves Attention
 
-Important current-state note: the real product entry point is the authenticated dashboard under `/files`, `/activity`, `/storage`, `/settings`, and `/trash`. The root `/` route in `secure-vault/src/app/page.tsx` is still the default Next.js starter page.
+- Encrypted-at-rest file handling with a layered key model instead of plain object storage uploads.
+- Resumable chunked uploads with queue controls, retry handling, and server-aware concurrency limits.
+- File and folder sharing with public and restricted links, OTP verification, download caps, and access logging.
+- Operational lifecycle features including trash, restore, permanent delete, storage dashboards, and activity feeds.
+- Optional semantic indexing for eligible PDFs and images, so AI search enhances the product instead of defining it.
+- Real engineering surface area: documented architecture, Docker workflows, Vitest coverage, and a sizable Playwright suite.
 
-## Repository layout
+## What SecureVault Can Do Today
+
+| Area | Current capability |
+| --- | --- |
+| Authentication | Signup, login, secure session cookies, forgot-password OTP reset |
+| File ingestion | Chunked uploads, resume flows, upload queue controls, encrypted storage in Cloudflare R2 |
+| Workspace | File explorer, folders, search, preview, download, rename, move, bulk actions |
+| Sharing | Public links, restricted links, email allowlists, OTP unlock, download limits, access logs |
+| Lifecycle | Trash, restore, permanent delete, cleanup flows, storage visibility, activity timeline |
+| AI search | Optional semantic indexing and semantic search for supported PDFs and images |
+
+## What Makes It Interesting
+
+SecureVault sits in a useful middle ground between a portfolio demo and a production-minded system design exercise.
+
+- It is opinionated about security: encrypted at rest, scoped access, rate limiting, secure cookies, and hardened response headers.
+- It is opinionated about product behavior: users can recover mistakes, share safely, audit access, and understand storage usage.
+- It is opinionated about AI: semantic indexing is additive, gated, and non-blocking, so the storage product still works when AI is off.
+
+Important scope note: SecureVault uses application-managed encryption at rest, not end-to-end encryption. Authorized server flows can decrypt files for preview, download, sharing, and indexing.
+
+## Architecture At A Glance
+
+SecureVault is implemented as a Next.js App Router application backed by MariaDB, Redis, Cloudflare R2, and an optional embeddings provider.
+
+- `MariaDB` stores users, sessions, file metadata, sharing state, upload sessions, and indexing state.
+- `Cloudflare R2` stores encrypted file chunks and related object assets.
+- `Redis` supports rate limiting, upload-slot coordination, and optional queued indexing workflows.
+- `Gemini` or a fake local provider can power semantic indexing when enabled.
+
+The real product experience lives in the authenticated dashboard under `/files`, `/activity`, `/storage`, `/settings`, and `/trash`.
+
+> [!IMPORTANT]
+> The root `/` route is still the default Next.js starter page. For real product evaluation, start at `/login` and move into the dashboard.
+
+## Repository Layout
 
 | Path | Purpose |
 | --- | --- |
-| [`secure-vault/`](secure-vault/) | Next.js app, database schema, API routes, Dockerfile, and automated tests |
-| [`docs/`](docs/) | Current handbook, API reference, Docker/Compose guide, Playwright coverage guide, and supplemental engineering notes |
-| [`resources/`](resources/) | Curated development, API, and security references |
+| [`secure-vault/`](secure-vault/) | Main Next.js application, API routes, schema, tests, Dockerfile |
+| [`docs/`](docs/) | Handbook, API reference, Docker guide, Playwright coverage, engineering notes |
+| [`resources/`](resources/) | Security, API, and implementation references |
 | [`tasks/`](tasks/) | Phase-by-phase implementation breakdown |
-| [`implementation_plan.md`](implementation_plan.md) | Longer architecture and delivery blueprint |
+| [`implementation_plan.md`](implementation_plan.md) | Broader architecture and delivery blueprint |
 
-## Local setup
+## Quick Start
 
-1. Install dependencies:
+The smoothest local workflow is: run the app on the host, and run MariaDB plus Redis through Docker Compose.
+
+1. Install dependencies.
 
    ```powershell
    cd secure-vault
@@ -33,7 +71,7 @@ Important current-state note: the real product entry point is the authenticated 
 
 2. Create `secure-vault/.env.local` from [`secure-vault/.env.example`](secure-vault/.env.example).
 
-3. Set the minimum local values:
+3. Set the minimum required values.
 
    ```env
    DATABASE_HOST=127.0.0.1
@@ -55,51 +93,50 @@ Important current-state note: the real product entry point is the authenticated 
    GEMINI_EMBEDDING_MODEL=gemini-embedding-2-preview
    ```
 
-   Generate a local master key with:
+   Generate a master key with:
 
    ```powershell
    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    ```
 
-   Notes:
-
-   - `R2_*` credentials are required for real upload, preview, and download flows.
-   - Set `DISABLE_REDIS=true` if you want local development without Redis-backed rate limiting and upload-slot coordination.
-   - The documented local default keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`.
-   - `SEMANTIC_INDEXING_PROVIDER=google` requires a valid `GEMINI_API_KEY`.
-
-4. Start local infrastructure:
+4. Start MariaDB and Redis.
 
    ```powershell
    npm run dev:services
    ```
 
-5. Bootstrap an empty local database once:
+5. Apply the checked-in migrations.
 
    ```powershell
    npx drizzle-kit migrate
    ```
 
-   This applies the checked-in SQL migrations in `secure-vault/drizzle/` and records them in Drizzle's migration log table.
-
-6. Start the app:
+6. Start the app.
 
    ```powershell
    npm run dev
    ```
 
-7. Open `http://127.0.0.1:3000/login`.
+7. Open [http://127.0.0.1:3000/login](http://127.0.0.1:3000/login).
 
-For a Railway dump import workflow, see [docs/railway-to-local-mariadb.md](docs/railway-to-local-mariadb.md).
+### Helpful Local Notes
 
-## Docker and Compose
+- Real upload, preview, and download flows need valid `R2_*` credentials.
+- If you want to run without Redis-backed coordination locally, set `DISABLE_REDIS=true`.
+- The documented local default keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`.
+- If you want semantic indexing without an external Gemini key for local experimentation, use `SEMANTIC_INDEXING_PROVIDER=fake`.
+- If `RESEND_API_KEY` is unset, OTP and email flows log locally instead of sending real email.
 
-The repo-root [`compose.yaml`](compose.yaml) supports two modes:
+For the Railway import workflow, see [docs/railway-to-local-mariadb.md](docs/railway-to-local-mariadb.md).
 
-- local dependency services only: MariaDB and Redis
-- full container stack: `web` under the `app` profile, with `worker` as a separate opt-in `worker` profile
+## Docker And Compose
 
-Use local services only:
+The repo-root [`compose.yaml`](compose.yaml) supports two practical modes:
+
+- dependency services only: MariaDB and Redis for normal local development
+- full container stack: `web` under the `app` profile, with `worker` as an opt-in profile for queued semantic indexing
+
+Use dependency services only:
 
 ```powershell
 cd secure-vault
@@ -108,52 +145,64 @@ npm run dev:services
 
 Use the full container stack:
 
-1. Create `secure-vault/.env.local` with the app secrets needed by the image.
-2. Start the stack:
+```powershell
+docker compose --profile app up --build
+```
 
-   ```powershell
-   docker compose --profile app up --build
-   ```
+Start the embeddings worker only when you intentionally want queued indexing:
 
-3. Start the semantic worker only when you intentionally want queued execution:
-
-   ```powershell
-   docker compose --profile app --profile worker up --build
-   ```
+```powershell
+docker compose --profile app --profile worker up --build
+```
 
 > [!WARNING]
-> The built Docker image contains your local `secure-vault/.env.local`.
-> Do not push or share built images from this repo unless you first remove or rotate the embedded secrets.
-> Each user should build locally with their own env file instead of reusing someone else's image.
-> The documented local path keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`.
-> The worker flow is less stable and only makes sense when `SEMANTIC_INDEXING_EXECUTION_MODE=queued`.
+> The worker path is only relevant when `SEMANTIC_INDEXING_EXECUTION_MODE=queued`, and inline execution is the more stable local path right now.
+> The current Docker build context also allows `secure-vault/.env.local` into the image path, so do not push or share locally built images that contain real secrets.
 
 The container guide is in [docs/11-docker-and-compose.md](docs/11-docker-and-compose.md).
 
 ## Testing
 
+From `secure-vault/`:
+
 - `npm run lint`
 - `npm test`
-- `npm run test:e2e` opens the Playwright UI against an already running app
-- `npm run test:e2e:managed` runs the suite headlessly against an already running app
+- `npm run test:e2e`
+- `npm run test:e2e:managed`
 
-CI currently runs lint plus Vitest. Playwright remains a manual/managed suite for now.
+The automated coverage is meaningful across auth, uploads, sharing, trash, activity, storage search, and semantic indexing. CI currently runs lint plus Vitest, while Playwright remains a managed local suite.
 
-The coverage and case matrix is in [docs/12-playwright-coverage.md](docs/12-playwright-coverage.md).
+See [docs/12-playwright-coverage.md](docs/12-playwright-coverage.md) for the detailed case matrix.
 
-## Documentation
+## Tech Stack
 
-Start with [docs/README.md](docs/README.md), then use:
+- Next.js 16 App Router
+- React 19
+- TypeScript
+- Drizzle ORM
+- MariaDB
+- Redis
+- Cloudflare R2
+- Resend
+- Optional Gemini-powered embeddings
+- Vitest and Playwright
 
-- [Project handbook](docs/09-project-handbook.md)
-- [API reference](docs/10-api-reference.md)
-- [Docker and Compose guide](docs/11-docker-and-compose.md)
-- [Playwright coverage guide](docs/12-playwright-coverage.md)
-- [Architecture blueprint](implementation_plan.md)
+## Best Entry Points For Reviewers
 
-## Main implementation entry points
+If you want to understand the repo quickly, start here:
 
-- [`secure-vault/package.json`](secure-vault/package.json)
+- [`README.md`](README.md)
+- [`docs/09-project-handbook.md`](docs/09-project-handbook.md)
+- [`docs/10-api-reference.md`](docs/10-api-reference.md)
 - [`secure-vault/src/app/`](secure-vault/src/app/)
 - [`secure-vault/src/lib/`](secure-vault/src/lib/)
 - [`secure-vault/tests/`](secure-vault/tests/)
+
+## Current Product Reality
+
+SecureVault already has a real dashboard workflow, but a few implementation realities are worth knowing up front:
+
+- `/` is still a starter page, so the real product path begins at `/login`.
+- `/chat` exists structurally but is not a finished capability.
+- Semantic indexing is feature-gated and environment-dependent by design.
+- The project is already strong enough for demos, technical review, and portfolio use, while still leaving obvious room for a polished public landing page and broader production hardening.
