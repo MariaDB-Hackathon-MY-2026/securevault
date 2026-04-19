@@ -27,7 +27,6 @@ secure-vault/out/
 /build
 
 #Artifacts
-artifacts
 
 # sample_test file
 secure-vault/test-results

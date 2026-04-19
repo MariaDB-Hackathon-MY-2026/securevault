@@ -85,5 +85,5 @@ Examples:
 
 ## Related docs
 
-- [07-test-reflections.md](./07-test-reflections.md)
-- [09-project-handbook.md](./09-project-handbook.md)
+- [02-test-reflections.md](./02-test-reflections.md)
+- [04-project-handbook.md](./04-project-handbook.md)

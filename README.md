@@ -13,7 +13,11 @@
 
 SecureVault is a secure file-storage application built with product depth, not just UI polish. It combines encrypted-at-rest uploads, resumable large-file handling, controlled sharing, lifecycle management, and optional semantic search in a single Next.js workspace.
 
-If you are scanning this repo as a hiring manager, collaborator, investor, or technical reviewer, the headline is simple: this is not a toy upload form. SecureVault already implements the hard parts that make storage products credible.
+For external reviewers, the central point is simple: this is not a toy upload form. SecureVault already implements the harder product and systems features that make storage software credible.
+
+## Interface Preview
+
+![SecureVault landing page preview](assets/landing_page.webp)
 
 ## Why This Repo Deserves Attention
 
@@ -65,13 +69,13 @@ The real product experience lives in the authenticated dashboard under `/files`,
 | --- | --- |
 | [`secure-vault/`](secure-vault/) | Main Next.js application, API routes, schema, tests, Dockerfile |
 | [`docs/`](docs/) | Handbook, API reference, Docker guide, Playwright coverage, engineering notes |
-| [`resources/`](resources/) | Security, API, and implementation references |
+| [`resources/`](resources/) | Supporting references for security standards, external docs, and UI guidance |
 | [`tasks/`](tasks/) | Phase-by-phase implementation breakdown |
 | [`implementation_plan.md`](implementation_plan.md) | Broader architecture and delivery blueprint |
 
 ## Quick Start
 
-The smoothest local workflow is: run the app on the host, and run MariaDB plus Redis through Docker Compose.
+The default local workflow runs the app on the host while MariaDB and Redis run through Docker Compose.
 
 1. Install dependencies.
 
@@ -91,16 +95,16 @@ The smoothest local workflow is: run the app on the host, and run MariaDB plus R
    DATABASE_USER=securevault
    DATABASE_PASSWORD=securevault
    MASTER_ENCRYPTION_KEY=<64-char hex key>
-   R2_ACCOUNT_ID=<your-r2-account-id>
-   R2_ACCESS_KEY_ID=<your-r2-access-key>
-   R2_SECRET_ACCESS_KEY=<your-r2-secret>
-   R2_BUCKET_NAME=<your-r2-bucket>
+   R2_ACCOUNT_ID=<r2-account-id>
+   R2_ACCESS_KEY_ID=<r2-access-key>
+   R2_SECRET_ACCESS_KEY=<r2-secret>
+   R2_BUCKET_NAME=<r2-bucket>
    NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
    REDIS_URL=redis://127.0.0.1:6379
    SEMANTIC_INDEXING_ENABLED=true
    SEMANTIC_INDEXING_EXECUTION_MODE=inline
    SEMANTIC_INDEXING_PROVIDER=google
-   GEMINI_API_KEY=<your-gemini-api-key>
+   GEMINI_API_KEY=<gemini-api-key>
    GEMINI_EMBEDDING_MODEL=gemini-embedding-2-preview
    ```
 
@@ -133,9 +137,9 @@ The smoothest local workflow is: run the app on the host, and run MariaDB plus R
 ### Helpful Local Notes
 
 - Real upload, preview, and download flows need valid `R2_*` credentials.
-- If you want to run without Redis-backed coordination locally, set `DISABLE_REDIS=true`.
+- For local runs without Redis-backed coordination, set `DISABLE_REDIS=true`.
 - The documented local default keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`.
-- If you want semantic indexing without an external Gemini key for local experimentation, use `SEMANTIC_INDEXING_PROVIDER=fake`.
+- For local semantic indexing without an external Gemini key, use `SEMANTIC_INDEXING_PROVIDER=fake`.
 - If `RESEND_API_KEY` is unset, OTP and email flows log locally instead of sending real email.
 
 For the Railway import workflow, see [docs/railway-to-local-mariadb.md](docs/railway-to-local-mariadb.md).
@@ -160,7 +164,7 @@ Use the full container stack:
 docker compose --profile app up --build
 ```
 
-Start the embeddings worker only when you intentionally want queued indexing:
+Start the embeddings worker only when queued indexing is intentionally enabled:
 
 ```powershell
 docker compose --profile app --profile worker up --build
@@ -170,7 +174,7 @@ docker compose --profile app --profile worker up --build
 > The worker path is only relevant when `SEMANTIC_INDEXING_EXECUTION_MODE=queued`, and inline execution is the more stable local path right now.
 > The current Docker build context also allows `secure-vault/.env.local` into the image path, so do not push or share locally built images that contain real secrets.
 
-The container guide is in [docs/11-docker-and-compose.md](docs/11-docker-and-compose.md).
+The container guide is in [docs/06-docker-and-compose.md](docs/06-docker-and-compose.md).
 
 ## Testing
 
@@ -183,7 +187,7 @@ From `secure-vault/`:
 
 The automated coverage is meaningful across auth, uploads, sharing, trash, activity, storage search, and semantic indexing. CI currently runs lint plus Vitest, while Playwright remains a managed local suite.
 
-See [docs/12-playwright-coverage.md](docs/12-playwright-coverage.md) for the detailed case matrix.
+See [docs/07-playwright-coverage.md](docs/07-playwright-coverage.md) for the detailed case matrix.
 
 ## Tech Stack
 
@@ -198,13 +202,13 @@ See [docs/12-playwright-coverage.md](docs/12-playwright-coverage.md) for the det
 - Optional Gemini-powered embeddings
 - Vitest and Playwright
 
-## Best Entry Points For Reviewers
+## Recommended Review Entry Points
 
-If you want to understand the repo quickly, start here:
+For a quick repository review, start here:
 
 - [`README.md`](README.md)
-- [`docs/09-project-handbook.md`](docs/09-project-handbook.md)
-- [`docs/10-api-reference.md`](docs/10-api-reference.md)
+- [`docs/04-project-handbook.md`](docs/04-project-handbook.md)
+- [`docs/05-api-reference.md`](docs/05-api-reference.md)
 - [`secure-vault/src/app/`](secure-vault/src/app/)
 - [`secure-vault/src/lib/`](secure-vault/src/lib/)
 - [`secure-vault/tests/`](secure-vault/tests/)

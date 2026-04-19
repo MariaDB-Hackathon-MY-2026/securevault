@@ -31,7 +31,7 @@ DISABLE_REDIS=true
 REDIS_URL=redis://127.0.0.1:6379
 ```
 
-If you want to run the database locally under Docker Compose, use these values:
+For local database runs under Docker Compose, use these values:
 
 ```bash
 DATABASE_HOST=127.0.0.1
@@ -41,7 +41,7 @@ DATABASE_USER=securevault
 DATABASE_PASSWORD=securevault
 ```
 
-If `DISABLE_REDIS=true` in local development, the app uses a no-op Redis adapter even when `REDIS_URL` is present. That disables Redis-backed rate limiting and global upload slot enforcement locally, but keeps the rest of the app usable.
+When `DISABLE_REDIS=true` in local development, the app uses a no-op Redis adapter even when `REDIS_URL` is present. That disables Redis-backed rate limiting and global upload slot enforcement locally, but keeps the rest of the app usable.
 
 The documented local default keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`. Because the provider guidance matches the current app setup, set `SEMANTIC_INDEXING_PROVIDER=google` with a valid `GEMINI_API_KEY`.
 
@@ -63,7 +63,7 @@ npm run dev:redis
 npm run dev
 ```
 
-If you are starting from an empty local database, run this once before `npm run dev`:
+For an empty local database, run this once before `npm run dev`:
 
 ```bash
 npx drizzle-kit migrate
@@ -123,14 +123,14 @@ npm run dev:redis:stop
 This means:
 
 - the same env files are available to both `next build` and `next start`
-- you must rebuild the image after changing those env files
+- the image must be rebuilt after those env files change
 - Compose still overrides container-only networking values like `DATABASE_HOST`, `DATABASE_PORT`, and `REDIS_URL`
 
 > [!WARNING]
 > Built images contain the copied env files, so do not push or share those images.
-> Each user should build locally with their own `.env.local`.
+> Images should be built locally with an environment file that belongs to the current operator.
 > The documented local path keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`.
-> Only start the separate worker when you explicitly switch to `SEMANTIC_INDEXING_EXECUTION_MODE=queued`.
+> The separate worker is only relevant when `SEMANTIC_INDEXING_EXECUTION_MODE=queued`.
 > Queued worker execution is currently less stable than inline execution.
 
 ## E2E

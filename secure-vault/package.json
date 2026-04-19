@@ -15,6 +15,8 @@
     "start": "next start",
     "start:host": "next start --hostname 127.0.0.1 --port 3000",
     "worker:embeddings": "tsx --tsconfig tsconfig.worker.json scripts/embedding-worker.ts",
+    "benchmark:semantic": "tsx --tsconfig tsconfig.worker.json scripts/benchmark/retrieval/index.ts",
+    "benchmark:semantic:pipeline": "tsx --tsconfig tsconfig.worker.json scripts/benchmark/pipeline/index.ts",
     "lint": "eslint",
     "test": "vitest run",
     "test:e2e": "playwright test --ui",

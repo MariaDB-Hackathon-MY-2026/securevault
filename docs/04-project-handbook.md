@@ -10,9 +10,9 @@ This handbook documents the repository as it exists in code today.
 
 - Part 1 is written for non-technical readers, product stakeholders, demo reviewers, and new teammates.
 - Part 2 is written for engineers who need to understand the implementation, architecture boundaries, data flow, and operational dependencies.
-- The dedicated HTTP API reference lives in [10-api-reference.md](./10-api-reference.md).
-- Docker and Compose runtime notes live in [11-docker-and-compose.md](./11-docker-and-compose.md).
-- Playwright execution and case coverage live in [12-playwright-coverage.md](./12-playwright-coverage.md).
+- The dedicated HTTP API reference lives in [05-api-reference.md](./05-api-reference.md).
+- Docker and Compose runtime notes live in [06-docker-and-compose.md](./06-docker-and-compose.md).
+- Playwright execution and case coverage live in [07-playwright-coverage.md](./07-playwright-coverage.md).
 
 ## Part 1: Simplified Overview For Non-Technical Readers
 
@@ -527,9 +527,9 @@ These are important for anyone onboarding:
 ## Recommended Reading Order For Engineers
 
 1. `README.md`
-2. `docs/10-api-reference.md`
-3. `docs/11-docker-and-compose.md`
-4. `docs/12-playwright-coverage.md`
+2. `docs/05-api-reference.md`
+3. `docs/06-docker-and-compose.md`
+4. `docs/07-playwright-coverage.md`
 5. `secure-vault/src/app`
 6. `secure-vault/src/lib/auth`
 7. `secure-vault/src/lib/upload`
