@@ -16,12 +16,26 @@ describe("email helpers", () => {
 
   it("logs password reset OTPs locally in non-production", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    process.env.RESEND_API_KEY = "test-key";
     const { sendPasswordResetOtpEmail } = await import("@/lib/email");
 
     await expect(sendPasswordResetOtpEmail("alice@example.com", "123456")).resolves.toBeUndefined();
 
     expect(logSpy).toHaveBeenCalledWith(
       "[Password Reset OTP][dev-only] To: alice@example.com, Code: 123456",
+    );
+    expect(__getResendCalls()).toEqual([]);
+  });
+
+  it("logs password reset OTPs to the terminal when the resend key is missing", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+    const { sendPasswordResetOtpEmail } = await import("@/lib/email");
+
+    await expect(sendPasswordResetOtpEmail("alice@example.com", "123456")).resolves.toBeUndefined();
+
+    expect(logSpy).toHaveBeenCalledWith(
+      "[Password Reset OTP][terminal-only] To: alice@example.com, Code: 123456. RESEND_API_KEY is not configured, so the verification code was logged to the server terminal instead of being emailed.",
     );
     expect(__getResendCalls()).toEqual([]);
   });

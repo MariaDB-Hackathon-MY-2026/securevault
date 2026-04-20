@@ -29,7 +29,7 @@
 | **Phase 20** | SeaweedFS Migration & Object Storage Abstraction | Phase 4, 5, 9, 10, 18 |
 | **Phase 21** | OCR-Backed Hybrid Retrieval         | Phase 1, 2, 4, 5, 14, 19, 20 |
 
-## How to Use
+## Structure
 
 Each `phase-XX-*.md` file contains:
 

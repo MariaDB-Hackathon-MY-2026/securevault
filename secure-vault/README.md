@@ -17,6 +17,11 @@ R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
 R2_BUCKET_NAME=...
 NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
+SEMANTIC_INDEXING_ENABLED=true
+SEMANTIC_INDEXING_EXECUTION_MODE=inline
+SEMANTIC_INDEXING_PROVIDER=google
+GEMINI_API_KEY=...
+GEMINI_EMBEDDING_MODEL=gemini-embedding-2-preview
 ```
 
 Optional:
@@ -26,7 +31,7 @@ DISABLE_REDIS=true
 REDIS_URL=redis://127.0.0.1:6379
 ```
 
-If you want to run the database locally under Docker Compose, use these values:
+For local database runs under Docker Compose, use these values:
 
 ```bash
 DATABASE_HOST=127.0.0.1
@@ -36,7 +41,9 @@ DATABASE_USER=securevault
 DATABASE_PASSWORD=securevault
 ```
 
-If `DISABLE_REDIS=true` in local development, the app uses a no-op Redis adapter even when `REDIS_URL` is present. That disables Redis-backed rate limiting and global upload slot enforcement locally, but keeps the rest of the app usable.
+When `DISABLE_REDIS=true` in local development, the app uses a no-op Redis adapter even when `REDIS_URL` is present. That disables Redis-backed rate limiting and global upload slot enforcement locally, but keeps the rest of the app usable.
+
+The documented local default keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`. Because the provider guidance matches the current app setup, set `SEMANTIC_INDEXING_PROVIDER=google` with a valid `GEMINI_API_KEY`.
 
 2. Start MariaDB:
 
@@ -55,6 +62,14 @@ npm run dev:redis
 ```bash
 npm run dev
 ```
+
+For an empty local database, run this once before `npm run dev`:
+
+```bash
+npx drizzle-kit migrate
+```
+
+That applies the checked-in SQL migrations from `drizzle/` and creates Drizzle's migration log table for future runs.
 
 5. Optional stop commands:
 
@@ -100,6 +115,23 @@ npm run dev:services
 npm run dev:services:stop
 npm run dev:redis:stop
 ```
+
+## Docker builds
+
+`secure-vault/Dockerfile` now copies any available `secure-vault/.env*` files into the image, including `.env.local`.
+
+This means:
+
+- the same env files are available to both `next build` and `next start`
+- the image must be rebuilt after those env files change
+- Compose still overrides container-only networking values like `DATABASE_HOST`, `DATABASE_PORT`, and `REDIS_URL`
+
+> [!WARNING]
+> Built images contain the copied env files, so do not push or share those images.
+> Images should be built locally with an environment file that belongs to the current operator.
+> The documented local path keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`.
+> The separate worker is only relevant when `SEMANTIC_INDEXING_EXECUTION_MODE=queued`.
+> Queued worker execution is currently less stable than inline execution.
 
 ## E2E
 

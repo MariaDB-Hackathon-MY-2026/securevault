@@ -1,5 +1,6 @@
 ALTER TABLE `files`
 ADD `upload_completed_at_approximate` boolean NOT NULL DEFAULT false;
+--> statement-breakpoint
 
 UPDATE `files`
 SET `upload_completed_at_approximate` = 1
