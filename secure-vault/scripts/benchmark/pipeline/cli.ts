@@ -13,7 +13,7 @@ export type PipelineBenchmarkConfig = {
 
 export const DEFAULT_PIPELINE_CONFIG: PipelineBenchmarkConfig = {
   filesPerTheme: 3,
-  outputDir: join(process.cwd(), "..", "..", "benchmark"),
+  outputDir: join(process.cwd(), "benchmark"),
   suites: ["controlled", "stress"],
   themeCount: 4,
 };

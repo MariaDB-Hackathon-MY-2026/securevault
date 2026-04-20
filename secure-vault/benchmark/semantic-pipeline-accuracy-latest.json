@@ -1,0 +1,61 @@
+{
+  "config": {
+    "filesPerTheme": 3,
+    "outputDir": "C:\\Git_Repo\\benchmark",
+    "suites": [
+      "controlled",
+      "stress"
+    ],
+    "themeCount": 4
+  },
+  "provider": "google",
+  "results": [
+    {
+      "hybrid": {
+        "averageSearchTimeMs": 781.8276333333318,
+        "mrr": 1,
+        "samples": 12,
+        "top1Accuracy": 1,
+        "top3Recall": 1
+      },
+      "indexingSummary": {
+        "avg": 5691.431983333335,
+        "p50": 5576.5653999999995,
+        "p95": 7025.6001
+      },
+      "samples": 12,
+      "semantic": {
+        "averageSearchTimeMs": 456.5008833333316,
+        "mrr": 1,
+        "samples": 12,
+        "top1Accuracy": 1,
+        "top3Recall": 1
+      },
+      "suite": "controlled"
+    },
+    {
+      "hybrid": {
+        "averageSearchTimeMs": 562.5304083333225,
+        "mrr": 0.75,
+        "samples": 12,
+        "top1Accuracy": 0.5,
+        "top3Recall": 1
+      },
+      "indexingSummary": {
+        "avg": 6800.2473333333355,
+        "p50": 6775.96219999998,
+        "p95": 7426.872499999998
+      },
+      "samples": 12,
+      "semantic": {
+        "averageSearchTimeMs": 749.9864999999942,
+        "mrr": 0.75,
+        "samples": 12,
+        "top1Accuracy": 0.5,
+        "top3Recall": 1
+      },
+      "suite": "stress"
+    }
+  ],
+  "startedAt": "2026-04-20T14:02:34.666Z"
+}

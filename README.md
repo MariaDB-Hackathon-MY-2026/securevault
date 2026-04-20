@@ -19,6 +19,8 @@ For external reviewers, the central point is simple: this is not a toy upload fo
 
 ![SecureVault landing page preview](assets/landing_page.webp)
 
+For the full product screenshot gallery, see [docs/06-ui-showcase.md](docs/06-ui-showcase.md).
+
 ## Why This Repo Deserves Attention
 
 - Encrypted-at-rest file handling with a layered key model instead of plain object storage uploads.
@@ -172,7 +174,7 @@ docker compose --profile app --profile worker up --build
 > The worker path is only relevant when `SEMANTIC_INDEXING_EXECUTION_MODE=queued`, and inline execution is the more stable local path right now.
 > The current Docker build context also allows `secure-vault/.env.local` into the image path, so do not push or share locally built images that contain real secrets.
 
-The container guide is in [docs/06-docker-and-compose.md](docs/06-docker-and-compose.md).
+The container guide is in [docs/04-docker-and-compose.md](docs/04-docker-and-compose.md).
 
 ## Testing
 
@@ -185,7 +187,7 @@ From `secure-vault/`:
 
 The automated coverage is meaningful across auth, uploads, sharing, trash, activity, storage search, and semantic indexing. CI currently runs lint plus Vitest, while Playwright remains a managed local suite.
 
-See [docs/07-playwright-coverage.md](docs/07-playwright-coverage.md) for the detailed case matrix.
+See [docs/05-playwright-coverage.md](docs/05-playwright-coverage.md) for the detailed case matrix.
 
 ## Tech Stack
 
@@ -205,8 +207,9 @@ See [docs/07-playwright-coverage.md](docs/07-playwright-coverage.md) for the det
 For a quick repository review, start here:
 
 - [`README.md`](README.md)
-- [`docs/04-project-handbook.md`](docs/04-project-handbook.md)
-- [`docs/05-api-reference.md`](docs/05-api-reference.md)
+- [`docs/06-ui-showcase.md`](docs/06-ui-showcase.md)
+- [`docs/02-project-handbook.md`](docs/02-project-handbook.md)
+- [`docs/03-api-reference.md`](docs/03-api-reference.md)
 - [`secure-vault/src/app/`](secure-vault/src/app/)
 - [`secure-vault/src/lib/`](secure-vault/src/lib/)
 - [`secure-vault/tests/`](secure-vault/tests/)

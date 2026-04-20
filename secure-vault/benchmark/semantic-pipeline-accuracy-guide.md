@@ -64,8 +64,8 @@ npm run benchmark:semantic:pipeline -- --suite stress --themes 4 --files-per-the
 
 ## Output Files
 
-- `benchmark/semantic-pipeline-accuracy-latest.md`
-- `benchmark/semantic-pipeline-accuracy-latest.json`
+- `secure-vault/benchmark/semantic-pipeline-accuracy-latest.md`
+- `secure-vault/benchmark/semantic-pipeline-accuracy-latest.json`
 
 The markdown file is the evaluator-facing report.
 

@@ -21,7 +21,7 @@ export const DEFAULT_RETRIEVAL_CONFIG: RetrievalBenchmarkConfig = {
   dimensions: 1536,
   fileBatchSize: 250,
   filesPerTheme: 200,
-  outputDir: join(process.cwd(), "..", "..", "benchmark"),
+  outputDir: join(process.cwd(), "benchmark"),
   queriesPerTheme: 3,
   queryTopK: 50,
   themeCount: 5,

@@ -11,5 +11,5 @@ Supporting references live here. Unlike `docs/`, this directory is not the produ
 ## What does not belong here
 
 - Product walkthroughs and repository architecture docs: keep those in [`../docs/`](../docs/)
-- API surface documentation: use [`../docs/05-api-reference.md`](../docs/05-api-reference.md) as the single source of truth
+- API surface documentation: use [`../docs/03-api-reference.md`](../docs/03-api-reference.md) as the single source of truth
 - Duplicate summaries of material already covered by the handbook or README

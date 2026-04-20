@@ -1,0 +1,41 @@
+{
+  "config": {
+    "chunkBatchSize": 500,
+    "chunksPerFile": 3,
+    "dimensions": 1536,
+    "fileBatchSize": 250,
+    "filesPerTheme": 200,
+    "outputDir": "C:\\Git_Repo\\benchmark",
+    "queriesPerTheme": 3,
+    "queryTopK": 50,
+    "themeCount": 5,
+    "warmupRuns": 5
+  },
+  "dataset": {
+    "chunkCount": 3000,
+    "fileCount": 1000,
+    "folderCount": 5,
+    "queryCaseCount": 15
+  },
+  "hybrid": {
+    "avgMs": 1013.4229133333334,
+    "maxMs": 1063.833300000002,
+    "minMs": 978.9037000000026,
+    "p50Ms": 1016.9792000000016,
+    "p95Ms": 1063.833300000002,
+    "p99Ms": 1063.833300000002,
+    "resultCountAvg": 10,
+    "samples": 15
+  },
+  "semantic": {
+    "avgMs": 1015.3082866666664,
+    "maxMs": 1104.036,
+    "minMs": 984.9176999999981,
+    "p50Ms": 1005.7258999999976,
+    "p95Ms": 1104.036,
+    "p99Ms": 1104.036,
+    "resultCountAvg": 10,
+    "samples": 15
+  },
+  "startedAt": "2026-04-20T14:02:37.293Z"
+}

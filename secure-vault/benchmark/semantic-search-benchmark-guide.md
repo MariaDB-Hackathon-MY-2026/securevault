@@ -45,8 +45,8 @@ npm run benchmark:semantic -- --themes 6 --files-per-theme 500 --chunks-per-file
 
 ## Output Files
 
-- `benchmark/semantic-search-benchmark-latest.md`
-- `benchmark/semantic-search-benchmark-latest.json`
+- `secure-vault/benchmark/semantic-search-benchmark-latest.md`
+- `secure-vault/benchmark/semantic-search-benchmark-latest.json`
 
 ## Reported Metrics
 
