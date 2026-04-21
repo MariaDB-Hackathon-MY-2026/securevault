@@ -1,18 +1,23 @@
-# SecureVault Project Handbook
+---
+title: Project Handbook
+description: Product and engineering overview of the SecureVault repository as it exists today.
+---
+
+# Project Handbook
 
 This handbook documents the repository as it exists in code today.
 
-- Product workspace root: `C:\Git_Repo\securevault`
-- Active application: `C:\Git_Repo\securevault\secure-vault`
+- Repository root: `securevault/`
+- Active application: <RepoLink path="secure-vault" kind="tree" />
 - Stack: Next.js App Router, React 19, TypeScript, Drizzle ORM, MariaDB, Redis, Cloudflare R2, optional Gemini-powered semantic indexing
 
 ## How To Read This Document
 
 - Part 1 is written for non-technical readers, product stakeholders, demo reviewers, and new teammates.
 - Part 2 is written for engineers who need to understand the implementation, architecture boundaries, data flow, and operational dependencies.
-- The dedicated HTTP API reference lives in [03-api-reference.md](./03-api-reference.md).
-- Docker and Compose runtime notes live in [04-docker-and-compose.md](./04-docker-and-compose.md).
-- Playwright execution and case coverage live in [05-playwright-coverage.md](./05-playwright-coverage.md).
+- The dedicated HTTP API reference lives in [API Reference](../reference/api.md).
+- Docker and Compose runtime notes live in [Docker and Compose](../operations/docker-compose.md).
+- Playwright execution and case coverage live in [Playwright Coverage](../testing/playwright.md).
 
 ## Part 1: Simplified Overview For Non-Technical Readers
 
@@ -122,20 +127,20 @@ That makes it suitable as a strong demo for a secure storage product, especially
 
 | Path | Purpose |
 | --- | --- |
-| `secure-vault/src/app` | Next.js route groups, layouts, pages, API route handlers |
-| `secure-vault/src/components` | UI and page-level client components |
-| `secure-vault/src/hooks` | React Query hooks and upload queue hooks |
-| `secure-vault/src/lib/auth` | session, cookies, current-user loading, password reset, request metadata |
-| `secure-vault/src/lib/crypto` | AES helpers, key hierarchy, stream crypto, filename sanitization |
-| `secure-vault/src/lib/db` | Drizzle connection, schema, CRUD helpers |
-| `secure-vault/src/lib/files` | file explorer and storage dashboard query logic |
-| `secure-vault/src/lib/sharing` | share link lifecycle, OTP flow, share access session |
-| `secure-vault/src/lib/storage` | chunking helpers and Cloudflare R2 integration |
-| `secure-vault/src/lib/upload` | browser upload scheduler and upload concurrency coordination |
-| `secure-vault/src/lib/ai` | semantic indexing config, queueing, worker, providers |
-| `secure-vault/src/lib/search` | filename search and hybrid semantic search |
-| `secure-vault/tests` | unit, component, integration, and Playwright end-to-end coverage |
-| `compose.yaml` | local MariaDB and Redis services plus optional app and worker containers |
+| <RepoLink path="secure-vault/src/app" kind="tree" /> | Next.js route groups, layouts, pages, API route handlers |
+| <RepoLink path="secure-vault/src/components" kind="tree" /> | UI and page-level client components |
+| <RepoLink path="secure-vault/src/hooks" kind="tree" /> | React Query hooks and upload queue hooks |
+| <RepoLink path="secure-vault/src/lib/auth" kind="tree" /> | session, cookies, current-user loading, password reset, request metadata |
+| <RepoLink path="secure-vault/src/lib/crypto" kind="tree" /> | AES helpers, key hierarchy, stream crypto, filename sanitization |
+| <RepoLink path="secure-vault/src/lib/db" kind="tree" /> | Drizzle connection, schema, CRUD helpers |
+| <RepoLink path="secure-vault/src/lib/files" kind="tree" /> | file explorer and storage dashboard query logic |
+| <RepoLink path="secure-vault/src/lib/sharing" kind="tree" /> | share link lifecycle, OTP flow, share access session |
+| <RepoLink path="secure-vault/src/lib/storage" kind="tree" /> | chunking helpers and Cloudflare R2 integration |
+| <RepoLink path="secure-vault/src/lib/upload" kind="tree" /> | browser upload scheduler and upload concurrency coordination |
+| <RepoLink path="secure-vault/src/lib/ai" kind="tree" /> | semantic indexing config, queueing, worker, providers |
+| <RepoLink path="secure-vault/src/lib/search" kind="tree" /> | filename search and hybrid semantic search |
+| <RepoLink path="secure-vault/tests" kind="tree" /> | unit, component, integration, and Playwright end-to-end coverage |
+| <RepoLink path="compose.yaml" /> | local MariaDB and Redis services plus optional app and worker containers |
 
 ### Runtime Architecture
 
@@ -209,7 +214,7 @@ Important current-state note:
 - `/` is still the default Next.js starter page
 - `/chat` exists as a placeholder, not a finished workflow
 - the real product entry point is the authenticated dashboard under `/files`, `/activity`, `/storage`, `/settings`, and `/trash`
-- for demos and onboarding, treat `/files` as the practical “home” of the product
+- for demos and onboarding, treat `/files` as the practical "home" of the product
 
 ### Authentication And Session Model
 
@@ -526,13 +531,13 @@ These are important for anyone onboarding:
 
 ## Recommended Reading Order For Engineers
 
-1. `README.md`
-2. `docs/03-api-reference.md`
-3. `docs/04-docker-and-compose.md`
-4. `docs/05-playwright-coverage.md`
-5. `secure-vault/src/app`
-6. `secure-vault/src/lib/auth`
-7. `secure-vault/src/lib/upload`
-8. `secure-vault/src/lib/sharing`
-9. `secure-vault/src/lib/ai`
-10. `secure-vault/src/lib/db/schema`
+1. <RepoLink path="README.md" />
+2. [API Reference](../reference/api.md)
+3. [Docker and Compose](../operations/docker-compose.md)
+4. [Playwright Coverage](../testing/playwright.md)
+5. <RepoLink path="secure-vault/src/app" kind="tree" />
+6. <RepoLink path="secure-vault/src/lib/auth" kind="tree" />
+7. <RepoLink path="secure-vault/src/lib/upload" kind="tree" />
+8. <RepoLink path="secure-vault/src/lib/sharing" kind="tree" />
+9. <RepoLink path="secure-vault/src/lib/ai" kind="tree" />
+10. <RepoLink path="secure-vault/src/lib/db/schema" kind="tree" />

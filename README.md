@@ -19,7 +19,16 @@ For external reviewers, the central point is simple: this is not a toy upload fo
 
 ![SecureVault landing page preview](assets/landing_page.webp)
 
-For the full product screenshot gallery, see [docs/06-ui-showcase.md](docs/06-ui-showcase.md).
+For the full product screenshot gallery, see [docs/product/ui-showcase.md](docs/product/ui-showcase.md).
+
+## Documentation Site
+
+The repository docs are now structured as a VitePress site in [`docs/`](docs/) so they can publish cleanly to GitHub Pages through GitHub Actions.
+
+- docs homepage: [`docs/index.md`](docs/index.md)
+- local setup guide: [`docs/getting-started/local-development.md`](docs/getting-started/local-development.md)
+- architecture handbook: [`docs/architecture/project-handbook.md`](docs/architecture/project-handbook.md)
+- API reference: [`docs/reference/api.md`](docs/reference/api.md)
 
 ## Why This Repo Deserves Attention
 
@@ -68,7 +77,7 @@ The real product experience lives in the authenticated dashboard under `/files`,
 | Path | Purpose |
 | --- | --- |
 | [`secure-vault/`](secure-vault/) | Main Next.js application, API routes, schema, tests, Dockerfile |
-| [`docs/`](docs/) | Handbook, API reference, Docker guide, Playwright coverage, engineering notes |
+| [`docs/`](docs/) | VitePress-powered GitHub Pages docs source, organized by onboarding, architecture, operations, reference, testing, and product showcase |
 | [`resources/`](resources/) | Supporting references for security standards, external docs, and UI guidance |
 | [`tasks/`](tasks/) | Phase-by-phase implementation breakdown |
 | [`implementation_plan.md`](implementation_plan.md) | Broader architecture and delivery blueprint |
@@ -142,7 +151,7 @@ The default local workflow runs the app on the host while MariaDB and Redis run 
 - For local semantic indexing without an external Gemini key, use `SEMANTIC_INDEXING_PROVIDER=fake`.
 - If `RESEND_API_KEY` is unset, OTP and email flows log locally instead of sending real email.
 
-For the Railway import workflow, see [docs/railway-to-local-mariadb.md](docs/railway-to-local-mariadb.md).
+For the repo's canonical local setup flow, see [docs/getting-started/local-development.md](docs/getting-started/local-development.md).
 
 ## Docker And Compose
 
@@ -174,7 +183,7 @@ docker compose --profile app --profile worker up --build
 > The worker path is only relevant when `SEMANTIC_INDEXING_EXECUTION_MODE=queued`, and inline execution is the more stable local path right now.
 > The current Docker build context also allows `secure-vault/.env.local` into the image path, so do not push or share locally built images that contain real secrets.
 
-The container guide is in [docs/04-docker-and-compose.md](docs/04-docker-and-compose.md).
+The container guide is in [docs/operations/docker-compose.md](docs/operations/docker-compose.md).
 
 ## Testing
 
@@ -187,7 +196,7 @@ From `secure-vault/`:
 
 The automated coverage is meaningful across auth, uploads, sharing, trash, activity, storage search, and semantic indexing. CI currently runs lint plus Vitest, while Playwright remains a managed local suite.
 
-See [docs/05-playwright-coverage.md](docs/05-playwright-coverage.md) for the detailed case matrix.
+See [docs/testing/playwright.md](docs/testing/playwright.md) for the detailed case matrix.
 
 ## Tech Stack
 
@@ -207,9 +216,9 @@ See [docs/05-playwright-coverage.md](docs/05-playwright-coverage.md) for the det
 For a quick repository review, start here:
 
 - [`README.md`](README.md)
-- [`docs/06-ui-showcase.md`](docs/06-ui-showcase.md)
-- [`docs/02-project-handbook.md`](docs/02-project-handbook.md)
-- [`docs/03-api-reference.md`](docs/03-api-reference.md)
+- [`docs/product/ui-showcase.md`](docs/product/ui-showcase.md)
+- [`docs/architecture/project-handbook.md`](docs/architecture/project-handbook.md)
+- [`docs/reference/api.md`](docs/reference/api.md)
 - [`secure-vault/src/app/`](secure-vault/src/app/)
 - [`secure-vault/src/lib/`](secure-vault/src/lib/)
 - [`secure-vault/tests/`](secure-vault/tests/)

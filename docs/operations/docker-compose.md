@@ -1,11 +1,16 @@
-# SecureVault Docker and Compose
+---
+title: Docker and Compose
+description: Container responsibilities, env expectations, and supported local Docker workflows.
+---
+
+# Docker and Compose
 
 This guide covers the container artifacts that already exist in the repo and how they map to local development.
 
 ## Files involved
 
-- `secure-vault/Dockerfile`: production-style Next.js image build
-- `compose.yaml`: local MariaDB and Redis services plus optional `web` and `worker` containers
+- <RepoLink path="secure-vault/Dockerfile" />: production-style Next.js image build
+- <RepoLink path="compose.yaml" />: local MariaDB and Redis services plus optional `web` and `worker` containers
 - `.dockerignore`: excludes local dependencies, build output, and local env files from the image build context
 
 ## Container responsibilities
@@ -51,7 +56,7 @@ There are two different env entry points:
 
 For both host mode and the full container stack, create `secure-vault/.env.local` with at least:
 
-```env
+```ini
 DATABASE_NAME=SecureVault
 DATABASE_USER=securevault
 DATABASE_PASSWORD=securevault

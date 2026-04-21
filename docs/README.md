@@ -1,21 +1,30 @@
-# SecureVault Docs
+# SecureVault Docs Source
 
-Product-specific documentation lives here. These files describe the repository and runtime behavior that are implemented in this codebase today.
+This directory now powers the GitHub Pages documentation site for SecureVault.
 
-External references, security standards, and UI guidance live in [`../resources/README.md`](../resources/README.md).
+## Local docs commands
 
-## Canonical docs
+Run these commands from the repository root:
 
-- [02-project-handbook.md](./02-project-handbook.md): the current product and engineering overview of how the app works
-- [03-api-reference.md](./03-api-reference.md): the canonical HTTP API and server-action reference
-- [04-docker-and-compose.md](./04-docker-and-compose.md): container layout, service responsibilities, and local Compose workflows
-- [05-playwright-coverage.md](./05-playwright-coverage.md): Playwright execution model, covered cases, and current gaps
+```powershell
+npm install
+npm run docs:dev
+```
 
-## Supplemental engineering notes
+The production build command is:
 
-- [01-upload-queue-architecture.md](./01-upload-queue-architecture.md): deeper explanation of the upload queue internals
-- [06-ui-showcase.md](./06-ui-showcase.md): screenshot gallery of the current landing page and dashboard UI
+```powershell
+npm run docs:build
+```
 
-## Notes
+## Structure
 
-The numbered docs in this directory are the current active sequence and start at `01`. The `resources` directory does not carry a second API reference.
+- `index.md`: documentation homepage
+- `getting-started/`: onboarding and local setup
+- `architecture/`: product and internal system design
+- `operations/`: runtime and deployment notes
+- `reference/`: API and contract-heavy documentation
+- `testing/`: automated coverage documentation
+- `product/`: screenshots and reviewer-facing product visuals
+- `.vitepress/`: theme and site configuration
+- `public/`: static assets copied into the built GitHub Pages site

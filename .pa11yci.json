@@ -1,0 +1,22 @@
+{
+  "defaults": {
+    "standard": "WCAG2AA",
+    "timeout": 60000,
+    "wait": 1000,
+    "chromeLaunchConfig": {
+      "args": [
+        "--no-sandbox"
+      ]
+    }
+  },
+  "urls": [
+    "http://127.0.0.1:4173/",
+    "http://127.0.0.1:4173/getting-started/local-development",
+    "http://127.0.0.1:4173/architecture/project-handbook",
+    "http://127.0.0.1:4173/architecture/upload-queue",
+    "http://127.0.0.1:4173/operations/docker-compose",
+    "http://127.0.0.1:4173/reference/api",
+    "http://127.0.0.1:4173/testing/playwright",
+    "http://127.0.0.1:4173/product/ui-showcase"
+  ]
+}

@@ -1,6 +1,11 @@
-# SecureVault API Reference
+---
+title: API Reference
+description: Current HTTP route handlers, limits, auth rules, and related server action notes.
+---
 
-This reference covers the HTTP route handlers currently implemented in `secure-vault/src/app/api`.
+# API Reference
+
+This reference covers the HTTP route handlers currently implemented in <RepoLink path="secure-vault/src/app/api" kind="tree" />.
 
 ## API Conventions
 
