@@ -14,11 +14,6 @@ on:
       - "package-lock.json"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -26,6 +21,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       DOCS_SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}
 
@@ -41,9 +38,6 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: package-lock.json
-
-      - name: Set up Pages
-        uses: actions/configure-pages@v5
 
       - name: Install docs dependencies
         run: npm ci
@@ -62,6 +56,10 @@ jobs:
 
   deploy:
     if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'master')
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -69,6 +67,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Set up Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
