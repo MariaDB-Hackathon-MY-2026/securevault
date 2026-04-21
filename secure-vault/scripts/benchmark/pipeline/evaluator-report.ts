@@ -1,4 +1,4 @@
-import type { BenchmarkSuiteName, PipelineBenchmarkConfig } from "./cli";
+import type { PipelineBenchmarkConfig } from "./cli";
 import { formatPercent, formatSuiteName, getSuiteDescription } from "./benchmark-data";
 import type { SuiteResult } from "./benchmark-data";
 

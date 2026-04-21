@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import { defineConfig } from "vitepress";
+import type { DefaultTheme } from "vitepress";
 import { withMermaid } from "vitepress-plugin-mermaid";
 
 const defaultRepoPath = "MariaDB-Hackathon-MY-2026/securevault";
@@ -27,6 +28,77 @@ const sourceBranch =
 const repoUrl = `https://github.com/${githubRepository}`;
 const repoContentBase = `${repoUrl}/blob/${sourceBranch}`;
 const repoTreeBase = `${repoUrl}/tree/${sourceBranch}`;
+
+type DocsThemeConfig = DefaultTheme.Config & {
+  repoBranch: string;
+  repoContentBase: string;
+  repoTreeBase: string;
+  repoUrl: string;
+};
+
+const themeConfig: DocsThemeConfig = {
+  nav: [
+    { text: "Docs Home", link: "/" },
+    { text: "Getting Started", link: "/getting-started/local-development" },
+    { text: "Architecture", link: "/architecture/project-handbook" },
+    { text: "API", link: "/reference/api" },
+    { text: "GitHub", link: repoUrl },
+  ],
+  repoUrl,
+  repoBranch: sourceBranch,
+  repoContentBase,
+  repoTreeBase,
+  search: {
+    provider: "local",
+  },
+  outline: {
+    level: [2, 3],
+    label: "On this page",
+  },
+  darkModeSwitchTitle: "Switch to dark theme",
+  lightModeSwitchTitle: "Switch to light theme",
+  editLink: {
+    pattern: `${repoUrl}/edit/${sourceBranch}/docs/:path`,
+    text: "Edit this page on GitHub",
+  },
+  footer: {
+    message: "Built with VitePress and deployed through GitHub Pages.",
+    copyright: "Copyright 2026 SecureVault contributors",
+  },
+  sidebar: [
+    {
+      text: "Start Here",
+      items: [
+        { text: "Overview", link: "/" },
+        { text: "Local Development", link: "/getting-started/local-development" },
+      ],
+    },
+    {
+      text: "Architecture",
+      items: [
+        { text: "Project Handbook", link: "/architecture/project-handbook" },
+        { text: "Upload Queue", link: "/architecture/upload-queue" },
+      ],
+    },
+    {
+      text: "Operations",
+      items: [{ text: "Docker and Compose", link: "/operations/docker-compose" }],
+    },
+    {
+      text: "Reference",
+      items: [{ text: "API Reference", link: "/reference/api" }],
+    },
+    {
+      text: "Quality",
+      items: [{ text: "Playwright Coverage", link: "/testing/playwright" }],
+    },
+    {
+      text: "Product",
+      items: [{ text: "UI Showcase", link: "/product/ui-showcase" }],
+    },
+  ],
+  socialLinks: [{ icon: "github", link: repoUrl }],
+};
 
 export default withMermaid(
   defineConfig({
@@ -57,69 +129,7 @@ export default withMermaid(
         },
       ],
     ],
-    themeConfig: {
-      nav: [
-        { text: "Docs Home", link: "/" },
-        { text: "Getting Started", link: "/getting-started/local-development" },
-        { text: "Architecture", link: "/architecture/project-handbook" },
-        { text: "API", link: "/reference/api" },
-        { text: "GitHub", link: repoUrl },
-      ],
-      repoUrl,
-      repoBranch: sourceBranch,
-      repoContentBase,
-      repoTreeBase,
-      search: {
-        provider: "local",
-      },
-      outline: {
-        level: [2, 3],
-        label: "On this page",
-      },
-      darkModeSwitchTitle: "Switch to dark theme",
-      lightModeSwitchTitle: "Switch to light theme",
-      editLink: {
-        pattern: `${repoUrl}/edit/${sourceBranch}/docs/:path`,
-        text: "Edit this page on GitHub",
-      },
-      footer: {
-        message: "Built with VitePress and deployed through GitHub Pages.",
-        copyright: "Copyright 2026 SecureVault contributors",
-      },
-      sidebar: [
-        {
-          text: "Start Here",
-          items: [
-            { text: "Overview", link: "/" },
-            { text: "Local Development", link: "/getting-started/local-development" },
-          ],
-        },
-        {
-          text: "Architecture",
-          items: [
-            { text: "Project Handbook", link: "/architecture/project-handbook" },
-            { text: "Upload Queue", link: "/architecture/upload-queue" },
-          ],
-        },
-        {
-          text: "Operations",
-          items: [{ text: "Docker and Compose", link: "/operations/docker-compose" }],
-        },
-        {
-          text: "Reference",
-          items: [{ text: "API Reference", link: "/reference/api" }],
-        },
-        {
-          text: "Quality",
-          items: [{ text: "Playwright Coverage", link: "/testing/playwright" }],
-        },
-        {
-          text: "Product",
-          items: [{ text: "UI Showcase", link: "/product/ui-showcase" }],
-        },
-      ],
-      socialLinks: [{ icon: "github", link: repoUrl }],
-    },
+    themeConfig,
     vite: {
       build: {
         chunkSizeWarningLimit: 2500,

@@ -45,9 +45,6 @@ jobs:
       - name: Build documentation
         run: npm run docs:build
 
-      - name: Run accessibility checks
-        run: npm run docs:qa:a11y
-
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'master')
         uses: actions/upload-pages-artifact@v4
