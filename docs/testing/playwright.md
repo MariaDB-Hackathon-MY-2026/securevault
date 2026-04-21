@@ -1,11 +1,16 @@
-# SecureVault Playwright Coverage
+---
+title: Playwright Coverage
+description: How the Playwright suite runs today and which user-facing cases it covers.
+---
+
+# Playwright Coverage
 
 This document explains how the Playwright suite runs today and what user-facing cases it already covers.
 
 ## How the suite is wired
 
-- Config file: `secure-vault/playwright.config.ts`
-- Test directory: `secure-vault/tests/e2e`
+- Config file: <RepoLink path="secure-vault/playwright.config.ts" />
+- Test directory: <RepoLink path="secure-vault/tests/e2e" kind="tree" />
 - Browser matrix: Chromium only
 - Retries: `2` on CI, `0` locally
 - Reporter: `list`
@@ -85,5 +90,5 @@ Examples:
 
 ## Related docs
 
-- [02-test-reflections.md](./02-test-reflections.md)
-- [02-project-handbook.md](./02-project-handbook.md)
+- [Project Handbook](../architecture/project-handbook.md)
+- [API Reference](../reference/api.md)

@@ -1,4 +1,9 @@
-# SecureVault - Upload Queue Architecture
+---
+title: Upload Queue Architecture
+description: How SecureVault coordinates a single app-wide upload queue across jobs, the manager, and React.
+---
+
+# Upload Queue Architecture
 
 ## Purpose
 
@@ -253,10 +258,10 @@ These rules should stay true as the system evolves:
 
 ## Related Files
 
-- `secure-vault/src/lib/upload/upload-job.ts`
-- `secure-vault/src/lib/upload/upload-manager.ts`
-- `secure-vault/src/components/upload/upload-provider.tsx`
-- `secure-vault/src/hooks/use-upload-queue.ts`
-- `secure-vault/tests/upload/upload-job.test.ts`
-- `secure-vault/tests/upload/upload-manager.test.ts`
-- `secure-vault/tests/upload/upload-provider.test.tsx`
+- <RepoLink path="secure-vault/src/lib/upload/upload-job.ts" />
+- <RepoLink path="secure-vault/src/lib/upload/upload-manager.ts" />
+- <RepoLink path="secure-vault/src/components/upload/upload-provider.tsx" />
+- <RepoLink path="secure-vault/src/hooks/use-upload-queue.ts" />
+- <RepoLink path="secure-vault/tests/upload/upload-job.test.ts" />
+- <RepoLink path="secure-vault/tests/upload/upload-manager.test.ts" />
+- <RepoLink path="secure-vault/tests/upload/upload-provider.test.tsx" />

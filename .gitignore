@@ -20,6 +20,7 @@ secure-vault/node_modules
 # next.js
 /.next/
 secure-vault/.next/
+/docs/.vitepress/dist/
 /out/
 secure-vault/out/
 

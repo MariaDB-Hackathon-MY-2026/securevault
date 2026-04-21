@@ -1,0 +1,22 @@
+{
+  "name": "securevault-docs",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs --host 127.0.0.1 --port 4173",
+    "docs:qa:a11y": "start-server-and-test \"npm run docs:preview\" http://127.0.0.1:4173 \"pa11y-ci\"",
+    "docs:qa": "npm run docs:build && npm run docs:qa:a11y"
+  },
+  "devDependencies": {
+    "mermaid": "^11.14.0",
+    "pa11y-ci": "^4.1.0",
+    "start-server-and-test": "^3.0.2",
+    "vitepress": "^1.6.4",
+    "vitepress-plugin-mermaid": "^2.0.17"
+  }
+}

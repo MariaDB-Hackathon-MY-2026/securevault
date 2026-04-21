@@ -1,0 +1,74 @@
+name: Docs
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - Documentation
+  pull_request:
+    paths:
+      - ".github/workflows/docs-pages.yml"
+      - "docs/**"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      DOCS_SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install docs dependencies
+        run: npm ci
+
+      - name: Build documentation
+        run: npm run docs:build
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'master')
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'master')
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
