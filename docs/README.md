@@ -24,7 +24,7 @@ npm run docs:build
 - `architecture/`: product and internal system design
 - `operations/`: runtime and deployment notes
 - `reference/`: API and contract-heavy documentation
-- `testing/`: automated coverage documentation
+- `testing/`: automated coverage and benchmark documentation
 - `product/`: screenshots and reviewer-facing product visuals
 - `.vitepress/`: theme and site configuration
 - `public/`: static assets copied into the built GitHub Pages site

@@ -90,7 +90,10 @@ const themeConfig: DocsThemeConfig = {
     },
     {
       text: "Quality",
-      items: [{ text: "Playwright Coverage", link: "/testing/playwright" }],
+      items: [
+        { text: "Playwright Coverage", link: "/testing/playwright" },
+        { text: "Benchmark Workflows", link: "/testing/benchmarks" },
+      ],
     },
     {
       text: "Product",

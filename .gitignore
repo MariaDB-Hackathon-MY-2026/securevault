@@ -17,10 +17,11 @@ secure-vault/node_modules
 # testing
 /coverage
 
-# next.js
+# next.js / docs builds
 /.next/
 secure-vault/.next/
 /docs/.vitepress/dist/
+/docs/.vitepress/cache/
 /out/
 secure-vault/out/
 

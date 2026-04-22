@@ -74,6 +74,15 @@ GEMINI_API_KEY=<your-gemini-api-key>
 GEMINI_EMBEDDING_MODEL=gemini-embedding-2-preview
 ```
 
+If you connect the app to a managed MariaDB instance outside the default local container, you can enable verified TLS with:
+
+```ini
+DATABASE_SSL_MODE=verify-full
+DATABASE_SSL_CA=<optional-pem-ca-bundle>
+```
+
+Leave `DATABASE_SSL_MODE` empty for the default local Compose MariaDB service unless you explicitly provision TLS for it.
+
 Important behavior from `compose.yaml`:
 
 - the app containers override `DATABASE_HOST` to `mariadb`

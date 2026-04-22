@@ -5,7 +5,7 @@ import { cleanupTestUserByEmail } from "./helpers/test-user-cleanup";
 import {
   clearBrowserStorage,
   createShareLinkFixture,
-  expireLatestShareOtp,
+  expireShareOtpById,
   getFileIdForUser,
   getLatestShareOtpRow,
   getUserIdByEmail,
@@ -113,8 +113,8 @@ test.describe("share restricted edge cases", () => {
       await visitor.page.goto(`/s/${link.token}`);
       await requestOtp(visitor.page, allowedEmail);
       await waitForShareOtpRow({ email: allowedEmail, linkId: link.id });
-      await seedKnownShareOtp({ code: "123456", email: allowedEmail, linkId: link.id });
-      await expireLatestShareOtp({ email: allowedEmail, linkId: link.id });
+      const otpId = await seedKnownShareOtp({ code: "123456", email: allowedEmail, linkId: link.id });
+      await expireShareOtpById({ id: otpId });
 
       await visitor.page.getByLabel("Verification Code").fill("123456");
       await visitor.page.getByRole("button", { name: "Verify and Access" }).click();

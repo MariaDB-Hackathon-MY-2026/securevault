@@ -15,6 +15,8 @@ SecureVault is a secure file-storage application built with product depth, not j
 
 For external reviewers, the central point is simple: this is not a toy upload form. SecureVault already implements the harder product and systems features that make storage software credible.
 
+Published documentation: https://mariadb-hackathon-my-2026.github.io/securevault/
+
 ## Interface Preview
 
 ![SecureVault landing page preview](assets/landing_page.webp)
@@ -29,6 +31,7 @@ The repository docs are now structured as a VitePress site in [`docs/`](docs/) s
 - local setup guide: [`docs/getting-started/local-development.md`](docs/getting-started/local-development.md)
 - architecture handbook: [`docs/architecture/project-handbook.md`](docs/architecture/project-handbook.md)
 - API reference: [`docs/reference/api.md`](docs/reference/api.md)
+- benchmark workflows: [`docs/testing/benchmarks.md`](docs/testing/benchmarks.md)
 
 ## Why This Repo Deserves Attention
 
@@ -70,6 +73,15 @@ SecureVault is implemented as a Next.js App Router application backed by MariaDB
 - `Gemini` or a fake local provider can power semantic indexing when enabled.
 
 The real product experience lives in the authenticated dashboard under `/files`, `/activity`, `/storage`, `/settings`, and `/trash`.
+
+## Why MariaDB Matters Here
+
+This project does not use MariaDB as a passive record store. MariaDB is part of the product story.
+
+- Relational ownership and lifecycle state live in one place: users, sessions, folders, files, shares, trash, quotas, activity, and indexing state.
+- Security-sensitive flows such as OTP reset handling and share access governance depend on transactional database behavior and indexed lookups.
+- Semantic search is still grounded in MariaDB through vector storage and cosine-distance ranking, so the AI layer stays integrated with the core storage product instead of living in a separate demo silo.
+- The result is a more convincing hackathon system: MariaDB powers both the operational backbone and one of the differentiating features.
 
 
 ## Repository Layout
@@ -198,6 +210,15 @@ The automated coverage is meaningful across auth, uploads, sharing, trash, activ
 
 See [docs/testing/playwright.md](docs/testing/playwright.md) for the detailed case matrix.
 
+## Benchmarks
+
+SecureVault also includes a benchmark package under [`secure-vault/benchmark/`](secure-vault/benchmark/) with runnable scripts in [`secure-vault/scripts/benchmark/`](secure-vault/scripts/benchmark/).
+
+- `npm run benchmark:semantic` measures semantic and hybrid retrieval latency after indexing is already complete.
+- `npm run benchmark:semantic:pipeline` measures end-to-end semantic indexing and retrieval quality with the Google embedding provider.
+
+The new benchmark guide explains prerequisites, commands, output files, and how to read the reports: [docs/testing/benchmarks.md](docs/testing/benchmarks.md).
+
 ## Tech Stack
 
 - Next.js 16 App Router
@@ -227,6 +248,7 @@ For a quick repository review, start here:
 
 SecureVault already has a real dashboard workflow, but a few implementation realities are worth knowing up front:
 
-- `/chat` exists structurally but is not a finished capability.
+- `/` is now a completed landing page that introduces the product and routes users into the live workspace.
 - Semantic indexing is feature-gated and environment-dependent by design.
-- The project is already strong enough for demos, technical review, and portfolio use, while still leaving obvious room for a polished public landing page and broader production hardening.
+- New signups are intentionally auto-verified right now as a hackathon shortcut; a fuller production flow would send verification email through Resend or a similar provider before enabling the account.
+- The project is already strong enough for demos, technical review, and portfolio use, while still leaving obvious room for broader production hardening.

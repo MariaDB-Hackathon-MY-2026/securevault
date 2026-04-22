@@ -23,6 +23,9 @@ const previewContentSecurityPolicy = buildContentSecurityPolicy("'self'");
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['127.0.0.1'],
   reactCompiler: true,
+  turbopack: {
+    root: process.cwd(),
+  },
   headers() {
     const header: Header[] = [
       {

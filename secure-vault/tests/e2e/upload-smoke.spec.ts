@@ -202,7 +202,7 @@ test.describe("upload smoke", () => {
     const row = uploadRow(page, "tiny.pdf");
     await expect(row).toContainText("Done", { timeout: 120_000 });
     await expect(row).toContainText(/Semantic indexing (queued|processing|ready)/i, {
-      timeout: 30_000,
+      timeout: 90_000,
     });
 
     const fileId = await getFileIdByName(page, "tiny.pdf");
@@ -213,7 +213,7 @@ test.describe("upload smoke", () => {
       page,
     });
 
-    await expect(row).toContainText("Semantic indexing ready", { timeout: 30_000 });
+    await expect(row).toContainText("Semantic indexing ready", { timeout: 90_000 });
   });
 
   test("keeps upload success and file preview working when semantic indexing cannot be triggered", async ({

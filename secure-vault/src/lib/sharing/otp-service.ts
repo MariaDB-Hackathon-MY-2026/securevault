@@ -120,7 +120,7 @@ export async function verifyOtp(input: { code: string; email: string; token: str
         isNull(shareLinkOtps.used_at),
       ),
     )
-    .orderBy(desc(shareLinkOtps.created_at))
+    .orderBy(desc(shareLinkOtps.created_at), desc(shareLinkOtps.id))
     .limit(1);
 
   if (!otpRow) {

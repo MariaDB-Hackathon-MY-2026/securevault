@@ -233,12 +233,24 @@ export async function getLatestShareOtpRow(linkId: string, email: string) {
       and(
         eq(shareLinkOtps.link_id, linkId),
         eq(shareLinkOtps.email, normalizeEmail(email)),
+        isNull(shareLinkOtps.used_at),
       ),
     )
-    .orderBy(desc(shareLinkOtps.created_at))
+    .orderBy(desc(shareLinkOtps.created_at), desc(shareLinkOtps.id))
     .limit(1);
 
   return otpRow ?? null;
+}
+
+export async function expireShareOtpById(input: {
+  id: string;
+  expiresAt?: Date;
+}) {
+  const db = MariadbConnection.getConnection();
+  await db
+    .update(shareLinkOtps)
+    .set({ expires_at: input.expiresAt ?? new Date(Date.now() - 60_000) })
+    .where(eq(shareLinkOtps.id, input.id));
 }
 
 export async function expireLatestShareOtp(input: {

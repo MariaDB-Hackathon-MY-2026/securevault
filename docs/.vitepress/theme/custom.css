@@ -22,6 +22,15 @@
   );
   --securevault-image-border: rgba(15, 23, 42, 0.08);
   --securevault-image-shadow: 0 22px 50px rgba(15, 23, 42, 0.12);
+  --securevault-hero-panel-bg:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(240, 247, 246, 0.94));
+  --securevault-hero-panel-shadow: 0 32px 80px rgba(15, 23, 42, 0.18);
+  --securevault-hero-panel-border: rgba(15, 23, 42, 0.08);
+  --securevault-hero-card-bg: rgba(255, 255, 255, 0.82);
+  --securevault-hero-card-border: rgba(15, 23, 42, 0.08);
+  --securevault-hero-kicker: #0f766e;
+  --securevault-hero-text: #0f172a;
+  --securevault-hero-muted: #475569;
 }
 
 .dark {
@@ -45,6 +54,15 @@
   --vp-button-brand-text: #042f2e;
   --vp-button-brand-hover-text: #042f2e;
   --vp-button-brand-active-text: #042f2e;
+  --securevault-hero-panel-bg:
+    linear-gradient(180deg, rgba(14, 22, 34, 0.95), rgba(15, 23, 42, 0.98));
+  --securevault-hero-panel-shadow: 0 36px 80px rgba(2, 6, 23, 0.54);
+  --securevault-hero-panel-border: rgba(148, 163, 184, 0.2);
+  --securevault-hero-card-bg: rgba(15, 23, 42, 0.62);
+  --securevault-hero-card-border: rgba(148, 163, 184, 0.16);
+  --securevault-hero-kicker: #5eead4;
+  --securevault-hero-text: #e2e8f0;
+  --securevault-hero-muted: #94a3b8;
 }
 
 .VPFeature {
@@ -66,4 +84,167 @@
 .repo-link:focus-visible code {
   text-decoration: underline;
   text-underline-offset: 0.18em;
+}
+
+.VPHero .image-container:has(.securevault-home-hero) {
+  width: min(100%, 440px);
+  height: auto;
+}
+
+@media (min-width: 960px) {
+  .VPHero .image-container:has(.securevault-home-hero) {
+    transform: translate(-16px, -8px);
+  }
+}
+
+.VPHero .image-bg:has(+ .securevault-home-hero),
+.VPHero .image-container:has(.securevault-home-hero) .image-bg {
+  width: 340px;
+  height: 340px;
+  background-image:
+    radial-gradient(circle at 28% 26%, rgba(45, 212, 191, 0.34), transparent 46%),
+    radial-gradient(circle at 76% 24%, rgba(29, 78, 216, 0.22), transparent 40%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.04), rgba(15, 23, 42, 0));
+}
+
+.securevault-home-hero {
+  position: relative;
+  width: min(100%, 420px);
+  min-height: 250px;
+  display: grid;
+  place-items: center;
+  padding: 12px 0;
+  overflow: visible;
+}
+
+.securevault-home-hero__halo {
+  position: absolute;
+  inset: auto;
+  border-radius: 999px;
+  filter: blur(12px);
+  pointer-events: none;
+}
+
+.securevault-home-hero__halo--teal {
+  top: -36px;
+  right: -20px;
+  width: 170px;
+  height: 170px;
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.22), transparent 70%);
+}
+
+.securevault-home-hero__halo--blue {
+  bottom: -52px;
+  left: -32px;
+  width: 180px;
+  height: 180px;
+  background: radial-gradient(circle, rgba(29, 78, 216, 0.18), transparent 72%);
+}
+
+.securevault-home-hero__orbit {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 999px;
+  opacity: 0.7;
+}
+
+.securevault-home-hero__orbit--teal {
+  top: 28px;
+  right: 34px;
+  width: 120px;
+  height: 120px;
+  border: 1px solid rgba(45, 212, 191, 0.24);
+}
+
+.securevault-home-hero__orbit--blue {
+  bottom: 30px;
+  left: 12px;
+  width: 190px;
+  height: 190px;
+  border: 1px solid rgba(59, 130, 246, 0.16);
+}
+
+.securevault-home-hero__brand {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 14px;
+  padding: 30px 24px 30px 34px;
+}
+
+.securevault-home-hero__brand::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 24px;
+  bottom: 24px;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(45, 212, 191, 0.95), rgba(59, 130, 246, 0.4));
+}
+
+.securevault-home-hero__powered {
+  font-size: 0.82rem;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--securevault-hero-kicker);
+}
+
+.securevault-home-hero__logo-wrap {
+  position: relative;
+  display: inline-flex;
+  width: fit-content;
+}
+
+.securevault-home-hero__logo-wrap::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 8%;
+  bottom: -8px;
+  height: 20px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(29, 78, 216, 0.22), transparent 72%);
+  filter: blur(8px);
+}
+
+.securevault-home-hero__logo {
+  position: relative;
+  z-index: 1;
+  width: min(300px, 70vw);
+  height: auto;
+  display: block;
+  color: #003545;
+  overflow: visible;
+}
+
+@media (max-width: 959px) {
+  .VPHero .image-container:has(.securevault-home-hero) {
+    margin-top: 12px;
+  }
+}
+
+.dark .securevault-home-hero__logo {
+  color: #fff;
+}
+
+@media (max-width: 639px) {
+  .securevault-home-hero {
+    min-height: 200px;
+  }
+
+  .securevault-home-hero__powered {
+    font-size: 0.76rem;
+  }
+
+  .securevault-home-hero__brand {
+    padding: 22px 16px 22px 24px;
+    gap: 12px;
+  }
+
+  .securevault-home-hero__logo {
+    width: min(240px, 68vw);
+  }
 }
