@@ -109,8 +109,11 @@ test.describe("storage dashboard and filename search", () => {
     await getSearchInput(page).fill("tiny");
     await searchResponse;
 
+    const resultCard = page
+      .locator('[data-testid^="file-search-result-"][data-test-file-name="tiny.pdf"]')
+      .first();
     await expect(page.getByRole("button", { name: "Open folder" })).toBeVisible();
-    await expect(page.getByText("Projects")).toBeVisible();
+    await expect(resultCard).toContainText("Projects");
 
     await page.getByRole("button", { name: "Open folder" }).click();
 

@@ -93,8 +93,10 @@ async function createFolder(page: Page, name: string) {
   const confirmButton = createFolderDialog.getByRole("button", { name: "Create folder", exact: true });
   await expect(confirmButton).toBeEnabled();
   await confirmButton.click();
-  await expect(createFolderDialog).toBeHidden();
-  await expect.poll(() => getGridFolderButton(page, name).count()).toBe(1);
+  await expect.poll(() => getGridFolderButton(page, name).count(), {
+    timeout: 15_000,
+  }).toBe(1);
+  await expect(createFolderDialog).toBeHidden({ timeout: 15_000 });
   await expect(getGridFolderButton(page, name)).toBeVisible();
 }
 

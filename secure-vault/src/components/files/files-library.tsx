@@ -53,6 +53,7 @@ import type {
   FolderListItem,
 } from "@/lib/files/types";
 import {
+  DEFAULT_FILENAME_SEARCH_ENABLED,
   readFilenameSearchPreference,
 } from "@/lib/search/search-preferences";
 import type { FilenameSearchResult, SearchMode, SemanticSearchResult } from "@/lib/search/types";
@@ -110,8 +111,8 @@ export function FilesLibrary({
   const [viewMode, setViewMode] = React.useState<FilesViewMode>("grid");
   const [sort, setSort] = React.useState<FileSortState>(defaultSort);
   const [filterValue, setFilterValue] = React.useState("");
-  const [filenameSearchEnabled, setFilenameSearchEnabled] = React.useState(() =>
-    readFilenameSearchPreference(),
+  const [filenameSearchEnabled, setFilenameSearchEnabled] = React.useState(
+    DEFAULT_FILENAME_SEARCH_ENABLED,
   );
   const deferredFilterValue = React.useDeferredValue(filterValue);
   const [currentFolderId, setCurrentFolderId] = React.useState<string | null>(null);

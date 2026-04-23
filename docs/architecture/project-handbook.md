@@ -193,6 +193,15 @@ flowchart TB
     Services --> Gemini
 ```
 
+### Why MariaDB Is Central To The Submission
+
+MariaDB is one of the project strengths, not just a dependency.
+
+- It carries the core operational model: users, sessions, folders, files, upload sessions, shares, access logs, quotas, trash, and embedding jobs all live in one relational system.
+- It supports workflows that benefit from transactional behavior, including OTP reset consumption, session invalidation, share governance, and upload finalization.
+- It also supports one of the differentiators of the project: semantic retrieval, where vectors and chunk metadata are stored in MariaDB and ranked there before being returned to the UI.
+- That makes the MariaDB story reviewer-friendly: the database powers both the reliable product backbone and the more novel search capability.
+
 ### Frontend Architecture
 
 The user-facing app is primarily split into:
@@ -211,10 +220,9 @@ Key frontend patterns:
 
 Important current-state note:
 
-- `/` is still the default Next.js starter page
-- `/chat` exists as a placeholder, not a finished workflow
+- `/` is a completed product-facing landing page for reviewers and first-time users
 - the real product entry point is the authenticated dashboard under `/files`, `/activity`, `/storage`, `/settings`, and `/trash`
-- for demos and onboarding, treat `/files` as the practical "home" of the product
+- for demos and onboarding, treat `/` as the public entry point and `/files` as the authenticated workspace home
 
 ### Authentication And Session Model
 
@@ -491,7 +499,7 @@ Important environment variables:
 
 | Group | Variables |
 | --- | --- |
-| Database | `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD` |
+| Database | `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD`, optional `DATABASE_SSL_MODE`, `DATABASE_SSL_CA`, `DATABASE_SSL_CERT`, `DATABASE_SSL_KEY` |
 | Encryption | `MASTER_ENCRYPTION_KEY` |
 | Object storage | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` |
 | Redis | `REDIS_URL`, `DISABLE_REDIS` |
@@ -504,6 +512,7 @@ Important environment variables:
 - signed-in dashboard access is enforced server-side
 - auth cookies are `httpOnly`, `sameSite=strict`, and `secure`
 - session and refresh tokens are stored hashed, not raw
+- when database TLS is enabled through `DATABASE_SSL_MODE`, certificate verification stays on instead of disabling trust checks
 - rate limiting exists for login, signup, password reset, sharing OTP, uploads, and downloads
 - CSP and other security headers are configured in `next.config.ts`
 - filenames are sanitized before persistence
@@ -523,11 +532,10 @@ The repository has meaningful automated coverage across:
 
 These are important for anyone onboarding:
 
-- the dashboard experience is real; the marketing-style landing page at `/` is not yet wired to the product
-- email verification is modeled in the schema and UI, but new signups are currently created with `email_verified: true`
+- the dashboard experience is real, and `/` is now the completed landing page that routes users into the live product
+- email verification is modeled in the schema and UI, but new signups are currently auto-verified as a hackathon shortcut; a fuller production flow would send a verification message through Resend or a similar provider before activating the account
 - refresh token utilities exist, but the active route surface is centered on session-cookie validation
 - the semantic indexing subsystem is feature-gated and can be unavailable without the correct environment
-- `/chat` is present structurally but is not yet a completed product capability
 
 ## Recommended Reading Order For Engineers
 

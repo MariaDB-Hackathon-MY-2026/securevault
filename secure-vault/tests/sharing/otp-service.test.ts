@@ -69,6 +69,7 @@ function createDbHarness(selectResults: unknown[][] = []) {
     spies: {
       insert,
       insertValues,
+      selectOrderBy,
       select,
       update,
       updateSet,
@@ -153,6 +154,7 @@ describe("otp service", () => {
       linkExpiresAt: null,
       linkId: "link-1",
     });
+    expect(harness.spies.selectOrderBy).toHaveBeenCalledWith(expect.anything(), expect.anything());
     expect(safeCompare).toHaveBeenCalledWith(otpRow.otp_hash, hashOtp("123456"));
     expect(harness.spies.updateSet).toHaveBeenCalledWith({
       used_at: expect.any(Date),

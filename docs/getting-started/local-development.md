@@ -46,6 +46,8 @@ This is the fastest way to run SecureVault locally with the current repository l
    GEMINI_EMBEDDING_MODEL=gemini-embedding-2-preview
    ```
 
+   Leave `DATABASE_SSL_MODE` empty for the default local Compose MariaDB flow. When you connect to a managed MariaDB instance that requires TLS, set `DATABASE_SSL_MODE=verify-full` and provide `DATABASE_SSL_CA` if your provider uses a custom CA bundle.
+
 4. Generate a master key if needed.
 
    ```powershell
@@ -79,6 +81,7 @@ This is the fastest way to run SecureVault locally with the current repository l
 - The documented local default keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`.
 - For local semantic indexing without an external Gemini key, use `SEMANTIC_INDEXING_PROVIDER=fake`.
 - If `RESEND_API_KEY` is unset, OTP and email flows log locally instead of sending real email.
+- Signup is intentionally auto-verified right now for hackathon velocity; a fuller production rollout would gate activation behind a Resend-backed email verification flow or equivalent.
 
 ## Docs workflow
 

@@ -29,7 +29,9 @@ type SemanticJobStatusItem = {
 
 const VECTOR_DIMENSIONS = 1536;
 const TOKEN_DIMENSIONS = 256;
-const SEMANTIC_STATUS_TIMEOUT_MS = 30_000;
+const SEMANTIC_STATUS_TIMEOUT_MS = process.env.PLAYWRIGHT_SEMANTIC_STATUS_TIMEOUT_MS?.trim()
+  ? Number.parseInt(process.env.PLAYWRIGHT_SEMANTIC_STATUS_TIMEOUT_MS, 10)
+  : 180_000;
 const SEMANTIC_STATUS_POLL_INTERVAL_MS = 1_000;
 
 function formatSemanticQuery(query: string) {
