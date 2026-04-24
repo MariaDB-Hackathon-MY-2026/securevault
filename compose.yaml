@@ -1,12 +1,7 @@
-x-app-service: &app-service
+x-app-base: &app-base
   build:
     context: .
     dockerfile: secure-vault/Dockerfile
-  depends_on:
-    mariadb:
-      condition: service_healthy
-    redis:
-      condition: service_started
   environment:
     DATABASE_HOST: mariadb
     DATABASE_PORT: 3306
@@ -14,9 +9,26 @@ x-app-service: &app-service
     DATABASE_USER: ${DATABASE_USER:-securevault}
     DATABASE_PASSWORD: ${DATABASE_PASSWORD:-securevault}
     REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+
+x-app-service: &app-service
+  <<: *app-base
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+    redis:
+      condition: service_started
   restart: unless-stopped
 
 services:
+  migrate:
+    <<: *app-base
+    profiles: ["app", "worker"]
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    command: ["npm", "run", "db:migrate"]
+    restart: "no"
+
   web:
     <<: *app-service
     profiles: ["app"]

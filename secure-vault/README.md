@@ -41,6 +41,8 @@ DATABASE_USER=securevault
 DATABASE_PASSWORD=securevault
 ```
 
+Compose applies checked-in Drizzle migrations automatically before starting the app or queued worker.
+
 When `DISABLE_REDIS=true` in local development, the app uses a no-op Redis adapter even when `REDIS_URL` is present. That disables Redis-backed rate limiting and global upload slot enforcement locally, but keeps the rest of the app usable.
 
 The documented local default keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`. Because the provider guidance matches the current app setup, set `SEMANTIC_INDEXING_PROVIDER=google` with a valid `GEMINI_API_KEY`.
@@ -63,10 +65,10 @@ npm run dev:redis
 npm run dev
 ```
 
-For an empty local database, run this once before `npm run dev`:
+For local runs without the Compose app service, apply migrations manually when needed:
 
 ```bash
-npx drizzle-kit migrate
+npm run db:migrate
 ```
 
 That applies the checked-in SQL migrations from `drizzle/` and creates Drizzle's migration log table for future runs.
@@ -115,6 +117,8 @@ npm run dev:services
 npm run dev:services:stop
 npm run dev:redis:stop
 ```
+
+When starting the Compose app profile, the `migrate` service waits for MariaDB to become healthy, runs `npm run db:migrate`, and only then lets `web` or `worker` start.
 
 ## Docker builds
 
