@@ -5,13 +5,16 @@ const mocks = vi.hoisted(() => ({
   assertShareLinkAccessible: vi.fn(),
   createRateLimitResponse: vi.fn(),
   enforceRateLimit: vi.fn(),
+  getSharedPdfPreviewConfig: vi.fn(),
   getSharedPdfPreviewManifest: vi.fn(),
   getSharedPdfPreviewPage: vi.fn(),
+  readCachedSharedPdfPreviewPage: vi.fn(),
   recordShareAccess: vi.fn(),
   requireFolderShareTargetFile: vi.fn(),
   requireShareLinkByToken: vi.fn(),
   requireValidShareAccessSession: vi.fn(),
   streamSharedFile: vi.fn(),
+  writeCachedSharedPdfPreviewPage: vi.fn(),
 }));
 
 vi.mock("@/lib/sharing/share-access-session", () => ({
@@ -31,6 +34,15 @@ vi.mock("@/lib/rate-limit", async () => {
 vi.mock("@/lib/pdf-preview/shared-service", () => ({
   getSharedPdfPreviewManifest: mocks.getSharedPdfPreviewManifest,
   getSharedPdfPreviewPage: mocks.getSharedPdfPreviewPage,
+}));
+
+vi.mock("@/lib/pdf-preview/config", () => ({
+  getSharedPdfPreviewConfig: mocks.getSharedPdfPreviewConfig,
+}));
+
+vi.mock("@/lib/pdf-preview/shared-page-cache", () => ({
+  readCachedSharedPdfPreviewPage: mocks.readCachedSharedPdfPreviewPage,
+  writeCachedSharedPdfPreviewPage: mocks.writeCachedSharedPdfPreviewPage,
 }));
 
 vi.mock("@/app/api/files/[id]/service", () => ({
@@ -60,6 +72,7 @@ import { ShareServiceError } from "@/lib/sharing/share-service";
 function createLink(overrides: Partial<{
   allowedEmails: string[];
   created_by: string;
+  expires_at: Date | null;
   id: string;
   is_public: boolean;
   targetId: string;
@@ -68,6 +81,7 @@ function createLink(overrides: Partial<{
   return {
     allowedEmails: [],
     created_by: "owner-1",
+    expires_at: null,
     id: "link-1",
     is_public: true,
     targetId: "file-1",
@@ -87,6 +101,7 @@ describe("share pdf preview routes", () => {
       }),
     );
     mocks.enforceRateLimit.mockResolvedValue({ success: true });
+    mocks.getSharedPdfPreviewConfig.mockReturnValue({ renderVersion: 1 });
     mocks.getSharedPdfPreviewManifest.mockResolvedValue({
       fileId: "file-1",
       fileName: "report.pdf",
@@ -109,7 +124,9 @@ describe("share pdf preview routes", () => {
         status: 200,
       }),
     );
+    mocks.readCachedSharedPdfPreviewPage.mockResolvedValue(null);
     mocks.requireShareLinkByToken.mockResolvedValue(createLink());
+    mocks.writeCachedSharedPdfPreviewPage.mockResolvedValue(undefined);
   });
 
   it("returns a manifest for a public direct-file share and records access once", async () => {
@@ -148,9 +165,34 @@ describe("share pdf preview routes", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("image/webp");
+    expect(response.headers.get("X-Preview-Cache")).toBe("miss");
     expect(mocks.recordShareAccess).not.toHaveBeenCalled();
     expect(mocks.assertDownloadAllowed).not.toHaveBeenCalled();
     expect(mocks.streamSharedFile).not.toHaveBeenCalled();
+    expect(mocks.writeCachedSharedPdfPreviewPage).toHaveBeenCalledWith({
+      expiresAt: null,
+      fileId: "file-1",
+      imageBytes: Buffer.from("webp"),
+      pageNumber: 1,
+      renderVersion: 1,
+      token: "share-token",
+    });
+  });
+
+  it("serves a cached page image from redis before hitting the preview service", async () => {
+    mocks.readCachedSharedPdfPreviewPage.mockResolvedValue(Buffer.from("cached-webp"));
+
+    const response = await getPdfPreviewPage(
+      new Request("https://example.com/api/share/share-token/pdf-preview/pages/1") as never,
+      { params: Promise.resolve({ page: "1", token: "share-token" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(response.headers.get("X-Preview-Cache")).toBe("hit");
+    expect(await response.text()).toBe("cached-webp");
+    expect(mocks.getSharedPdfPreviewPage).not.toHaveBeenCalled();
+    expect(mocks.writeCachedSharedPdfPreviewPage).not.toHaveBeenCalled();
   });
 
   it("requires a verified session for restricted shares", async () => {

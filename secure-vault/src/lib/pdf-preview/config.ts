@@ -22,6 +22,30 @@ function parseBooleanFlag(value: string | undefined) {
   return value === "1" || value === "true";
 }
 
+function isWindowsAbsolutePath(value: string) {
+  return /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("\\\\");
+}
+
+export function resolveSharedPdfPreviewRendererPath(
+  value: string | undefined,
+  platform = process.platform,
+) {
+  const trimmedValue = value?.trim();
+
+  if (!trimmedValue) {
+    return "pdftocairo";
+  }
+
+  if (platform !== "win32" && isWindowsAbsolutePath(trimmedValue)) {
+    console.warn(
+      "Ignoring Windows-only SHARED_PDF_IMAGE_PREVIEW_RENDERER_PATH on non-Windows runtime; falling back to pdftocairo.",
+    );
+    return "pdftocairo";
+  }
+
+  return trimmedValue;
+}
+
 function parsePositiveIntegerEnv(name: string, fallback: number) {
   const rawValue = process.env[name]?.trim();
 
@@ -62,7 +86,9 @@ export function getSharedPdfPreviewConfig(): SharedPdfPreviewConfig {
       "SHARED_PDF_IMAGE_PREVIEW_MAX_PAGES",
       DEFAULT_MAX_PAGES,
     ),
-    rendererPath: process.env.SHARED_PDF_IMAGE_PREVIEW_RENDERER_PATH?.trim() || "pdftocairo",
+    rendererPath: resolveSharedPdfPreviewRendererPath(
+      process.env.SHARED_PDF_IMAGE_PREVIEW_RENDERER_PATH,
+    ),
     renderVersion: parsePositiveIntegerEnv(
       "SHARED_PDF_IMAGE_PREVIEW_RENDER_VERSION",
       DEFAULT_RENDER_VERSION,

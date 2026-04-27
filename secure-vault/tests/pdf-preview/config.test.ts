@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   getSharedPdfPreviewConfig,
+  resolveSharedPdfPreviewRendererPath,
   resetSharedPdfPreviewConfigForTests,
 } from "@/lib/pdf-preview/config";
 
@@ -55,6 +56,29 @@ describe("shared pdf preview config", () => {
       rendererPath: "C:\\Tools\\poppler\\pdftocairo.exe",
       renderVersion: 3,
     });
+  });
+
+  it("falls back to pdftocairo for a Windows-only renderer path on non-Windows runtimes", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    expect(
+      resolveSharedPdfPreviewRendererPath(
+        "C:\\Tools\\poppler\\pdftocairo.exe",
+        "linux",
+      ),
+    ).toBe("pdftocairo");
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Ignoring Windows-only SHARED_PDF_IMAGE_PREVIEW_RENDERER_PATH on non-Windows runtime; falling back to pdftocairo.",
+    );
+  });
+
+  it("keeps the explicit renderer path on Windows runtimes", () => {
+    expect(
+      resolveSharedPdfPreviewRendererPath(
+        "C:\\Tools\\poppler\\pdftocairo.exe",
+        "win32",
+      ),
+    ).toBe("C:\\Tools\\poppler\\pdftocairo.exe");
   });
 
   it("rejects invalid integer env values", () => {

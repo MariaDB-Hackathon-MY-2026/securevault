@@ -399,6 +399,75 @@ flowchart TD
     G -- Yes --> D
 ```
 
+### Shared PDF Image Preview Architecture
+
+Shared PDF preview is intentionally different from owned preview.
+
+- owned preview continues to use the existing authenticated file preview route
+- shared PDF preview uses dedicated manifest and page-image routes
+- visitors receive rendered `image/webp` pages instead of original PDF bytes
+- authorization happens before any cache lookup
+- server-side caching is layered so repeated shared page requests stay fast without weakening access control
+
+The layered cache model is:
+
+- Redis stores a short-lived page-response cache keyed by share token, file, page, and render version
+- R2 plus `pdf_preview_pages` stores durable encrypted rendered page derivatives
+- original encrypted PDF chunks remain the source of truth when a derivative does not exist yet
+
+```mermaid
+sequenceDiagram
+    actor Visitor
+    participant Route as "Shared PDF page route"
+    participant Auth as "Share access checks"
+    participant Redis as "Redis page cache"
+    participant Service as "Shared preview service"
+    participant R2 as "R2 + pdf_preview_pages"
+    participant Render as "Poppler + sharp"
+
+    Visitor->>Route: GET /api/share/:token/pdf-preview/pages/:page
+    Route->>Auth: Validate token, expiry, session, file scope
+    Auth-->>Route: Authorized
+    Route->>Redis: Lookup page cache by token + file + page + version
+    alt Redis hit
+        Redis-->>Route: Cached WebP bytes
+        Route-->>Visitor: 200 image/webp, X-Preview-Cache: hit
+    else Redis miss
+        Redis-->>Route: Cache miss
+        Route->>Service: Load shared preview page
+        Service->>R2: Check encrypted derivative metadata + object
+        alt Derivative exists
+            R2-->>Service: Encrypted WebP derivative
+            Service-->>Route: Decrypted WebP bytes
+        else Render required
+            Service->>Render: Render PDF page to WebP
+            Render-->>Service: WebP bytes
+            Service->>R2: Store encrypted derivative + metadata
+            R2-->>Service: Stored
+            Service-->>Route: WebP bytes
+        end
+        Route->>Redis: Cache response bytes with TTL <= link lifetime, max 24h
+        Route-->>Visitor: 200 image/webp, X-Preview-Cache: miss
+    end
+```
+
+Important implementation rules:
+
+- the browser-facing response remains `Cache-Control: private, no-store`
+- Redis is an optimization, not an authority source
+- revoked, expired, or unauthorized requests fail before Redis or R2 can be used
+- the Redis key includes the share token, so different links to the same file do not share hot-cache entries
+- Redis TTL is bounded by `min(remaining share-link lifetime, 24 hours)`
+
+For engineers, the main code paths are:
+
+- shared manifest route: <RepoLink path="secure-vault/src/app/api/share/[token]/pdf-preview/route.ts" />
+- shared page-image route: <RepoLink path="secure-vault/src/app/api/share/[token]/pdf-preview/pages/[page]/route.ts" />
+- Redis cache helper: <RepoLink path="secure-vault/src/lib/pdf-preview/shared-page-cache.ts" />
+- durable preview service: <RepoLink path="secure-vault/src/lib/pdf-preview/shared-service.ts" />
+- page metadata repository: <RepoLink path="secure-vault/src/lib/pdf-preview/repository.ts" />
+- frontend viewer: <RepoLink path="secure-vault/src/components/share/shared-pdf-image-preview.tsx" />
+
 ### Semantic Indexing And Search
 
 Semantic indexing is optional and environment-gated.

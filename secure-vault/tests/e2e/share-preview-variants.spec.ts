@@ -110,9 +110,64 @@ test.describe("share preview variants", () => {
       expect(manifestResponse.headers()["content-type"]).toContain("application/json");
       expect(pageImageResponse.headers()["content-type"]).toContain("image/webp");
       expect(pageImageResponse.headers()["content-type"]).not.toContain("application/pdf");
+      expect(pageImageResponse.headers()["x-preview-cache"]).toBe("miss");
     } finally {
       await clearBrowserStorage(visitor.page);
       await visitor.context.close();
+    }
+  });
+
+  test("serves the second direct public pdf preview page request from redis cache", async ({
+    browser,
+    page,
+  }, testInfo) => {
+    test.setTimeout(180_000);
+    const credentials = buildTestUserCredentials(testInfo);
+    const firstVisitor = await createVisitorPage(browser);
+    const secondVisitor = await createVisitorPage(browser);
+
+    try {
+      await signUpAndBypassVerification(page, credentials);
+      await openFilesPage(page);
+      await uploadFiles(page, ["tiny.pdf"]);
+
+      const userId = await getUserIdByEmail(credentials.email);
+      expect(userId).not.toBeNull();
+      const fileId = await getFileIdForUser(userId!, "tiny.pdf");
+      expect(fileId).not.toBeNull();
+
+      const link = await createShareLinkFixture({
+        allowedEmails: [],
+        createdBy: userId!,
+        expiresAt: null,
+        fileId: fileId!,
+        maxDownloads: null,
+      });
+
+      const firstPageImageResponsePromise = firstVisitor.page.waitForResponse(
+        (response) =>
+          response.url().includes(`/api/share/${link.token}/pdf-preview/pages/1`),
+      );
+
+      await firstVisitor.page.goto(`/s/${link.token}`);
+      await expect(firstVisitor.page.getByTestId("shared-pdf-preview-page-image-1")).toBeVisible();
+      const firstPageImageResponse = await firstPageImageResponsePromise;
+      expect(firstPageImageResponse.headers()["x-preview-cache"]).toBe("miss");
+
+      const secondPageImageResponsePromise = secondVisitor.page.waitForResponse(
+        (response) =>
+          response.url().includes(`/api/share/${link.token}/pdf-preview/pages/1`),
+      );
+
+      await secondVisitor.page.goto(`/s/${link.token}`);
+      await expect(secondVisitor.page.getByTestId("shared-pdf-preview-page-image-1")).toBeVisible();
+      const secondPageImageResponse = await secondPageImageResponsePromise;
+      expect(secondPageImageResponse.headers()["x-preview-cache"]).toBe("hit");
+    } finally {
+      await clearBrowserStorage(firstVisitor.page);
+      await clearBrowserStorage(secondVisitor.page);
+      await firstVisitor.context.close();
+      await secondVisitor.context.close();
     }
   });
 

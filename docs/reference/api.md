@@ -529,6 +529,88 @@ Example request:
 - Common failures:
   - similar to shared download except download-limit enforcement is not the main path
 
+### `GET /api/share/:token/pdf-preview`
+
+- Auth required: token-based, plus share access session for restricted links
+- Purpose: return the shared PDF preview manifest for a file or a file inside a shared folder
+- Query parameters:
+  - `fileId` required when the share target is a folder
+- Behavior:
+  - validates link accessibility
+  - validates OTP access if needed
+  - validates folder-subtree access when `fileId` is supplied for a folder share
+  - reads PDF metadata and existing preview-page state
+  - records one share access event on manifest success
+  - does not increment download count
+- Success response:
+  - `200` with `{ fileId, fileName, mimeType, pageCount, renderVersion, pages }`
+- Common failures:
+  - `403` access denied
+  - `404` share link not found or invalid folder target
+  - `410` expired share link
+  - `413` PDF too large or too many pages for secure preview
+  - `415` file is not a PDF
+  - `422` PDF cannot be parsed or rendered for secure preview
+  - `503` preview feature disabled or renderer unavailable
+
+Manifest shape summary:
+
+```json
+{
+  "fileId": "file_123",
+  "fileName": "report.pdf",
+  "mimeType": "application/pdf",
+  "pageCount": 3,
+  "renderVersion": 1,
+  "pages": [
+    {
+      "page": 1,
+      "status": "ready",
+      "width": 1240,
+      "height": 1754,
+      "src": "/api/share/share-token/pdf-preview/pages/1"
+    }
+  ]
+}
+```
+
+### `GET /api/share/:token/pdf-preview/pages/:page`
+
+- Auth required: token-based, plus share access session for restricted links
+- Purpose: return one rendered shared PDF page as `image/webp`
+- Query parameters:
+  - `fileId` required when the share target is a folder
+- Behavior:
+  - validates link accessibility before any cache lookup
+  - validates OTP access if needed
+  - validates folder-subtree access when `fileId` is supplied for a folder share
+  - checks Redis for a short-lived page-response cache
+  - falls back to the durable encrypted derivative in R2 or on-demand rendering when Redis misses
+  - does not record per-page share access
+  - does not increment download count
+- Success response:
+  - `200` streamed image response with `Content-Type: image/webp`
+- Response headers:
+  - `Cache-Control: private, no-store`
+  - `X-Content-Type-Options: nosniff`
+  - `X-Preview-Cache: hit` when served from Redis
+  - `X-Preview-Cache: miss` when Redis was bypassed and the route used the preview service
+- Common failures:
+  - `400` invalid page number
+  - `403` access denied
+  - `404` share link not found, invalid folder target, or page out of range
+  - `410` expired share link
+  - `413` PDF too large or too many pages for secure preview
+  - `415` file is not a PDF
+  - `422` PDF page cannot be rendered
+  - `503` preview feature disabled or renderer unavailable
+
+Server-side cache notes:
+
+- Redis key shape: `share:pdf-preview:page:{token}:{fileId}:{pageNumber}:v{renderVersion}`
+- Redis TTL: `min(remaining share-link lifetime, 24 hours)`
+- browser responses are intentionally `no-store`, so the hot cache remains server-side only
+
 ## Cron Routes
 
 ### `GET /api/cron/cleanup`

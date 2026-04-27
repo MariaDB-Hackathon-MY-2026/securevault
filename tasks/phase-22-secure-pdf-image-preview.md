@@ -49,7 +49,7 @@ These choices are fixed for v1 so implementers do not need to guess.
 | Render command | `pdftocairo` |
 | Output image type | WebP served as `image/webp` |
 | Rendering mode | Lazy per-page rendering on first shared page request |
-| Preview cache | Encrypted rendered page images stored in R2 |
+| Preview cache | Layered cache: short-lived Redis page-response cache plus encrypted rendered page images stored in R2 |
 | Derivative encryption | Use the original file FEK to encrypt preview image bytes |
 | Storage quota | Do not count generated preview images toward user storage quota |
 | Fallback behavior | Do not fall back to inline original-PDF preview on shared links |
@@ -61,8 +61,8 @@ These choices are fixed for v1 so implementers do not need to guess.
 
 ## Current Implementation Snapshot
 
-- [x] Shared PDF preview currently uses an iframe in `secure-vault/src/components/share/shared-file-view.tsx`.
-- [x] Shared preview route `secure-vault/src/app/api/share/[token]/preview/route.ts` streams decrypted original bytes through `streamSharedFile`.
+- [x] Shared PDF preview now uses `secure-vault/src/components/share/shared-pdf-image-preview.tsx` for PDF shares instead of an iframe.
+- [x] Shared legacy preview route `secure-vault/src/app/api/share/[token]/preview/route.ts` still exists for non-PDF preview flows and streams decrypted original bytes through `streamSharedFile`.
 - [x] Shared download route `secure-vault/src/app/api/share/[token]/download/route.ts` downloads original files and enforces download limits.
 - [x] Shared route access checks are implemented with:
   - `requireShareLinkByToken`
@@ -71,18 +71,89 @@ These choices are fixed for v1 so implementers do not need to guess.
   - `requireFolderShareTargetFile`
   - `recordShareAccess`
 - [x] `secure-vault/src/app/api/files/[id]/service.ts` already has `streamSharedFile`, which reconstructs encrypted chunks and streams decrypted bytes.
-- [x] `secure-vault/src/lib/files/file-bytes.ts` reconstructs owned decrypted file bytes, but not shared file bytes.
+- [x] `secure-vault/src/lib/files/file-bytes.ts` now provides `readSharedFileBytes` for shared PDF rendering.
 - [x] Upload MIME detection already uses `file-type` in `secure-vault/src/app/api/upload/chunk/service.ts`.
 - [x] PDF files are currently the only allowed document type in `secure-vault/src/lib/constants/upload.ts`.
-- [x] Existing shared E2E tests expect PDF preview iframe behavior in `secure-vault/tests/e2e/share-preview-variants.spec.ts`.
-- [ ] There is no shared PDF image preview component.
-- [ ] There is no shared PDF preview manifest route.
-- [ ] There is no shared PDF preview page-image route.
-- [ ] There is no server-side PDF rasterization dependency.
-- [ ] There is no `pdf_preview_pages` table.
-- [ ] There is no reusable shared file-byte reader for rendering.
+- [x] `secure-vault/src/app/api/share/[token]/pdf-preview/route.ts` returns the shared preview manifest.
+- [x] `secure-vault/src/app/api/share/[token]/pdf-preview/pages/[page]/route.ts` returns shared PDF page images.
+- [x] The page route performs authorization before consulting Redis.
+- [x] `secure-vault/src/lib/pdf-preview/shared-page-cache.ts` provides Redis-backed shared page-response caching.
+- [x] `secure-vault/src/lib/pdf-preview/shared-service.ts` provides the durable R2-backed encrypted preview cache path.
+- [x] `secure-vault/src/lib/pdf-preview/renderer.ts` and Poppler provide server-side rasterization.
+- [x] `pdf_preview_pages` stores encrypted preview derivative metadata by file, page, and render version.
+- [x] Shared preview E2E coverage exists in `secure-vault/tests/e2e/share-preview-variants.spec.ts`, including cache hit/miss assertions via response headers.
 
 ---
+
+## Detailed Data Path
+
+The shared PDF preview path uses two cache layers with strict authorization in front of both:
+
+1. The browser requests the manifest route to learn page count and page URLs.
+2. The browser requests a specific page image route.
+3. The page route validates the share token, expiry, revocation status, OTP/session state for restricted links, and folder-subtree membership before it checks any cache.
+4. The route checks Redis for a short-lived page-response cache entry keyed by share token plus page identity.
+5. If Redis misses, the route calls the shared preview service.
+6. The shared preview service reads the original shared PDF bytes, validates type and size limits, then checks the durable `pdf_preview_pages` metadata and encrypted R2 object.
+7. If the R2-backed derivative exists, the service decrypts and returns it.
+8. If it does not exist, the service renders the page, encrypts the WebP derivative with the file FEK, uploads it to R2, inserts the metadata row, and returns the page bytes.
+9. The route writes the returned page bytes into Redis with a TTL based on the remaining share-link lifetime, capped at 24 hours.
+10. The browser always receives `private, no-store` so only the server-side caches persist across visits.
+
+### Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Route as "Shared Page Route"
+    participant Auth as "Share Access Checks"
+    participant Redis as "Redis Cache"
+    participant Service as "Shared Preview Service"
+    participant R2 as "R2 + pdf_preview_pages"
+    participant Render as "Poppler + sharp"
+
+    Browser->>Route: GET /api/share/:token/pdf-preview/pages/:page
+    Route->>Auth: Validate token, expiry, revoke, session, file scope
+    Auth-->>Route: Access granted
+    Route->>Redis: GET share:pdf-preview:page:{token}:{fileId}:{page}:v{renderVersion}
+    alt Redis hit
+        Redis-->>Route: WebP page bytes
+        Route-->>Browser: 200 image/webp + X-Preview-Cache: hit
+    else Redis miss
+        Redis-->>Route: null
+        Route->>Service: getSharedPdfPreviewPage(...)
+        Service->>R2: Look up ready preview metadata + encrypted derivative
+        alt Durable preview exists
+            R2-->>Service: Encrypted WebP + metadata
+            Service-->>Route: Decrypted WebP bytes
+        else Durable preview missing
+            Service->>Render: Render requested PDF page to WebP
+            Render-->>Service: WebP page bytes + dimensions
+            Service->>R2: Store encrypted WebP + metadata row
+            R2-->>Service: Stored
+            Service-->>Route: WebP page bytes
+        end
+        Route->>Redis: SET cache entry with TTL <= remaining link lifetime, max 24h
+        Route-->>Browser: 200 image/webp + X-Preview-Cache: miss
+    end
+```
+
+### Cache Layer Responsibilities
+
+| Layer | Purpose | Key | Lifetime | Security boundary |
+| --- | --- | --- | --- | --- |
+| Redis page-response cache | Avoid repeated service, DB, R2, and decrypt work for the same shared page | `share:pdf-preview:page:{token}:{fileId}:{pageNumber}:v{renderVersion}` | `min(remaining share lifetime, 86400)` seconds | Only checked after full share authorization succeeds |
+| R2 derivative cache | Persist encrypted rendered page derivatives across requests and visitors | R2 object path plus `pdf_preview_pages` row | Until render version changes or hard delete cleanup runs | Stored encrypted with the file FEK |
+| Original PDF chunks | Source of truth for rendering | Existing file chunk keys | Existing file lifecycle | Accessed only through existing file encryption pipeline |
+
+### Authorization Rules Relative to Cache
+
+- Redis is server-side only. The browser never receives a Redis key or direct Redis access.
+- The page route must validate access before any Redis lookup.
+- A revoked, expired, or unauthorized restricted share must fail before either Redis or R2 is consulted.
+- Folder shares must validate `fileId` subtree membership before any Redis lookup.
+- Including the share token in the Redis key prevents cache reuse across distinct share links to the same file.
+- Browser-facing responses remain `private, no-store` so cache persistence is controlled server-side only.
 
 ## Non-Goals
 
@@ -196,6 +267,19 @@ Success response:
 - `Content-Length: <decrypted-image-byte-length>`
 - `X-Content-Type-Options: nosniff`
 - Body: decrypted WebP page image bytes
+
+Caching rules:
+
+- Keep browser-facing responses `private, no-store`.
+- Use Redis for shared PDF preview page-response caching.
+- Key Redis entries by share token, file id, page number, and render version.
+- Use the remaining share-link validity as the Redis TTL.
+- Cap Redis TTL at 24 hours (`86400` seconds).
+- If the link has no expiry, use `86400`.
+- If the link is already expired by the time the route would write the cache, skip the Redis write.
+- Redis cache reads and writes are best-effort optimizations. Failures must not block authorized preview responses.
+- Redis cache values store the decrypted WebP response bytes encoded for Redis transport.
+- The route may emit `X-Preview-Cache: hit` or `X-Preview-Cache: miss` for observability and E2E verification.
 
 Status codes:
 
@@ -476,6 +560,7 @@ Files:
 | `renderer-probe.ts` | Check Poppler availability |
 | `renderer.ts` | Page count and single-page rasterization |
 | `repository.ts` | DB access for preview page metadata |
+| `shared-page-cache.ts` | Redis read/write helpers and TTL logic for page-response caching |
 | `shared-service.ts` | Shared preview manifest/page orchestration |
 | `types.ts` | Shared DTO types |
 
@@ -881,14 +966,25 @@ Implementation steps:
 4. Load link and validate accessible.
 5. Validate restricted session if required.
 6. Resolve file id exactly like manifest route.
-7. Call `getSharedPdfPreviewPage`.
-8. Return its image response.
+7. Read `renderVersion` from preview config.
+8. Check Redis with key `share:pdf-preview:page:{token}:{fileId}:{page}:v{renderVersion}`.
+9. If Redis hits:
+   - return cached WebP response
+   - include `X-Preview-Cache: hit`
+   - do not call the shared preview service
+10. If Redis misses:
+   - call `getSharedPdfPreviewPage`
+   - if it returns `200 image/webp`, clone the response body and write it into Redis using the link TTL rule
+   - include `X-Preview-Cache: miss`
+11. Return the response.
 
 Important:
 
 - Do not call `recordShareAccess`.
 - Do not call `assertDownloadAllowed`.
 - Do not call `streamSharedFile`.
+- Do not read Redis before access checks complete.
+- Do not let Redis failures turn authorized preview requests into `500` responses.
 
 ---
 
@@ -1073,6 +1169,9 @@ Tests:
 
 | Edge case | Expected behavior |
 | --- | --- |
+| Redis read fails | continue through durable preview path; request still succeeds if downstream path succeeds |
+| Redis write fails | request still succeeds; only cache warm-up is skipped |
+| Redis TTL reaches zero because link is about to expire | serve the page normally and skip Redis write |
 | Poppler missing | `503`, no fallback to PDF |
 | Poppler exits non-zero | `422` |
 | `sharp` conversion fails | `422` |
@@ -1114,6 +1213,7 @@ Required cases:
 
 | Test file | Required tests |
 | --- | --- |
+| `shared-page-cache.test.ts` | ttl for non-expiring link, ttl capped at 24h, ttl follows remaining lifetime, stores bytes, expired entry disappears |
 | `config.test.ts` | disabled by default, parses enabled, rejects invalid ints, rejects zero/negative limits |
 | `renderer-probe.test.ts` | renderer available, missing executable, non-zero exit, cached success |
 | `renderer.test.ts` | page count success, corrupt PDF fails, render success, invalid page rejects, temp cleanup on success/failure, output too large fails |
@@ -1141,6 +1241,8 @@ Required cases:
 - page `abc` returns `400`
 - page `1.5` returns `400`
 - page `0` returns `400`
+- redis hit returns image without calling shared preview service
+- redis miss writes response to cache when service succeeds
 - manifest records access once
 - page does not record access
 - manifest does not call `assertDownloadAllowed`
@@ -1183,6 +1285,9 @@ Shared PDF expected checks:
 - Assert network sees `GET /api/share/:token/pdf-preview/pages/1`.
 - Assert page image response `content-type` contains `image/webp`.
 - Assert no shared PDF preview request returns `application/pdf`.
+- Assert first page-image response includes `X-Preview-Cache: miss`.
+- Open the same share in a second fresh browser context.
+- Assert second page-image response includes `X-Preview-Cache: hit`.
 
 Restricted share checks:
 
@@ -1215,11 +1320,13 @@ Manual checklist:
 4. Confirm shared preview renders WebP page images.
 5. Confirm browser network traffic for preview contains JSON and WebP only.
 6. Confirm no shared preview response returns `application/pdf`.
-7. Click shared download and confirm original PDF still downloads.
-8. Create a restricted share and confirm OTP/session still gates preview.
-9. Revoke the share and confirm manifest and page routes reject.
-10. Create a folder share containing a nested PDF and confirm preview preserves folder access checks.
-11. Permanently delete the PDF and confirm preview R2 keys are deleted.
+7. Confirm the first page image response includes `X-Preview-Cache: miss`.
+8. Open the same share in a second fresh browser context and confirm the page image response includes `X-Preview-Cache: hit`.
+9. Click shared download and confirm original PDF still downloads.
+10. Create a restricted share and confirm OTP/session still gates preview.
+11. Revoke the share and confirm manifest and page routes reject.
+12. Create a folder share containing a nested PDF and confirm preview preserves folder access checks.
+13. Permanently delete the PDF and confirm preview R2 keys are deleted.
 
 ---
 
@@ -1319,8 +1426,11 @@ npm run test:e2e:managed -- tests/e2e/share-preview-variants.spec.ts
 - [ ] Temp files are removed after success, failure, and abort.
 - [ ] Page count, file size, DPI, and output bytes are bounded.
 - [ ] Shared page requests repeat full access validation.
+- [ ] Shared page requests validate access before Redis lookup.
 - [ ] Shared preview does not consume download count.
 - [ ] Shared page requests do not write per-page access logs.
+- [ ] Redis cache keys are scoped by share token and render version.
+- [ ] Redis cache TTL never exceeds remaining share-link lifetime or 24 hours.
 - [ ] R2 preview derivatives are deleted on hard purge.
 - [ ] Logs never include PDF contents or rendered image bytes.
 
@@ -1336,6 +1446,7 @@ npm run test:e2e:managed -- tests/e2e/share-preview-variants.spec.ts
 - [ ] Existing shared image previews still work.
 - [ ] Signed-in owner PDF preview remains unchanged.
 - [ ] Shared public, restricted, expired, revoked, and folder access rules are preserved.
+- [ ] Authorized repeated page requests can be served from Redis without bypassing access checks.
 - [ ] Rendered page images are encrypted at rest in R2.
 - [ ] Concurrent shared page render requests do not corrupt DB or R2 state.
 - [ ] Hard-delete cleanup removes shared PDF preview derivatives.
