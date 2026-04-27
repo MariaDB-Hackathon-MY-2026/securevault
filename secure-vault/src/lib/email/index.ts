@@ -1,21 +1,34 @@
 import { Resend } from "resend";
 import { otpEmailHtml, passwordResetOtpEmailHtml } from "./templates";
 
-const fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev"; // Fallback to resend default sandbox
-
 function getResendApiKey() {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   return apiKey ? apiKey : null;
 }
 
+function getEmailFrom() {
+  const emailFrom = process.env.EMAIL_FROM?.trim();
+  return emailFrom ? emailFrom : null;
+}
+
 function isResendConfigured() {
-  return getResendApiKey() !== null;
+  return getResendApiKey() !== null && getEmailFrom() !== null;
+}
+
+function getMissingEmailConfigMessage() {
+  const missingConfig = [
+    getResendApiKey() ? null : "RESEND_API_KEY",
+    getEmailFrom() ? null : "EMAIL_FROM",
+  ].filter(Boolean);
+
+  return `${missingConfig.join(" and ")} ${missingConfig.length === 1 ? "is" : "are"} not configured`;
 }
 
 function getResendClient() {
   const apiKey = getResendApiKey();
+  const emailFrom = getEmailFrom();
 
-  if (!apiKey) {
+  if (!apiKey || !emailFrom) {
     return null;
   }
 
@@ -24,10 +37,11 @@ function getResendClient() {
 
 export async function sendEmail(to: string, subject: string, html: string) {
   const resend = getResendClient();
+  const fromEmail = getEmailFrom();
 
-  if (!resend) {
+  if (!resend || !fromEmail) {
     console.log(
-      `[Email][terminal-only] To: ${to}, Subject: ${subject}. RESEND_API_KEY is not configured, so outbound email was logged to the server terminal instead.`,
+      `[Email][terminal-only] To: ${to}, Subject: ${subject}. ${getMissingEmailConfigMessage()}, so outbound email was logged to the server terminal instead.`,
     );
     return;
   }
@@ -47,7 +61,7 @@ export async function sendEmail(to: string, subject: string, html: string) {
 export async function sendOTPEmail(to: string, code: string) {
   if (!isResendConfigured()) {
     console.log(
-      `[Share OTP][terminal-only] To: ${to}, Code: ${code}. RESEND_API_KEY is not configured, so the verification code was logged to the server terminal instead of being emailed.`,
+      `[Share OTP][terminal-only] To: ${to}, Code: ${code}. ${getMissingEmailConfigMessage()}, so the verification code was logged to the server terminal instead of being emailed.`,
     );
     return;
   }
@@ -66,7 +80,7 @@ export async function sendOTPEmail(to: string, code: string) {
 export async function sendPasswordResetOtpEmail(to: string, code: string) {
   if (!isResendConfigured()) {
     console.log(
-      `[Password Reset OTP][terminal-only] To: ${to}, Code: ${code}. RESEND_API_KEY is not configured, so the verification code was logged to the server terminal instead of being emailed.`,
+      `[Password Reset OTP][terminal-only] To: ${to}, Code: ${code}. ${getMissingEmailConfigMessage()}, so the verification code was logged to the server terminal instead of being emailed.`,
     );
     return;
   }

@@ -18,34 +18,45 @@ This guide covers the container artifacts that already exist in the repo and how
 | Service | Purpose | Notes |
 | --- | --- | --- |
 | `web` | Runs the built Next.js app on port `3000` | Enabled through the `app` profile |
-| `worker` | Runs `npm run worker:embeddings` | Only useful when semantic indexing is enabled and `SEMANTIC_INDEXING_EXECUTION_MODE=queued` |
+| `worker` | Runs `npm run worker:embeddings` | Enabled through the `worker` profile; only useful when semantic indexing is enabled and `SEMANTIC_INDEXING_EXECUTION_MODE=queued` |
 | `mariadb` | Local MariaDB 12 database | Published on host port `3307` by default |
 | `redis` | Local Redis 8 instance | Published on host port `6379` |
 
-## Two supported workflows
+## Supported Compose paths
 
-### 1. Host-run app, Compose-run services
+### 1. Services only
 
-This is the main local development path today.
+This starts only the infrastructure containers that the host-run app needs.
 
-From `secure-vault/`:
-
-```powershell
-npm run dev:services
-npm run dev
-```
-
-Use this when you want the normal Next.js development server and the package scripts already wired into the app folder.
-
-### 2. Full container stack
-
-The repo also defines containerized `web` and `worker` services:
+From the repo root:
 
 ```powershell
-docker compose --profile app up --build
+docker compose up -d mariadb redis
 ```
 
-This path runs the production build inside Docker instead of `next dev`.
+Use this when you want to run the Next.js app directly from `secure-vault/` with `npm run dev`.
+
+### 2. Web and services
+
+This starts MariaDB, Redis, migrations, and the production-built Next.js `web` container.
+
+```powershell
+docker compose --profile app build --no-cache
+docker compose --profile app up web
+```
+
+Use this when you want a reproducible Docker smoke run for the web app without the background embeddings worker.
+
+### 3. Web, worker, and services
+
+This starts MariaDB, Redis, migrations, the production-built Next.js `web` container, and the embeddings `worker` container.
+
+```powershell
+docker compose --profile app --profile worker build --no-cache
+docker compose --profile app --profile worker up web worker
+```
+
+Use this when you are testing the whole containerized app path with queued semantic indexing enabled.
 
 ## Environment model
 
@@ -54,7 +65,7 @@ There are two different env entry points:
 - `secure-vault/.env.local`: used by the app when you run it directly with `npm run dev`
 - `secure-vault/.env.local`: also copied into the Docker image, so the containerized app uses the same app-level env file at build time and runtime
 
-For both host mode and the full container stack, create `secure-vault/.env.local` with at least:
+For host mode and the containerized app stacks, create `secure-vault/.env.local` with at least:
 
 ```ini
 DATABASE_NAME=SecureVault
@@ -94,22 +105,32 @@ That means host-mode app envs and container-mode app envs share the same app sec
 
 ## Useful commands
 
+When rebuilding app images, use `docker compose build --no-cache` first. The `--no-cache` flag belongs to the Compose build step, not status, logs, stop, or volume cleanup commands.
+
 Start only MariaDB and Redis:
 
 ```powershell
 docker compose up -d mariadb redis
 ```
 
-Start the full stack:
+Start web and services:
 
 ```powershell
-docker compose --profile app up --build
+docker compose --profile app build --no-cache
+docker compose --profile app up web
 ```
 
-Stop the full stack:
+Start web, worker, and services:
 
 ```powershell
-docker compose --profile app down
+docker compose --profile app --profile worker build --no-cache
+docker compose --profile app --profile worker up web worker
+```
+
+Stop the web and worker app containers:
+
+```powershell
+docker compose --profile app --profile worker down
 ```
 
 View service status:
@@ -151,5 +172,6 @@ The Docker setup does not change the core app dependencies:
 
 ## Recommended use
 
-- use host-run app plus Compose services for active feature work
-- use the full container stack when you want a production-style local smoke run or need the embeddings worker in a container
+- use services only plus a host-run app for active feature work
+- use web and services when you want a production-style local smoke run for the app container
+- use web, worker, and services when you need to reproduce the queued embeddings path in Docker
