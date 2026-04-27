@@ -12,6 +12,9 @@ WORKDIR /app
 
 COPY --exclude=.env --exclude=.env.* secure-vault/package.json secure-vault/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends poppler-utils \
+  && rm -rf /var/lib/apt/lists/*
 
 COPY secure-vault ./
 

@@ -7,6 +7,7 @@ import { fileChunks } from "@/lib/db/schema/file-chunks";
 import { fileVersions } from "@/lib/db/schema/file-versions";
 import { files } from "@/lib/db/schema/files";
 import { folders } from "@/lib/db/schema/folders";
+import { pdfPreviewPages } from "@/lib/db/schema/pdf-preview-pages";
 import {
   shareLinkAccessLogs,
   shareLinkEmails,
@@ -24,6 +25,7 @@ export * from "@/lib/db/schema/file-chunks";
 export * from "@/lib/db/schema/file-versions";
 export * from "@/lib/db/schema/files";
 export * from "@/lib/db/schema/folders";
+export * from "@/lib/db/schema/pdf-preview-pages";
 export * from "@/lib/db/schema/sharing";
 export * from "@/lib/db/schema/sessions";
 export * from "@/lib/db/schema/upload-sessions";
@@ -61,10 +63,18 @@ export const filesRelations = relations(files, ({ one, many }) => ({
   versions: many(fileVersions),
   embeddingJobs: many(embeddingJobs),
   embeddingChunks: many(embeddingChunks),
+  pdfPreviewPages: many(pdfPreviewPages),
 }));
 
 export const fileChunksRelations = relations(fileChunks, ({ one }) => ({
   file: one(files, { fields: [fileChunks.file_id], references: [files.id] }),
+}));
+
+export const pdfPreviewPagesRelations = relations(pdfPreviewPages, ({ one }) => ({
+  file: one(files, {
+    fields: [pdfPreviewPages.file_id],
+    references: [files.id],
+  }),
 }));
 
 export const shareLinksRelations = relations(shareLinks, ({ one, many }) => ({

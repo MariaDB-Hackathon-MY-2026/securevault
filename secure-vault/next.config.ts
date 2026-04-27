@@ -65,6 +65,32 @@ const nextConfig: NextConfig = {
             value: contentSecurityPolicy,
           },
         ],
+        source: "/api/share/:token/pdf-preview",
+      },
+      {
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-XSS-Protection", value: "1; mode=block" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Content-Security-Policy",
+            value: contentSecurityPolicy,
+          },
+        ],
+        source: "/api/share/:token/pdf-preview/pages/:page",
+      },
+      {
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-XSS-Protection", value: "1; mode=block" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Content-Security-Policy",
+            value: contentSecurityPolicy,
+          },
+        ],
         source: "/((?!api/files/[^/]+/preview$|api/share/[^/]+/preview$).*)",
       },
     ];

@@ -65,7 +65,7 @@ test.describe("share preview variants", () => {
     }
   });
 
-  test("renders the direct public pdf share with the iframe preview path", async ({
+  test("renders the direct public pdf share with the secure image preview path", async ({
     browser,
     page,
   }, testInfo) => {
@@ -91,10 +91,25 @@ test.describe("share preview variants", () => {
         maxDownloads: null,
       });
 
+      const manifestResponsePromise = visitor.page.waitForResponse(
+        (response) =>
+          response.url().includes(`/api/share/${link.token}/pdf-preview`)
+          && !response.url().includes("/pages/"),
+      );
+      const pageImageResponsePromise = visitor.page.waitForResponse(
+        (response) =>
+          response.url().includes(`/api/share/${link.token}/pdf-preview/pages/1`),
+      );
+
       await visitor.page.goto(`/s/${link.token}`);
-      await expect(visitor.page.getByTestId("shared-preview-frame")).toBeVisible();
-      await expect(visitor.page.getByTestId("shared-preview-image")).toHaveCount(0);
+      await expect(visitor.page.getByTestId("shared-preview-frame")).toHaveCount(0);
+      await expect(visitor.page.getByTestId("shared-pdf-preview-page-image-1")).toBeVisible();
       await expect(visitor.page.getByLabel("Email Address")).toHaveCount(0);
+      const manifestResponse = await manifestResponsePromise;
+      const pageImageResponse = await pageImageResponsePromise;
+      expect(manifestResponse.headers()["content-type"]).toContain("application/json");
+      expect(pageImageResponse.headers()["content-type"]).toContain("image/webp");
+      expect(pageImageResponse.headers()["content-type"]).not.toContain("application/pdf");
     } finally {
       await clearBrowserStorage(visitor.page);
       await visitor.context.close();

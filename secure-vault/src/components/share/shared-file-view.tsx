@@ -5,6 +5,7 @@
 import { FileIcon } from "lucide-react";
 
 import { SharedDownloadButton } from "@/components/share/shared-download-button";
+import { SharedPdfImagePreview } from "@/components/share/shared-pdf-image-preview";
 import { ShareLogoutButton } from "@/components/share/share-logout-button";
 import { canPreviewMime } from "@/lib/files/preview";
 
@@ -27,6 +28,7 @@ export function SharedFileView({
   const downloadUrl = `/api/share/${token}/download${fileQuery}`;
   const previewUrl = `/api/share/${token}/preview${fileQuery}`;
   const isImage = Boolean(mimeType && mimeType.startsWith("image/"));
+  const isPdf = mimeType === "application/pdf";
   const canPreview = mimeType ? canPreviewMime(mimeType) : true;
 
   return (
@@ -74,6 +76,8 @@ export function SharedFileView({
                 src={previewUrl}
               />
             </div>
+          ) : isPdf ? (
+            <SharedPdfImagePreview fileId={fileId} fileName={fileName} token={token} />
           ) : (
             <iframe
               className="h-full w-full border-0"

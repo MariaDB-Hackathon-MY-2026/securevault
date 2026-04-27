@@ -1,7 +1,15 @@
 import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 
 import { MariadbConnection } from "@/lib/db";
-import { fileChunks, files, folders, shareLinks, uploadSessions, users } from "@/lib/db/schema";
+import {
+  fileChunks,
+  files,
+  folders,
+  pdfPreviewPages,
+  shareLinks,
+  uploadSessions,
+  users,
+} from "@/lib/db/schema";
 import type { FileListItem } from "@/lib/files/types";
 import {
   STALE_UPLOAD_CLEANUP_BATCH_SIZE,
@@ -57,6 +65,7 @@ type TrashSummaryFileRecord = Pick<ScopedFileRecord, "deletedAt" | "folderId">;
 type PurgeManifestFile = {
   chunkKeys: string[];
   fileId: string;
+  previewR2Keys: string[];
   size: number;
   status: ScopedFileRecord["status"];
   thumbnailR2Key: string | null;
@@ -445,9 +454,29 @@ async function buildPurgeManifest(
     chunkKeysByFileId.set(chunk.fileId, keys);
   }
 
+  const previewRows = await db
+    .select({
+      fileId: pdfPreviewPages.file_id,
+      r2Key: pdfPreviewPages.r2_key,
+    })
+    .from(pdfPreviewPages)
+    .where(inArray(pdfPreviewPages.file_id, fileIds));
+  const previewKeysByFileId = new Map<string, string[]>();
+
+  for (const preview of previewRows) {
+    if (!preview.r2Key) {
+      continue;
+    }
+
+    const keys = previewKeysByFileId.get(preview.fileId) ?? [];
+    keys.push(preview.r2Key);
+    previewKeysByFileId.set(preview.fileId, keys);
+  }
+
   const manifestFiles = fileRows.map((file) => ({
     chunkKeys: chunkKeysByFileId.get(file.id) ?? [],
     fileId: file.id,
+    previewR2Keys: previewKeysByFileId.get(file.id) ?? [],
     size: file.size,
     status: file.status,
     thumbnailR2Key: file.thumbnailR2Key,
@@ -506,6 +535,7 @@ async function deleteR2ObjectsFromManifest(manifest: PurgeManifest) {
   for (const file of manifest.files) {
     const exactKeys = [...new Set([
       ...file.chunkKeys,
+      ...file.previewR2Keys,
       ...(file.thumbnailR2Key ? [file.thumbnailR2Key] : []),
     ])];
 

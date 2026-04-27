@@ -140,4 +140,13 @@ export function buildR2Key(userId: string, fileId: string, chunkIndex?: number):
     return chunkIndex !== undefined ? `${basePath}/chunk_${chunkIndex}` : basePath;
 }
 
+export function buildPdfPreviewR2Key(input: {
+    fileId: string;
+    pageNumber: number;
+    renderVersion: number;
+    userId: string;
+}) {
+    return `${input.userId}/previews/pdf/${input.fileId}/v${input.renderVersion}/page_${input.pageNumber}.webp`;
+}
+
 

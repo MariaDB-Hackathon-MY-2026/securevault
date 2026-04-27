@@ -213,6 +213,7 @@ describe("trash service", () => {
         [createFileRow({ thumbnailR2Key: "thumb-key" })],
         [createFileRow({ thumbnailR2Key: "thumb-key" })],
         [{ fileId: "file-1", r2Key: "user-a/files/file-1/chunk_0" }],
+        [{ fileId: "file-1", r2Key: "user-a/previews/pdf/file-1/v1/page_1.webp" }],
       ],
       updateResults: [{ affectedRows: 1 }],
     });
@@ -231,6 +232,9 @@ describe("trash service", () => {
       }),
     );
     expect(storageMocks.deleteObject).toHaveBeenCalledWith("user-a/files/file-1/chunk_0");
+    expect(storageMocks.deleteObject).toHaveBeenCalledWith(
+      "user-a/previews/pdf/file-1/v1/page_1.webp",
+    );
     expect(storageMocks.deleteObject).toHaveBeenCalledWith("thumb-key");
   });
 
@@ -262,6 +266,7 @@ describe("trash service", () => {
           createFileRow({ id: "nested-file", deletedAt, folderId: "deleted-root", size: 512 }),
         ],
         [],
+        [],
       ],
       updateResults: [{ affectedRows: 1 }],
     });
@@ -286,7 +291,7 @@ describe("trash service", () => {
           id: "upload-1",
           userId: "user-a",
         },
-      ], [createFileRow({ deletedAt: null, status: "uploading" })], []],
+      ], [createFileRow({ deletedAt: null, status: "uploading" })], [], []],
     });
     vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
 
@@ -297,5 +302,32 @@ describe("trash service", () => {
 
     expect(harness.spies.update).not.toHaveBeenCalled();
     expect(harness.spies.delete).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores missing preview objects during hard delete cleanup", async () => {
+    storageMocks.deleteObject.mockImplementation(async (key: string) => {
+      if (key.includes("/previews/pdf/")) {
+        throw Object.assign(new Error("missing"), { name: "NoSuchKey" });
+      }
+
+      return {};
+    });
+    const harness = createDbHarness({
+      deleteResults: [{ affectedRows: 1 }, { affectedRows: 1 }],
+      selectResults: [
+        [createFileRow()],
+        [createFileRow()],
+        [{ fileId: "file-1", r2Key: "user-a/files/file-1/chunk_0" }],
+        [{ fileId: "file-1", r2Key: "user-a/previews/pdf/file-1/v1/page_1.webp" }],
+      ],
+      updateResults: [{ affectedRows: 1 }],
+    });
+    vi.spyOn(MariadbConnection, "getConnection").mockReturnValue(harness.db as never);
+
+    await expect(permanentlyDeleteFile("user-a", "file-1")).resolves.toEqual({
+      deletedFiles: 1,
+      deletedFolders: 0,
+      reclaimedBytes: 1024,
+    });
   });
 });
