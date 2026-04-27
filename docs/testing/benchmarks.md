@@ -27,6 +27,37 @@ Use them for different questions:
 | Retrieval latency | `npm run benchmark:semantic` | Showing semantic and hybrid search response time after indexing | No |
 | Pipeline accuracy | `npm run benchmark:semantic:pipeline` | Showing indexing behavior and retrieval quality end to end | Yes |
 
+## Latest benchmark results
+
+The latest checked-in reports were generated on `2026-04-20`.
+
+Retrieval latency report:
+
+- Source report: <RepoLink path="secure-vault/benchmark/semantic-search-benchmark-latest.md" />
+- Dataset: `1,000` files, `3,000` embedding chunks, `15` query cases
+- Configuration: `5` themes, `200` files per theme, `3` chunks per file, `10` result limit
+
+| Benchmark | Samples | Avg | P50 | P95 | P99 | Max | Avg results |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Semantic retrieval only | 15 | 1015.31 ms | 1005.73 ms | 1104.04 ms | 1104.04 ms | 1104.04 ms | 10.00 |
+| Hybrid retrieval | 15 | 1013.42 ms | 1016.98 ms | 1063.83 ms | 1063.83 ms | 1063.83 ms | 10.00 |
+
+Pipeline accuracy report:
+
+- Source report: <RepoLink path="secure-vault/benchmark/semantic-pipeline-accuracy-latest.md" />
+- Configuration: `4` themes, `3` files per theme, controlled and stress suites, Google embeddings
+- Controlled dataset: `12` indexed PDFs and `12` evaluated queries
+- Stress dataset: `36` indexed PDFs and `12` evaluated queries
+
+| Suite | Benchmark | Top-1 Accuracy | Top-3 Recall | MRR | Avg query time | Avg indexing time |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Controlled | Semantic | 100.0% | 100.0% | 1.000 | 456.50 ms | 5691.43 ms |
+| Controlled | Hybrid | 100.0% | 100.0% | 1.000 | 781.83 ms | 5691.43 ms |
+| Stress | Semantic | 50.0% | 100.0% | 0.750 | 749.99 ms | 6800.25 ms |
+| Stress | Hybrid | 50.0% | 100.0% | 0.750 | 562.53 ms | 6800.25 ms |
+
+Use these numbers as the current evaluator-facing snapshot. Re-run the benchmark scripts before demos when hardware, MariaDB version, embedding settings, or dataset size changes.
+
 ## Prerequisites
 
 Run both commands from `secure-vault/`.

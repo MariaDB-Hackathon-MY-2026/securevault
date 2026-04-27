@@ -10,6 +10,12 @@ process.env.PLAYWRIGHT_BASE_URL = baseURL;
 process.env.NEXT_PUBLIC_APP_URL ??= baseURL;
 process.env.DATABASE_CONNECTION_LIMIT ??= "2";
 
+const webServerEnv = Object.fromEntries(
+  Object.entries(process.env).filter(
+    (entry): entry is [string, string] => typeof entry[1] === "string",
+  ),
+);
+
 function resolveWorkerCount() {
   const rawWorkerCount = process.env.PLAYWRIGHT_WORKERS?.trim();
 
@@ -31,9 +37,7 @@ export default defineConfig({
   workers: resolveWorkerCount(),
   webServer: {
     command: "npx next dev --hostname 127.0.0.1 --port 3100",
-    env: {
-      ...process.env,
-    },
+    env: webServerEnv,
     reuseExistingServer: false,
     timeout: 300_000,
     url: baseURL,

@@ -11,12 +11,14 @@ describe("email helpers", () => {
     vi.clearAllMocks();
     __resetResendMock();
     delete process.env.RESEND_API_KEY;
+    delete process.env.EMAIL_FROM;
     (process.env as Record<string, string | undefined>).NODE_ENV = "test";
   });
 
   it("logs password reset OTPs locally in non-production", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     process.env.RESEND_API_KEY = "test-key";
+    process.env.EMAIL_FROM = "SecureVault <security@example.com>";
     const { sendPasswordResetOtpEmail } = await import("@/lib/email");
 
     await expect(sendPasswordResetOtpEmail("alice@example.com", "123456")).resolves.toBeUndefined();
@@ -30,6 +32,7 @@ describe("email helpers", () => {
   it("logs password reset OTPs to the terminal when the resend key is missing", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+    process.env.EMAIL_FROM = "SecureVault <security@example.com>";
     const { sendPasswordResetOtpEmail } = await import("@/lib/email");
 
     await expect(sendPasswordResetOtpEmail("alice@example.com", "123456")).resolves.toBeUndefined();
@@ -40,9 +43,24 @@ describe("email helpers", () => {
     expect(__getResendCalls()).toEqual([]);
   });
 
+  it("logs password reset OTPs to the terminal when the sender email is missing", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+    process.env.RESEND_API_KEY = "test-key";
+    const { sendPasswordResetOtpEmail } = await import("@/lib/email");
+
+    await expect(sendPasswordResetOtpEmail("alice@example.com", "123456")).resolves.toBeUndefined();
+
+    expect(logSpy).toHaveBeenCalledWith(
+      "[Password Reset OTP][terminal-only] To: alice@example.com, Code: 123456. EMAIL_FROM is not configured, so the verification code was logged to the server terminal instead of being emailed.",
+    );
+    expect(__getResendCalls()).toEqual([]);
+  });
+
   it("uses the outbound email path in production", async () => {
     (process.env as Record<string, string | undefined>).NODE_ENV = "production";
     process.env.RESEND_API_KEY = "test-key";
+    process.env.EMAIL_FROM = "SecureVault <security@example.com>";
     __setResendResponse({ error: null });
     const { sendPasswordResetOtpEmail } = await import("@/lib/email");
 
@@ -50,6 +68,7 @@ describe("email helpers", () => {
 
     expect(__getResendCalls()).toEqual([
       expect.objectContaining({
+        from: "SecureVault <security@example.com>",
         html: expect.stringContaining("SecureVault Password Reset Code"),
         subject: "Your SecureVault password reset code",
         to: "alice@example.com",
