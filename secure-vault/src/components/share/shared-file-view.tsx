@@ -1,9 +1,9 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
-
 import { FileIcon } from "lucide-react";
 
+import { SharedInspectionDeterrent } from "@/components/share/shared-inspection-deterrent";
+import { ProtectedPreviewImage } from "@/components/share/protected-preview-image";
 import { SharedDownloadButton } from "@/components/share/shared-download-button";
 import { SharedPdfImagePreview } from "@/components/share/shared-pdf-image-preview";
 import { ShareLogoutButton } from "@/components/share/share-logout-button";
@@ -38,6 +38,7 @@ export function SharedFileView({
         embedded ? "min-h-0 flex-1 overflow-hidden" : "h-dvh overflow-hidden"
       }`}
     >
+      <SharedInspectionDeterrent />
       <header className="flex h-14 items-center justify-between border-b bg-background px-4">
         <div className="flex items-center gap-2 font-medium">
           <FileIcon className="size-5 text-muted-foreground" />
@@ -68,12 +69,16 @@ export function SharedFileView({
                   ? "h-full min-h-0"
                   : "h-[calc(100dvh-7rem)] sm:h-[calc(100dvh-8rem)]"
               }`}
+              onContextMenu={(event) => {
+                event.preventDefault();
+              }}
             >
-              <img
+              <ProtectedPreviewImage
                 alt={fileName ?? "Shared file preview"}
-                className="block h-auto max-h-full w-auto max-w-full object-contain"
-                data-testid="shared-preview-image"
+                className="h-full w-full select-none"
+                imageClassName="h-full w-full bg-contain bg-center bg-no-repeat"
                 src={previewUrl}
+                testId="shared-preview-image"
               />
             </div>
           ) : isPdf ? (

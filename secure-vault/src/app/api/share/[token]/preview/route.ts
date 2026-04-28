@@ -16,6 +16,14 @@ import {
   ShareServiceError,
 } from "@/lib/sharing/share-service";
 
+function applySharedPreviewHeaders(response: Response) {
+  response.headers.set("Content-Disposition", "inline");
+  response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
+  response.headers.set("Referrer-Policy", "no-referrer");
+  response.headers.set("X-Robots-Tag", "noindex, noarchive");
+  return response;
+}
+
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ token: string }> },
@@ -63,12 +71,14 @@ export async function GET(
       userAgent: request.headers.get("user-agent") ?? undefined,
     });
 
-    return await streamSharedFile({
+    const response = await streamSharedFile({
       disposition: "inline",
       fileId,
       ownerId: link.created_by,
       signal: request.signal,
     });
+
+    return applySharedPreviewHeaders(response);
   } catch (error) {
     if (error instanceof ShareServiceError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

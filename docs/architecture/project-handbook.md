@@ -15,6 +15,7 @@ This handbook documents the repository as it exists in code today.
 
 - Part 1 is written for non-technical readers, product stakeholders, demo reviewers, and new teammates.
 - Part 2 is written for engineers who need to understand the implementation, architecture boundaries, data flow, and operational dependencies.
+- Shared-preview security and browser-copying limits live in [Shared Preview Protection](../security/shared-preview-protection.md).
 - The dedicated HTTP API reference lives in [API Reference](../reference/api.md).
 - Docker and Compose runtime notes live in [Docker and Compose](../operations/docker-compose.md).
 - Playwright execution and case coverage live in [Playwright Coverage](../testing/playwright.md).
@@ -86,6 +87,7 @@ flowchart LR
 - A link can be public or restricted to specific email addresses.
 - Restricted links require an OTP sent to an allowed email address.
 - Access events are logged so the owner can see when a shared link was used.
+- Shared previews use layered deterrents to reduce casual saving and inspection, but verified viewers can still capture what appears on screen.
 
 #### 4. Delete And Recover
 
@@ -383,6 +385,7 @@ Sharing is implemented for both individual files and folders.
 - verified share access is stored in a share access session
 - access events are logged
 - download counts can be capped
+- share-link creation warns owners that restricted previews are tied to allowed emails, while screen capture remains possible
 
 ```mermaid
 flowchart TD
@@ -398,6 +401,20 @@ flowchart TD
     G -- No --> Y["Access denied"]
     G -- Yes --> D
 ```
+
+### Shared Preview Protection Model
+
+Shared previews are protected by layered controls rather than a promise of impossible copying.
+
+- `/s/{token}` is server-rendered after share-token, expiry, revocation, and restricted-session checks
+- preview and download API routes repeat token/session/folder-scope validation before returning bytes
+- restricted links use email allowlists plus OTP to tie access to known recipients
+- browser-facing preview responses are `no-store` and include inline, same-origin, no-referrer, nosniff, and noindex/noarchive headers
+- shared image and PDF page previews use a protected CSS-background renderer instead of native image elements
+- shared pages block common right-click, save, source, and DevTools keyboard shortcuts as a deterrent
+- shared PDF preview serves rendered WebP page images instead of exposing the original PDF for inline viewing
+
+The limitation is explicit: if a verified viewer can see a preview, they can still take a screenshot or use tools outside the page's control. For the detailed threat model and engineering checklist, read [Shared Preview Protection](../security/shared-preview-protection.md).
 
 ### Shared PDF Image Preview Architecture
 
@@ -609,12 +626,13 @@ These are important for anyone onboarding:
 ## Recommended Reading Order For Engineers
 
 1. <RepoLink path="README.md" />
-2. [API Reference](../reference/api.md)
-3. [Docker and Compose](../operations/docker-compose.md)
-4. [Playwright Coverage](../testing/playwright.md)
-5. <RepoLink path="secure-vault/src/app" kind="tree" />
-6. <RepoLink path="secure-vault/src/lib/auth" kind="tree" />
-7. <RepoLink path="secure-vault/src/lib/upload" kind="tree" />
-8. <RepoLink path="secure-vault/src/lib/sharing" kind="tree" />
-9. <RepoLink path="secure-vault/src/lib/ai" kind="tree" />
-10. <RepoLink path="secure-vault/src/lib/db/schema" kind="tree" />
+2. [Shared Preview Protection](../security/shared-preview-protection.md)
+3. [API Reference](../reference/api.md)
+4. [Docker and Compose](../operations/docker-compose.md)
+5. [Playwright Coverage](../testing/playwright.md)
+6. <RepoLink path="secure-vault/src/app" kind="tree" />
+7. <RepoLink path="secure-vault/src/lib/auth" kind="tree" />
+8. <RepoLink path="secure-vault/src/lib/upload" kind="tree" />
+9. <RepoLink path="secure-vault/src/lib/sharing" kind="tree" />
+10. <RepoLink path="secure-vault/src/lib/ai" kind="tree" />
+11. <RepoLink path="secure-vault/src/lib/db/schema" kind="tree" />

@@ -41,6 +41,7 @@ const themeConfig: DocsThemeConfig = {
     { text: "Docs Home", link: "/" },
     { text: "Getting Started", link: "/getting-started/local-development" },
     { text: "Architecture", link: "/architecture/project-handbook" },
+    { text: "Security", link: "/security/shared-preview-protection" },
     { text: "API", link: "/reference/api" },
     { text: "GitHub", link: repoUrl },
   ],
@@ -78,6 +79,12 @@ const themeConfig: DocsThemeConfig = {
       items: [
         { text: "Project Handbook", link: "/architecture/project-handbook" },
         { text: "Upload Queue", link: "/architecture/upload-queue" },
+      ],
+    },
+    {
+      text: "Security",
+      items: [
+        { text: "Shared Preview Protection", link: "/security/shared-preview-protection" },
       ],
     },
     {

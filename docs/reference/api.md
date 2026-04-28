@@ -35,6 +35,19 @@ This reference covers the HTTP route handlers currently implemented in <RepoLink
 | Uploadable document types | `application/pdf` |
 | Max PDF size for semantic indexing | 10 MiB |
 
+### Shared Preview Security
+
+Shared preview routes are access-controlled and deterrent-based.
+
+- `/s/{token}` is server-rendered after token and restricted-session checks.
+- Shared preview byte routes repeat authorization before returning content.
+- Restricted links tie access to allowed email addresses through OTP verification.
+- Shared image and PDF page previews are rendered in the browser as CSS backgrounds from local `blob:` URLs rather than native image elements.
+- Context-menu and common inspection shortcuts are blocked on shared pages as a deterrent.
+- These controls reduce casual saving and inspection; they do not prevent screenshots or determined inspection by a verified viewer.
+
+See [Shared Preview Protection](../security/shared-preview-protection.md) for the full threat model.
+
 ### Encryption Model
 
 - File encryption is server-managed.
@@ -524,8 +537,16 @@ Example request:
   - `fileId` required when previewing a file inside a shared folder
 - Behavior:
   - similar to shared download, but does not increment max-download enforcement logic
+  - applies protected shared-preview headers
 - Success response:
   - `200` streamed inline response
+- Response headers:
+  - `Cache-Control: private, no-store`
+  - `Content-Disposition: inline`
+  - `Cross-Origin-Resource-Policy: same-origin`
+  - `Referrer-Policy: no-referrer`
+  - `X-Content-Type-Options: nosniff`
+  - `X-Robots-Tag: noindex, noarchive`
 - Common failures:
   - similar to shared download except download-limit enforcement is not the main path
 
@@ -592,7 +613,11 @@ Manifest shape summary:
   - `200` streamed image response with `Content-Type: image/webp`
 - Response headers:
   - `Cache-Control: private, no-store`
+  - `Content-Disposition: inline`
+  - `Cross-Origin-Resource-Policy: same-origin`
+  - `Referrer-Policy: no-referrer`
   - `X-Content-Type-Options: nosniff`
+  - `X-Robots-Tag: noindex, noarchive`
   - `X-Preview-Cache: hit` when served from Redis
   - `X-Preview-Cache: miss` when Redis was bypassed and the route used the preview service
 - Common failures:
@@ -652,3 +677,9 @@ Important distinction:
 
 - if you are integrating from another service, use the documented HTTP routes in this file
 - if you are extending the web application itself, many write operations are implemented as server actions rather than external APIs
+
+## Related Docs
+
+- [Project Handbook](../architecture/project-handbook.md)
+- [Shared Preview Protection](../security/shared-preview-protection.md)
+- [Playwright Coverage](../testing/playwright.md)

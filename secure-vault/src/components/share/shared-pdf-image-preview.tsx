@@ -2,12 +2,40 @@
 
 import { useEffect, useState } from "react";
 
+import { ProtectedPreviewImage } from "@/components/share/protected-preview-image";
+
 import type { PdfPreviewManifest } from "@/lib/pdf-preview/types";
 
 type SharedPdfImagePreviewProps = {
   fileId?: string;
   fileName?: string;
   token: string;
+};
+
+type ManifestState =
+  | {
+      error: null;
+      key: string;
+      manifest: null;
+      status: "loading";
+    }
+  | {
+      error: null;
+      key: string;
+      manifest: PdfPreviewManifest;
+      status: "ready";
+    }
+  | {
+      error: string;
+      key: string;
+      manifest: null;
+      status: "error";
+    };
+
+type PageLoadState = {
+  failedPages: number[];
+  key: string;
+  loadedPages: number[];
 };
 
 function mapManifestError(status: number | null) {
@@ -30,22 +58,31 @@ export function SharedPdfImagePreview({
   fileName,
   token,
 }: SharedPdfImagePreviewProps) {
-  const [failedPages, setFailedPages] = useState<number[]>([]);
-  const [loadedPages, setLoadedPages] = useState<number[]>([]);
-  const [manifest, setManifest] = useState<PdfPreviewManifest | null>(null);
-  const [manifestError, setManifestError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const previewKey = `${token}:${fileId ?? ""}`;
+  const [manifestState, setManifestState] = useState<ManifestState>({
+    error: null,
+    key: previewKey,
+    manifest: null,
+    status: "loading",
+  });
+  const [pageLoadState, setPageLoadState] = useState<PageLoadState>({
+    failedPages: [],
+    key: previewKey,
+    loadedPages: [],
+  });
+  const failedPages = pageLoadState.key === previewKey ? pageLoadState.failedPages : [];
+  const loadedPages = pageLoadState.key === previewKey ? pageLoadState.loadedPages : [];
+  const manifest = manifestState.key === previewKey ? manifestState.manifest : null;
+  const manifestError =
+    manifestState.key === previewKey && manifestState.status === "error"
+      ? manifestState.error
+      : null;
+  const loading = manifestState.key !== previewKey || manifestState.status === "loading";
 
   useEffect(() => {
     const abortController = new AbortController();
     const fileQuery = fileId ? `?fileId=${encodeURIComponent(fileId)}` : "";
     const manifestUrl = `/api/share/${token}/pdf-preview${fileQuery}`;
-
-    setFailedPages([]);
-    setLoadedPages([]);
-    setLoading(true);
-    setManifest(null);
-    setManifestError(null);
 
     void fetch(manifestUrl, {
       signal: abortController.signal,
@@ -56,7 +93,13 @@ export function SharedPdfImagePreview({
         }
 
         const payload = (await response.json()) as PdfPreviewManifest;
-        setManifest(payload);
+        setPageLoadState({ failedPages: [], key: previewKey, loadedPages: [] });
+        setManifestState({
+          error: null,
+          key: previewKey,
+          manifest: payload,
+          status: "ready",
+        });
       })
       .catch((error) => {
         if (abortController.signal.aborted) {
@@ -64,18 +107,19 @@ export function SharedPdfImagePreview({
         }
 
         const status = Number(error instanceof Error ? error.message : "");
-        setManifestError(mapManifestError(Number.isFinite(status) ? status : null));
-      })
-      .finally(() => {
-        if (!abortController.signal.aborted) {
-          setLoading(false);
-        }
+        setPageLoadState({ failedPages: [], key: previewKey, loadedPages: [] });
+        setManifestState({
+          error: mapManifestError(Number.isFinite(status) ? status : null),
+          key: previewKey,
+          manifest: null,
+          status: "error",
+        });
       });
 
     return () => {
       abortController.abort();
     };
-  }, [fileId, token]);
+  }, [fileId, previewKey, token]);
 
   if (loading) {
     return (
@@ -107,7 +151,12 @@ export function SharedPdfImagePreview({
   }
 
   return (
-    <div className="h-full w-full overflow-auto bg-muted/15 p-3 sm:p-4">
+    <div
+      className="h-full w-full overflow-auto bg-muted/15 p-3 sm:p-4"
+      onContextMenu={(event) => {
+        event.preventDefault();
+      }}
+    >
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
         {manifest.pages.map((page) => {
           const pageFailed = failedPages.includes(page.page);
@@ -136,24 +185,49 @@ export function SharedPdfImagePreview({
                         data-testid={`shared-pdf-preview-page-skeleton-${page.page}`}
                       />
                     ) : null}
-                    <img
+                    <ProtectedPreviewImage
                       alt={`${fileName ?? manifest.fileName ?? "Shared PDF"} page ${page.page}`}
-                      className={`block h-auto w-full rounded-sm transition-opacity duration-200 ${
+                      className={`block w-full select-none rounded-sm transition-opacity duration-200 ${
                         pageLoaded ? "opacity-100" : "opacity-0"
                       }`}
-                      data-testid={`shared-pdf-preview-page-image-${page.page}`}
-                      loading="lazy"
+                      imageClassName="h-full w-full bg-contain bg-center bg-no-repeat"
                       onError={() => {
-                        setFailedPages((current) =>
-                          current.includes(page.page) ? current : [...current, page.page],
-                        );
+                        setPageLoadState((current) => {
+                          const currentFailedPages =
+                            current.key === previewKey ? current.failedPages : [];
+                          const currentLoadedPages =
+                            current.key === previewKey ? current.loadedPages : [];
+
+                          return {
+                            failedPages: currentFailedPages.includes(page.page)
+                              ? currentFailedPages
+                              : [...currentFailedPages, page.page],
+                            key: previewKey,
+                            loadedPages: currentLoadedPages,
+                          };
+                        });
                       }}
                       onLoad={() => {
-                        setLoadedPages((current) =>
-                          current.includes(page.page) ? current : [...current, page.page],
-                        );
+                        setPageLoadState((current) => {
+                          const currentFailedPages =
+                            current.key === previewKey ? current.failedPages : [];
+                          const currentLoadedPages =
+                            current.key === previewKey ? current.loadedPages : [];
+
+                          return {
+                            failedPages: currentFailedPages,
+                            key: previewKey,
+                            loadedPages: currentLoadedPages.includes(page.page)
+                              ? currentLoadedPages
+                              : [...currentLoadedPages, page.page],
+                          };
+                        });
                       }}
                       src={page.src}
+                      style={{
+                        aspectRatio: `${page.width} / ${page.height}`,
+                      }}
+                      testId={`shared-pdf-preview-page-image-${page.page}`}
                     />
                   </>
                 )}

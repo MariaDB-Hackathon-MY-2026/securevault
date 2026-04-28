@@ -113,4 +113,5 @@ Important limit of this coverage:
 ## Related docs
 
 - [Project Handbook](../architecture/project-handbook.md)
+- [Shared Preview Protection](../security/shared-preview-protection.md)
 - [API Reference](../reference/api.md)

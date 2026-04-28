@@ -165,7 +165,11 @@ describe("share pdf preview routes", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("image/webp");
+    expect(response.headers.get("Content-Disposition")).toBe("inline");
+    expect(response.headers.get("Cross-Origin-Resource-Policy")).toBe("same-origin");
+    expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
     expect(response.headers.get("X-Preview-Cache")).toBe("miss");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, noarchive");
     expect(mocks.recordShareAccess).not.toHaveBeenCalled();
     expect(mocks.assertDownloadAllowed).not.toHaveBeenCalled();
     expect(mocks.streamSharedFile).not.toHaveBeenCalled();
@@ -189,7 +193,11 @@ describe("share pdf preview routes", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(response.headers.get("Content-Disposition")).toBe("inline");
+    expect(response.headers.get("Cross-Origin-Resource-Policy")).toBe("same-origin");
+    expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
     expect(response.headers.get("X-Preview-Cache")).toBe("hit");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, noarchive");
     expect(await response.text()).toBe("cached-webp");
     expect(mocks.getSharedPdfPreviewPage).not.toHaveBeenCalled();
     expect(mocks.writeCachedSharedPdfPreviewPage).not.toHaveBeenCalled();

@@ -28,6 +28,14 @@ import {
 
 const SHARED_PDF_PREVIEW_CACHE_HEADER = "X-Preview-Cache";
 
+const PROTECTED_PREVIEW_HEADERS = {
+  "Content-Disposition": "inline",
+  "Cross-Origin-Resource-Policy": "same-origin",
+  "Referrer-Policy": "no-referrer",
+  "X-Content-Type-Options": "nosniff",
+  "X-Robots-Tag": "noindex, noarchive",
+} as const;
+
 function parsePageNumber(page: string) {
   if (!/^\d+$/.test(page)) {
     return null;
@@ -92,8 +100,8 @@ export async function GET(
           "Cache-Control": "private, no-store",
           "Content-Length": String(cachedPreviewPage.byteLength),
           "Content-Type": "image/webp",
+          ...PROTECTED_PREVIEW_HEADERS,
           [SHARED_PDF_PREVIEW_CACHE_HEADER]: "hit",
-          "X-Content-Type-Options": "nosniff",
         },
         status: 200,
       });
@@ -120,6 +128,10 @@ export async function GET(
     }
 
     response.headers.set(SHARED_PDF_PREVIEW_CACHE_HEADER, "miss");
+    for (const [header, value] of Object.entries(PROTECTED_PREVIEW_HEADERS)) {
+      response.headers.set(header, value);
+    }
+
     return response;
   } catch (error) {
     if (error instanceof ShareServiceError) {

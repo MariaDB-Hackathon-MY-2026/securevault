@@ -164,6 +164,10 @@ describe("share routes", () => {
       ownerId: "owner-1",
       signal: expect.any(AbortSignal),
     });
+    expect(response.headers.get("Content-Disposition")).toBe("inline");
+    expect(response.headers.get("Cross-Origin-Resource-Policy")).toBe("same-origin");
+    expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, noarchive");
   });
 
   it("returns 429 before streaming a shared download when the route is rate limited", async () => {
