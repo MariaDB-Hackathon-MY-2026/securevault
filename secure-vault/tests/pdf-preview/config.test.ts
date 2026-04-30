@@ -43,7 +43,7 @@ describe("shared pdf preview config", () => {
     process.env.SHARED_PDF_IMAGE_PREVIEW_MAX_BYTES = "12345";
     process.env.SHARED_PDF_IMAGE_PREVIEW_MAX_PAGE_IMAGE_BYTES = "67890";
     process.env.SHARED_PDF_IMAGE_PREVIEW_MAX_PAGES = "25";
-    process.env.SHARED_PDF_IMAGE_PREVIEW_RENDERER_PATH = "C:\\Tools\\poppler\\pdftocairo.exe";
+    process.env.SHARED_PDF_IMAGE_PREVIEW_RENDERER_PATH = "/opt/poppler/bin/pdftocairo";
     process.env.SHARED_PDF_IMAGE_PREVIEW_RENDER_VERSION = "3";
     resetSharedPdfPreviewConfigForTests();
 
@@ -53,7 +53,7 @@ describe("shared pdf preview config", () => {
       maxBytes: 12345,
       maxPageImageBytes: 67890,
       maxPages: 25,
-      rendererPath: "C:\\Tools\\poppler\\pdftocairo.exe",
+      rendererPath: "/opt/poppler/bin/pdftocairo",
       renderVersion: 3,
     });
   });

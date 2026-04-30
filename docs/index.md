@@ -7,16 +7,18 @@ hero:
   tagline: Start the app, understand the architecture, review shared-preview security, and inspect the implemented API and test surface.
   actions:
     - theme: brand
-      text: Start With Local Setup
-      link: /getting-started/local-development
+      text: Explore Features
+      link: /product/features
     - theme: alt
-      text: Read the Handbook
-      link: /architecture/project-handbook
+      text: Demo Walkthrough
+      link: /product/demo-walkthrough
     - theme: alt
-      text: Shared Preview Security
-      link: /security/shared-preview-protection
+      text: Technical Architecture
+      link: /architecture/technical-feature-architecture
 
 features:
+  - title: Product-first feature tour
+    details: Review the user-facing capabilities first, then see why each feature is backed by scalable, production-facing architecture.
   - title: MariaDB-centered system design
     details: The app uses MariaDB for far more than auth tables, including upload state, sharing controls, activity history, lifecycle management, and vector-backed semantic retrieval.
   - title: Shared-preview security model
@@ -31,14 +33,18 @@ features:
 
 Read the docs in this order if you are new to the project:
 
-1. [Local Development](./getting-started/local-development.md) gets the app and services running.
-2. [Project Handbook](./architecture/project-handbook.md) explains the product, architecture, data model, and key workflows.
-3. [Shared Preview Protection](./security/shared-preview-protection.md) documents the layered security and deterrence model for shared file previews.
-4. [API Reference](./reference/api.md) lists route-level contracts, access rules, limits, and response headers.
-5. [Docker and Compose](./operations/docker-compose.md) covers container workflows and environment expectations.
-6. [Playwright Coverage](./testing/playwright.md) describes the end-to-end test surface.
-7. [Benchmark Workflows](./testing/benchmarks.md) explains semantic retrieval and pipeline benchmarks.
-8. [UI Showcase](./product/ui-showcase.md) gives a fast visual tour without running the app.
+1. [Feature Tour](./product/features.md) explains what SecureVault can do and why each feature is architecturally credible.
+2. [Demo Walkthrough](./product/demo-walkthrough.md) gives reviewers a clean path through the live product experience.
+3. [Security In Plain English](./product/security-plain-english.md) explains the security posture and honest limits for non-technical readers.
+4. [Technical Feature Architecture](./architecture/technical-feature-architecture.md) maps the same capabilities to the engineering design.
+5. [Local Development](./getting-started/local-development.md) gets the app and services running.
+6. [Project Handbook](./architecture/project-handbook.md) remains the broad product and engineering reference.
+7. [Shared Preview Protection](./security/shared-preview-protection.md) documents the detailed shared-preview threat model.
+8. [API Reference](./reference/api.md) lists route-level contracts, access rules, limits, and response headers.
+9. [Docker and Compose](./operations/docker-compose.md) covers container workflows and environment expectations.
+10. [Playwright Coverage](./testing/playwright.md) describes the end-to-end test surface.
+11. [Benchmark Workflows](./testing/benchmarks.md) explains semantic retrieval and pipeline benchmarks.
+12. [UI Showcase](./product/ui-showcase.md) gives a fast visual tour without running the app.
 
 ## Documentation principles
 
