@@ -22,6 +22,7 @@ SEMANTIC_INDEXING_EXECUTION_MODE=inline
 SEMANTIC_INDEXING_PROVIDER=google
 GEMINI_API_KEY=...
 GEMINI_EMBEDDING_MODEL=gemini-embedding-2-preview
+SHARED_PDF_IMAGE_PREVIEW_ENABLED=true
 ```
 
 Optional:
@@ -46,6 +47,19 @@ Compose applies checked-in Drizzle migrations automatically before starting the 
 When `DISABLE_REDIS=true` in local development, the app uses a no-op Redis adapter even when `REDIS_URL` is present. That disables Redis-backed rate limiting and global upload slot enforcement locally, but keeps the rest of the app usable.
 
 The documented local default keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`. Because the provider guidance matches the current app setup, set `SEMANTIC_INDEXING_PROVIDER=google` with a valid `GEMINI_API_KEY`.
+
+Shared PDF image preview for public and restricted links is off by default. To test the secure WebP-based shared PDF viewer locally, enable:
+
+```bash
+SHARED_PDF_IMAGE_PREVIEW_ENABLED=true
+SHARED_PDF_IMAGE_PREVIEW_MAX_BYTES=26214400
+SHARED_PDF_IMAGE_PREVIEW_MAX_PAGES=100
+SHARED_PDF_IMAGE_PREVIEW_DPI=144
+SHARED_PDF_IMAGE_PREVIEW_MAX_PAGE_IMAGE_BYTES=2097152
+SHARED_PDF_IMAGE_PREVIEW_RENDER_VERSION=1
+```
+
+Docker builds install `poppler-utils`, which provides `pdftocairo` for server-side page rendering. If that binary is unavailable at runtime, shared PDF preview routes return `503` and the shared page falls back to its download-oriented error state.
 
 2. Start MariaDB:
 

@@ -6,6 +6,7 @@ import { ChevronRight, FileIcon, FolderIcon } from "lucide-react";
 
 import { formatExplorerDate, formatFileSize } from "@/components/files/file-browser-utils";
 import { Button } from "@/components/ui/button";
+import { SharedInspectionDeterrent } from "@/components/share/shared-inspection-deterrent";
 import { SharedDownloadButton } from "@/components/share/shared-download-button";
 import { SharedFileView } from "@/components/share/shared-file-view";
 import { ShareLogoutButton } from "@/components/share/share-logout-button";
@@ -77,6 +78,7 @@ export function SharedFolderView({
 
   return (
     <div className="flex h-screen w-full flex-col bg-muted/20">
+      <SharedInspectionDeterrent />
       <header className="flex h-14 items-center justify-between border-b bg-background px-4">
         <div className="flex items-center gap-2 font-medium">
           <FolderIcon className="size-5 text-muted-foreground" />

@@ -22,6 +22,7 @@ npm run docs:build
 - `index.md`: documentation homepage
 - `getting-started/`: onboarding and local setup
 - `architecture/`: product and internal system design
+- `security/`: access-control and preview-protection notes
 - `operations/`: runtime and deployment notes
 - `reference/`: API and contract-heavy documentation
 - `testing/`: automated coverage and benchmark documentation

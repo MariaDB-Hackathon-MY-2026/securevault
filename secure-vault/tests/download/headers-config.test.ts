@@ -10,6 +10,10 @@ describe("next config headers", () => {
 
     const filePreviewRule = headers?.find((rule) => rule.source === "/api/files/:id/preview");
     const sharePreviewRule = headers?.find((rule) => rule.source === "/api/share/:token/preview");
+    const sharePdfPreviewRule = headers?.find((rule) => rule.source === "/api/share/:token/pdf-preview");
+    const sharePdfPreviewPageRule = headers?.find(
+      (rule) => rule.source === "/api/share/:token/pdf-preview/pages/:page",
+    );
     const globalRule = headers?.find(
       (rule) =>
         rule.source === "/((?!api/files/[^/]+/preview$|api/share/[^/]+/preview$).*)",
@@ -35,6 +39,30 @@ describe("next config headers", () => {
         expect.objectContaining({
           key: "Content-Security-Policy",
           value: expect.stringContaining("frame-ancestors 'self'"),
+        }),
+      ]),
+    );
+
+    expect(sharePdfPreviewRule?.headers).toEqual(
+      expect.arrayContaining([
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "X-Frame-Options", value: "DENY" },
+        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        expect.objectContaining({
+          key: "Content-Security-Policy",
+          value: expect.stringContaining("frame-ancestors 'none'"),
+        }),
+      ]),
+    );
+
+    expect(sharePdfPreviewPageRule?.headers).toEqual(
+      expect.arrayContaining([
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "X-Frame-Options", value: "DENY" },
+        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        expect.objectContaining({
+          key: "Content-Security-Policy",
+          value: expect.stringContaining("frame-ancestors 'none'"),
         }),
       ]),
     );

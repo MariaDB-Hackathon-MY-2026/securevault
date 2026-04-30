@@ -4,42 +4,52 @@ layout: home
 hero:
   name: SecureVault Docs
   text: Product depth, system design, and operating guidance in one place
-  tagline: Review the product, understand the architecture, run it locally, and inspect the implemented API and test surface.
+  tagline: Start the app, understand the architecture, review shared-preview security, and inspect the implemented API and test surface.
   actions:
     - theme: brand
-      text: Start With Local Setup
-      link: /getting-started/local-development
+      text: Explore Features
+      link: /product/features
     - theme: alt
-      text: Read the Handbook
-      link: /architecture/project-handbook
+      text: Demo Walkthrough
+      link: /product/demo-walkthrough
     - theme: alt
-      text: Browse the API
-      link: /reference/api
+      text: Technical Architecture
+      link: /architecture/technical-feature-architecture
 
 features:
-  - title: Clear documentation structure
-    details: The site is organized by onboarding, architecture, operations, reference, quality, and product showcase instead of a flat numbered file list.
-  - title: GitHub Pages ready
-    details: The docs build as a static VitePress site and deploy through the official GitHub Pages Actions flow rather than a generated branch.
-  - title: Repository grounded
-    details: Every page is derived from the codebase and current repository behavior, including API routes, Docker workflows, and test coverage.
+  - title: Product-first feature tour
+    details: Review the user-facing capabilities first, then see why each feature is backed by scalable, production-facing architecture.
   - title: MariaDB-centered system design
     details: The app uses MariaDB for far more than auth tables, including upload state, sharing controls, activity history, lifecycle management, and vector-backed semantic retrieval.
+  - title: Shared-preview security model
+    details: The docs now explain SSR access gates, email allowlists, OTP sessions, protected preview rendering, no-store headers, and honest browser-copying limits.
+  - title: Repository grounded
+    details: Every page is derived from current repository behavior, including API routes, Docker workflows, security controls, and test coverage.
+  - title: GitHub Pages ready
+    details: The docs build as a static VitePress site and deploy through the official GitHub Pages Actions flow rather than a generated branch.
 ---
 
 ## What lives here
 
-- Use [Local Development](./getting-started/local-development.md) when you want to boot the project quickly.
-- Use [Project Handbook](./architecture/project-handbook.md) when you need the product and engineering overview.
-- Use [API Reference](./reference/api.md) when you need route-level contracts and limits.
-- Use [Docker and Compose](./operations/docker-compose.md) for container workflows and env expectations.
-- Use [Playwright Coverage](./testing/playwright.md) to understand the current end-to-end test surface.
-- Use [Benchmark Workflows](./testing/benchmarks.md) when you need to run or interpret the semantic retrieval and pipeline benchmarks.
-- Use [UI Showcase](./product/ui-showcase.md) when you want a fast visual tour without running the app.
+Read the docs in this order if you are new to the project:
+
+1. [Feature Tour](./product/features.md) explains what SecureVault can do and why each feature is architecturally credible.
+2. [Demo Walkthrough](./product/demo-walkthrough.md) gives reviewers a clean path through the live product experience.
+3. [Security In Plain English](./product/security-plain-english.md) explains the security posture and honest limits for non-technical readers.
+4. [Technical Feature Architecture](./architecture/technical-feature-architecture.md) maps the same capabilities to the engineering design.
+5. [Local Development](./getting-started/local-development.md) gets the app and services running.
+6. [Project Handbook](./architecture/project-handbook.md) remains the broad product and engineering reference.
+7. [Shared Preview Protection](./security/shared-preview-protection.md) documents the detailed shared-preview threat model.
+8. [API Reference](./reference/api.md) lists route-level contracts, access rules, limits, and response headers.
+9. [Docker and Compose](./operations/docker-compose.md) covers container workflows and environment expectations.
+10. [Playwright Coverage](./testing/playwright.md) describes the end-to-end test surface.
+11. [Benchmark Workflows](./testing/benchmarks.md) explains semantic retrieval and pipeline benchmarks.
+12. [UI Showcase](./product/ui-showcase.md) gives a fast visual tour without running the app.
 
 ## Documentation principles
 
 - Keep public docs grouped by user intent instead of by the order they were written.
+- Put security notes near the flows they protect, then link to dedicated deep dives for details.
 - Prefer relative links between pages so the docs work both on GitHub and on the published site.
 - Store static site assets under `docs/public/` so GitHub Pages builds do not depend on files outside the docs source tree.
 - Deploy with GitHub Actions artifacts, which is GitHub's recommended path when you need a static site build step.

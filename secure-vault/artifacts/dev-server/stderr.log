@@ -1,0 +1,44 @@
+Shared PDF preview manifest failed Error: Failed query: select `id`, `file_id`, `page_number`, `render_version`, `width`, `height`, `mime_type`, `size`, `r2_key`, `iv`, `auth_tag`, `status`, `error_message`, `created_at`, `updated_at` from `pdf_preview_pages` where (`pdf_preview_pages`.`file_id` = ? and `pdf_preview_pages`.`render_version` = ?)
+params: fJPYZiIxFD_w4FbKjGNo7,1
+    at async getSharedPdfPreviewManifest (src\lib\pdf-preview\shared-service.ts:172:23)
+    at async GET (src\app\api\share\[token]\pdf-preview\route.ts:63:22)
+  170 |   }
+  171 |
+> 172 |   const storedPages = await listPreviewPages({
+      |                       ^
+  173 |     fileId: input.fileId,
+  174 |     renderVersion: config.renderVersion,
+  175 |   }); {
+  query: 'select `id`, `file_id`, `page_number`, `render_version`, `width`, `height`, `mime_type`, `size`, `r2_key`, `iv`, `auth_tag`, `status`, `error_message`, `created_at`, `updated_at` from `pdf_preview_pages` where (`pdf_preview_pages`.`file_id` = ? and `pdf_preview_pages`.`render_version` = ?)',
+  params: [ 'fJPYZiIxFD_w4FbKjGNo7', 1 ],
+  [cause]: Error: Table 'SecureVault.pdf_preview_pages' doesn't exist
+      at ignore-listed frames {
+    code: 'ER_NO_SUCH_TABLE',
+    errno: 1146,
+    sql: "select `id`, `file_id`, `page_number`, `render_version`, `width`, `height`, `mime_type`, `size`, `r2_key`, `iv`, `auth_tag`, `status`, `error_message`, `created_at`, `updated_at` from `pdf_preview_pages` where (`pdf_preview_pages`.`file_id` = 'fJPYZiIxFD_w4FbKjGNo7' and `pdf_preview_pages`.`render_version` = 1)",
+    sqlState: '42S02',
+    sqlMessage: "Table 'SecureVault.pdf_preview_pages' doesn't exist"
+  }
+}
+Shared PDF preview manifest failed Error: Failed query: select `id`, `file_id`, `page_number`, `render_version`, `width`, `height`, `mime_type`, `size`, `r2_key`, `iv`, `auth_tag`, `status`, `error_message`, `created_at`, `updated_at` from `pdf_preview_pages` where (`pdf_preview_pages`.`file_id` = ? and `pdf_preview_pages`.`render_version` = ?)
+params: fJPYZiIxFD_w4FbKjGNo7,1
+    at async getSharedPdfPreviewManifest (src\lib\pdf-preview\shared-service.ts:172:23)
+    at async GET (src\app\api\share\[token]\pdf-preview\route.ts:63:22)
+  170 |   }
+  171 |
+> 172 |   const storedPages = await listPreviewPages({
+      |                       ^
+  173 |     fileId: input.fileId,
+  174 |     renderVersion: config.renderVersion,
+  175 |   }); {
+  query: 'select `id`, `file_id`, `page_number`, `render_version`, `width`, `height`, `mime_type`, `size`, `r2_key`, `iv`, `auth_tag`, `status`, `error_message`, `created_at`, `updated_at` from `pdf_preview_pages` where (`pdf_preview_pages`.`file_id` = ? and `pdf_preview_pages`.`render_version` = ?)',
+  params: [ 'fJPYZiIxFD_w4FbKjGNo7', 1 ],
+  [cause]: Error: Table 'SecureVault.pdf_preview_pages' doesn't exist
+      at ignore-listed frames {
+    code: 'ER_NO_SUCH_TABLE',
+    errno: 1146,
+    sql: "select `id`, `file_id`, `page_number`, `render_version`, `width`, `height`, `mime_type`, `size`, `r2_key`, `iv`, `auth_tag`, `status`, `error_message`, `created_at`, `updated_at` from `pdf_preview_pages` where (`pdf_preview_pages`.`file_id` = 'fJPYZiIxFD_w4FbKjGNo7' and `pdf_preview_pages`.`render_version` = 1)",
+    sqlState: '42S02',
+    sqlMessage: "Table 'SecureVault.pdf_preview_pages' doesn't exist"
+  }
+}

@@ -42,7 +42,7 @@ This starts MariaDB, Redis, migrations, and the production-built Next.js `web` c
 
 ```powershell
 docker compose --profile app build --no-cache
-docker compose --profile app up web
+docker compose --profile app up
 ```
 
 Use this when you want a reproducible Docker smoke run for the web app without the background embeddings worker.
@@ -53,7 +53,7 @@ This starts MariaDB, Redis, migrations, the production-built Next.js `web` conta
 
 ```powershell
 docker compose --profile app --profile worker build --no-cache
-docker compose --profile app --profile worker up web worker
+docker compose --profile app --profile worker up
 ```
 
 Use this when you are testing the whole containerized app path with queued semantic indexing enabled.
@@ -117,14 +117,14 @@ Start web and services:
 
 ```powershell
 docker compose --profile app build --no-cache
-docker compose --profile app up web
+docker compose --profile app up
 ```
 
 Start web, worker, and services:
 
 ```powershell
 docker compose --profile app --profile worker build --no-cache
-docker compose --profile app --profile worker up web worker
+docker compose --profile app --profile worker up
 ```
 
 Stop the web and worker app containers:

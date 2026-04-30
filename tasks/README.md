@@ -28,6 +28,7 @@
 | **Phase 19** | PDF Semantic Indexing & Search      | Phase 1, 4, 5, 14 |
 | **Phase 20** | SeaweedFS Migration & Object Storage Abstraction | Phase 4, 5, 9, 10, 18 |
 | **Phase 21** | OCR-Backed Hybrid Retrieval         | Phase 1, 2, 4, 5, 14, 19, 20 |
+| **Phase 22** | Secure Shared PDF Image Preview     | Phase 1, 2, 4, 5, 8, 10, 12 |
 
 ## Structure
 

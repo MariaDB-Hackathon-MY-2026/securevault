@@ -1,0 +1,44 @@
+
+> secure-vault@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://172.26.112.1:3000
+- Environments: .env.local
+✓ Ready in 377ms
+
+ GET /s/YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o 200 in 1320ms (next.js: 907ms, application-code: 413ms)
+ GET /files 200 in 1603ms (next.js: 459ms, proxy.ts: 293ms, application-code: 850ms)
+ GET /api/files/trash/summary 200 in 69ms (next.js: 34ms, proxy.ts: 8ms, application-code: 27ms)
+ GET /api/share/YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o/folder?folderId=Hf48vkuWEdYgxSiMBxNpB 200 in 834ms (next.js: 817ms, application-code: 16ms)
+ GET / 200 in 228ms (next.js: 43ms, application-code: 185ms)
+[redis-debug] Opening Redis connection
+[redis-debug] Redis connection opened (6.8ms)
+[redis-debug] INCR rate-limit:download:::1:YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o (12.4ms)
+[redis-debug] EXPIRE rate-limit:download:::1:YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o (1.4ms)
+[redis-debug] TTL rate-limit:download:::1:YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o (0.9ms)
+[rate-limit-debug] Allowed rate-limit:download:::1:YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o (38.0ms)
+ GET /api/share/YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o/pdf-preview?fileId=fJPYZiIxFD_w4FbKjGNo7 403 in 1251ms (next.js: 1188ms, application-code: 63ms)
+ GET /api/files/explorer 200 in 84ms (next.js: 40ms, proxy.ts: 27ms, application-code: 17ms)
+ GET /api/files/trash/summary 200 in 86ms (next.js: 5ms, proxy.ts: 27ms, application-code: 54ms)
+ GET /api/share/YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o/folder?folderId=Hf48vkuWEdYgxSiMBxNpB 200 in 27ms (next.js: 10ms, application-code: 17ms)
+ GET /api/share/YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o/folder?folderId=DDsl_nKG89lEsKCr34NDK 200 in 33ms (next.js: 11ms, application-code: 22ms)
+[redis-debug] Using cached Redis adapter
+[redis-debug] INCR rate-limit:download:::1:YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o (2.3ms)
+[redis-debug] TTL rate-limit:download:::1:YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o (1.2ms)
+[rate-limit-debug] Allowed rate-limit:download:::1:YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o (6.1ms)
+ GET /api/share/YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o/pdf-preview?fileId=fJPYZiIxFD_w4FbKjGNo7 500 in 719ms (next.js: 13ms, application-code: 706ms)
+ GET /api/share/YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o/folder?folderId=DDsl_nKG89lEsKCr34NDK 200 in 32ms (next.js: 12ms, application-code: 19ms)
+ GET /s/YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o 200 in 121ms (next.js: 11ms, application-code: 110ms)
+ GET /api/share/YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o/folder?folderId=Hf48vkuWEdYgxSiMBxNpB 200 in 41ms (next.js: 9ms, application-code: 32ms)
+ GET /api/share/YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o/folder?folderId=DDsl_nKG89lEsKCr34NDK 200 in 31ms (next.js: 9ms, application-code: 22ms)
+[redis-debug] Using cached Redis adapter
+[redis-debug] INCR rate-limit:download:::1:YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o (2.1ms)
+[redis-debug] TTL rate-limit:download:::1:YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o (1.1ms)
+[rate-limit-debug] Allowed rate-limit:download:::1:YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o (5.1ms)
+ GET /api/share/YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o/pdf-preview?fileId=fJPYZiIxFD_w4FbKjGNo7 500 in 362ms (next.js: 9ms, application-code: 353ms)
+ GET /api/auth/current-user 200 in 66ms (next.js: 47ms, application-code: 18ms)
+ GET /api/files/trash/summary 200 in 92ms (next.js: 9ms, proxy.ts: 63ms, application-code: 20ms)
+ GET /api/files/explorer 200 in 97ms (next.js: 18ms, proxy.ts: 63ms, application-code: 15ms)
+ GET /api/share/YxdbaE70FYGMmhYOqSSw0y8RD0OPo79o/folder?folderId=DDsl_nKG89lEsKCr34NDK 200 in 28ms (next.js: 8ms, application-code: 20ms)

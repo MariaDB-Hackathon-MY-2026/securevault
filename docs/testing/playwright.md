@@ -64,7 +64,7 @@ CI note:
 | File and folder management | `file-actions.spec.ts`, `file-browser-controls.spec.ts` | folder creation, file rename, file move, folder move, descendant-move prevention, deletes, bulk actions, grid and list modes, filename search, sorting, breadcrumb updates |
 | File access | `file-access.spec.ts` | real multi-chunk downloads with checksum verification, unauthorized preview and download returning `404` |
 | Sharing: owner flows | `share-owner-management.spec.ts`, `share-owner-validation.spec.ts`, `share-download-limits.spec.ts` | create, edit, and revoke links, download-cap validation, duplicate email normalization, switch restricted links back to public, owner UI reflecting usage limits |
-| Sharing: visitor flows | `share-public-file.spec.ts`, `share-preview-variants.spec.ts`, `share-folder.spec.ts`, `share-restricted-file.spec.ts`, `share-restricted-edge-cases.spec.ts`, `share-session-invalidation.spec.ts` | direct public previews, public downloads, folder navigation, restricted email allowlists, OTP unlock, wrong-code lockouts, expired OTPs, OTP replacement, visitor sign-out, revoked or expired sessions |
+| Sharing: visitor flows | `share-public-file.spec.ts`, `share-preview-variants.spec.ts`, `share-folder.spec.ts`, `share-restricted-file.spec.ts`, `share-restricted-edge-cases.spec.ts`, `share-session-invalidation.spec.ts` | direct public previews, shared PDF image preview, Redis cache hit/miss signaling for shared PDF pages, public downloads, folder navigation, restricted email allowlists, OTP unlock, wrong-code lockouts, expired OTPs, OTP replacement, visitor sign-out, revoked or expired sessions |
 | Share auditing | `share-access-logging.spec.ts` | restricted unlock logs and successful download logging |
 | Trash | `trash.spec.ts` | delete, restore, permanent delete, subtree trash behavior, mixed-item empty trash, restore conflict handling |
 | Storage, filename search, and semantic search | `storage-search.spec.ts`, `semantic-indexing.spec.ts` | zero states, storage card updates, filename search thresholds, semantic result rendering, page-range context, multi-page window matches, re-index and retry actions, soft-deleted files disappearing from semantic results |
@@ -80,6 +80,28 @@ Examples:
 - queue-control specs mock some upload endpoints so pause, resume, and cancel behavior stays deterministic
 - helper utilities create and clean up test users so specs can own their own setup
 
+## Shared PDF Preview Cache Coverage
+
+The shared PDF preview cache path is covered in the end-to-end suite through `share-preview-variants.spec.ts`.
+
+What that spec validates today:
+
+- a public shared PDF loads through `/api/share/:token/pdf-preview`
+- the rendered page image loads through `/api/share/:token/pdf-preview/pages/1`
+- the response `content-type` is `image/webp`, not `application/pdf`
+- the first page-image response reports `X-Preview-Cache: miss`
+- a second fresh browser context opening the same shared PDF reports `X-Preview-Cache: hit`
+
+Why the header exists:
+
+- Playwright can observe network traffic, but without a deterministic signal it cannot distinguish a Redis-served response from a service/R2-served response
+- `X-Preview-Cache` gives the suite a stable assertion surface for the hot-cache path without exposing any sensitive cache internals to end users
+
+Important limit of this coverage:
+
+- the test proves the page route can warm Redis and then serve a later request from Redis
+- access checks still happen before the cache lookup, but that authorization ordering is primarily enforced by route-level tests and the architecture itself rather than by a browser-only assertion
+
 ## What is not covered yet
 
 - cross-browser coverage beyond Chromium
@@ -91,4 +113,5 @@ Examples:
 ## Related docs
 
 - [Project Handbook](../architecture/project-handbook.md)
+- [Shared Preview Protection](../security/shared-preview-protection.md)
 - [API Reference](../reference/api.md)

@@ -71,6 +71,13 @@
       "when": 1776257744000,
       "tag": "0009_semantic_indexing",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1777298400000,
+      "tag": "0010_pdf_preview_pages",
+      "breakpoints": true
     }
   ]
 }

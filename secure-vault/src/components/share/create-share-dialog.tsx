@@ -142,6 +142,11 @@ export function CreateShareDialog({
             <p className="text-xs text-muted-foreground">
               Leave empty to create a public link. Add comma-separated emails to require OTP verification.
             </p>
+            <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              Restricted links tie preview access to the allowed email addresses. SecureVault
+              reduces casual saving and inspection, but any verified viewer can still capture
+              what appears on their screen.
+            </div>
           </div>
 
           <div className="flex justify-end">

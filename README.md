@@ -37,7 +37,7 @@ The repository docs are now structured as a VitePress site in [`docs/`](docs/) s
 
 - Encrypted-at-rest file handling with a layered key model instead of plain object storage uploads.
 - Resumable chunked uploads with queue controls, retry handling, and server-aware concurrency limits.
-- File and folder sharing with public and restricted links, OTP verification, download caps, and access logging.
+- File and folder sharing with public and restricted links, OTP verification, secure shared PDF image preview, download caps, and access logging.
 - Operational lifecycle features including trash, restore, permanent delete, storage dashboards, and activity feeds.
 - Optional semantic indexing for eligible PDFs and images, so AI search enhances the product instead of defining it.
 - Real engineering surface area: documented architecture, Docker workflows, Vitest coverage, and a sizable Playwright suite.
@@ -49,7 +49,7 @@ The repository docs are now structured as a VitePress site in [`docs/`](docs/) s
 | Authentication | Signup, login, secure session cookies, forgot-password OTP reset |
 | File ingestion | Chunked uploads, resume flows, upload queue controls, encrypted storage in Cloudflare R2 |
 | Workspace | File explorer, folders, search, preview, download, rename, move, bulk actions |
-| Sharing | Public links, restricted links, email allowlists, OTP unlock, download limits, access logs |
+| Sharing | Public links, restricted links, email allowlists, OTP unlock, secure shared PDF image preview, download limits, access logs |
 | Lifecycle | Trash, restore, permanent delete, cleanup flows, storage visibility, activity timeline |
 | AI search | Optional semantic indexing and semantic search for supported PDFs and images |
 
@@ -161,6 +161,7 @@ The default local workflow runs the app on the host while MariaDB and Redis run 
 - For local runs without Redis-backed coordination, set `DISABLE_REDIS=true`.
 - The documented local default keeps semantic indexing enabled with `SEMANTIC_INDEXING_EXECUTION_MODE=inline`.
 - For local semantic indexing without an external Gemini key, use `SEMANTIC_INDEXING_PROVIDER=fake`.
+- Shared PDF links can use the secure WebP preview flow when `SHARED_PDF_IMAGE_PREVIEW_ENABLED=true`; on host-run Windows development, set `SHARED_PDF_IMAGE_PREVIEW_RENDERER_PATH` to your `pdftocairo.exe` path if Poppler is not already on `PATH`.
 - If `RESEND_API_KEY` is unset, OTP and email flows log locally instead of sending real email.
 
 For the repo's canonical local setup flow, see [docs/getting-started/local-development.md](docs/getting-started/local-development.md).
@@ -184,6 +185,8 @@ Use the full container stack:
 ```powershell
 docker compose --profile app up --build
 ```
+
+The app container installs `poppler-utils`, so `pdftocairo` is available for the secure shared PDF preview path when you run the full containerized stack.
 
 Start the embeddings worker only when queued indexing is intentionally enabled:
 

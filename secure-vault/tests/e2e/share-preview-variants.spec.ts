@@ -65,7 +65,7 @@ test.describe("share preview variants", () => {
     }
   });
 
-  test("renders the direct public pdf share with the iframe preview path", async ({
+  test("renders the direct public pdf share with the secure image preview path", async ({
     browser,
     page,
   }, testInfo) => {
@@ -91,13 +91,83 @@ test.describe("share preview variants", () => {
         maxDownloads: null,
       });
 
+      const manifestResponsePromise = visitor.page.waitForResponse(
+        (response) =>
+          response.url().includes(`/api/share/${link.token}/pdf-preview`)
+          && !response.url().includes("/pages/"),
+      );
+      const pageImageResponsePromise = visitor.page.waitForResponse(
+        (response) =>
+          response.url().includes(`/api/share/${link.token}/pdf-preview/pages/1`),
+      );
+
       await visitor.page.goto(`/s/${link.token}`);
-      await expect(visitor.page.getByTestId("shared-preview-frame")).toBeVisible();
-      await expect(visitor.page.getByTestId("shared-preview-image")).toHaveCount(0);
+      await expect(visitor.page.getByTestId("shared-preview-frame")).toHaveCount(0);
+      await expect(visitor.page.getByTestId("shared-pdf-preview-page-image-1")).toBeVisible();
       await expect(visitor.page.getByLabel("Email Address")).toHaveCount(0);
+      const manifestResponse = await manifestResponsePromise;
+      const pageImageResponse = await pageImageResponsePromise;
+      expect(manifestResponse.headers()["content-type"]).toContain("application/json");
+      expect(pageImageResponse.headers()["content-type"]).toContain("image/webp");
+      expect(pageImageResponse.headers()["content-type"]).not.toContain("application/pdf");
+      expect(pageImageResponse.headers()["x-preview-cache"]).toBe("miss");
     } finally {
       await clearBrowserStorage(visitor.page);
       await visitor.context.close();
+    }
+  });
+
+  test("serves the second direct public pdf preview page request from redis cache", async ({
+    browser,
+    page,
+  }, testInfo) => {
+    test.setTimeout(180_000);
+    const credentials = buildTestUserCredentials(testInfo);
+    const firstVisitor = await createVisitorPage(browser);
+    const secondVisitor = await createVisitorPage(browser);
+
+    try {
+      await signUpAndBypassVerification(page, credentials);
+      await openFilesPage(page);
+      await uploadFiles(page, ["tiny.pdf"]);
+
+      const userId = await getUserIdByEmail(credentials.email);
+      expect(userId).not.toBeNull();
+      const fileId = await getFileIdForUser(userId!, "tiny.pdf");
+      expect(fileId).not.toBeNull();
+
+      const link = await createShareLinkFixture({
+        allowedEmails: [],
+        createdBy: userId!,
+        expiresAt: null,
+        fileId: fileId!,
+        maxDownloads: null,
+      });
+
+      const firstPageImageResponsePromise = firstVisitor.page.waitForResponse(
+        (response) =>
+          response.url().includes(`/api/share/${link.token}/pdf-preview/pages/1`),
+      );
+
+      await firstVisitor.page.goto(`/s/${link.token}`);
+      await expect(firstVisitor.page.getByTestId("shared-pdf-preview-page-image-1")).toBeVisible();
+      const firstPageImageResponse = await firstPageImageResponsePromise;
+      expect(firstPageImageResponse.headers()["x-preview-cache"]).toBe("miss");
+
+      const secondPageImageResponsePromise = secondVisitor.page.waitForResponse(
+        (response) =>
+          response.url().includes(`/api/share/${link.token}/pdf-preview/pages/1`),
+      );
+
+      await secondVisitor.page.goto(`/s/${link.token}`);
+      await expect(secondVisitor.page.getByTestId("shared-pdf-preview-page-image-1")).toBeVisible();
+      const secondPageImageResponse = await secondPageImageResponsePromise;
+      expect(secondPageImageResponse.headers()["x-preview-cache"]).toBe("hit");
+    } finally {
+      await clearBrowserStorage(firstVisitor.page);
+      await clearBrowserStorage(secondVisitor.page);
+      await firstVisitor.context.close();
+      await secondVisitor.context.close();
     }
   });
 

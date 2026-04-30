@@ -2,9 +2,9 @@ import "server-only";
 
 import { and, asc, eq, isNull } from "drizzle-orm";
 
-import { decryptFEK } from "@/lib/crypto";
+import { decryptFEK, decryptUEK } from "@/lib/crypto";
 import { MariadbConnection } from "@/lib/db";
-import { fileChunks, files } from "@/lib/db/schema";
+import { fileChunks, files, users } from "@/lib/db/schema";
 import { createDecryptStream } from "@/lib/crypto";
 import { getObjectStream } from "@/lib/storage/r2";
 import { EmbeddingError } from "@/lib/ai/embeddings/errors";
@@ -148,6 +148,92 @@ export async function readOwnedFileBytes(input: {
     return {
       bytes: Buffer.concat(chunkBuffers),
       file,
+    };
+  } catch (error) {
+    if (error instanceof EmbeddingError) {
+      throw error;
+    }
+
+    if (error instanceof Error && error.message.toLowerCase().includes("decrypt")) {
+      throw new EmbeddingError("DECRYPT_FAILED", "Failed to decrypt file contents.", {
+        cause: error,
+        retryable: false,
+      });
+    }
+
+    throw new EmbeddingError("R2_READ_FAILED", "Failed to read file contents from object storage.", {
+      cause: error,
+    });
+  }
+}
+
+export async function readSharedFileBytes(input: {
+  fileId: string;
+  ownerId: string;
+  signal?: AbortSignal;
+}): Promise<{
+  bytes: Buffer;
+  file: {
+    encryptedFek: Buffer;
+    mimeType: string;
+    name: string;
+    size: number;
+    totalChunks: number;
+  };
+  ownerUek: Buffer;
+} | null> {
+  const db = MariadbConnection.getConnection();
+  const [owner] = await db
+    .select({ encryptedUek: users.encrypted_uek })
+    .from(users)
+    .where(eq(users.id, input.ownerId))
+    .limit(1);
+
+  if (!owner) {
+    return null;
+  }
+
+  const ownerUek = decryptUEK(owner.encryptedUek);
+  const file = await findOwnedDecryptableFile(input.ownerId, input.fileId);
+
+  if (!file) {
+    return null;
+  }
+
+  validateDecryptableFileChunks(file.chunks, file.totalChunks);
+
+  let fek: Buffer;
+  try {
+    fek = decryptFEK(file.encryptedFek, ownerUek);
+  } catch (error) {
+    throw new EmbeddingError("DECRYPT_FAILED", "Failed to decrypt the file encryption key.", {
+      cause: error,
+      retryable: false,
+    });
+  }
+
+  try {
+    const chunkBuffers: Buffer[] = [];
+
+    for (const chunk of file.chunks) {
+      const encryptedStream = await getObjectStream(chunk.r2Key, input.signal);
+      const decryptedStream = encryptedStream.pipeThrough(
+        createDecryptStream(fek, chunk.iv, chunk.authTag),
+      );
+
+      chunkBuffers.push(await collectStream(decryptedStream));
+    }
+
+    return {
+      bytes: Buffer.concat(chunkBuffers),
+      file: {
+        encryptedFek: file.encryptedFek,
+        mimeType: file.mimeType,
+        name: file.name,
+        size: file.size,
+        totalChunks: file.totalChunks,
+      },
+      ownerUek,
     };
   } catch (error) {
     if (error instanceof EmbeddingError) {

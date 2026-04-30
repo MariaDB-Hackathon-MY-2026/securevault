@@ -39,8 +39,10 @@ type DocsThemeConfig = DefaultTheme.Config & {
 const themeConfig: DocsThemeConfig = {
   nav: [
     { text: "Docs Home", link: "/" },
+    { text: "Features", link: "/product/features" },
     { text: "Getting Started", link: "/getting-started/local-development" },
     { text: "Architecture", link: "/architecture/project-handbook" },
+    { text: "Security", link: "/security/shared-preview-protection" },
     { text: "API", link: "/reference/api" },
     { text: "GitHub", link: repoUrl },
   ],
@@ -70,14 +72,35 @@ const themeConfig: DocsThemeConfig = {
       text: "Start Here",
       items: [
         { text: "Overview", link: "/" },
+        { text: "Feature Tour", link: "/product/features" },
+        { text: "Demo Walkthrough", link: "/product/demo-walkthrough" },
         { text: "Local Development", link: "/getting-started/local-development" },
+      ],
+    },
+    {
+      text: "Product",
+      items: [
+        { text: "Feature Tour", link: "/product/features" },
+        { text: "Demo Walkthrough", link: "/product/demo-walkthrough" },
+        { text: "Security In Plain English", link: "/product/security-plain-english" },
+        { text: "UI Showcase", link: "/product/ui-showcase" },
       ],
     },
     {
       text: "Architecture",
       items: [
         { text: "Project Handbook", link: "/architecture/project-handbook" },
+        {
+          text: "Technical Feature Architecture",
+          link: "/architecture/technical-feature-architecture",
+        },
         { text: "Upload Queue", link: "/architecture/upload-queue" },
+      ],
+    },
+    {
+      text: "Security",
+      items: [
+        { text: "Shared Preview Protection", link: "/security/shared-preview-protection" },
       ],
     },
     {
@@ -94,10 +117,6 @@ const themeConfig: DocsThemeConfig = {
         { text: "Playwright Coverage", link: "/testing/playwright" },
         { text: "Benchmark Workflows", link: "/testing/benchmarks" },
       ],
-    },
-    {
-      text: "Product",
-      items: [{ text: "UI Showcase", link: "/product/ui-showcase" }],
     },
   ],
   socialLinks: [{ icon: "github", link: repoUrl }],
